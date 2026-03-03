@@ -1,0 +1,3914 @@
+{
+  "CLIENTS": [
+    {
+      "id": 1,
+      "name": "Starbucks",
+      "cat": "F&B"
+    },
+    {
+      "id": 2,
+      "name": "Ace Hardware",
+      "cat": "Retail"
+    },
+    {
+      "id": 3,
+      "name": "Popeyes",
+      "cat": "F&B"
+    },
+    {
+      "id": 4,
+      "name": "7-Eleven",
+      "cat": "Retail"
+    },
+    {
+      "id": 5,
+      "name": "Wolfgang Grill",
+      "cat": "F&B"
+    },
+    {
+      "id": 6,
+      "name": "Rolex",
+      "cat": "Retail"
+    },
+    {
+      "id": 7,
+      "name": "Amazon Fulfillment",
+      "cat": "Warehouse"
+    },
+    {
+      "id": 8,
+      "name": "FedEx Depot",
+      "cat": "Warehouse"
+    },
+    {
+      "id": 9,
+      "name": "IKEA",
+      "cat": "Retail"
+    },
+    {
+      "id": 10,
+      "name": "DHL Warehouse",
+      "cat": "Warehouse"
+    },
+    {
+      "id": 11,
+      "name": "McDonald's",
+      "cat": "F&B"
+    },
+    {
+      "id": 12,
+      "name": "Nike Retail",
+      "cat": "Retail"
+    },
+    {
+      "id": 13,
+      "name": "Puma",
+      "cat": "Retail"
+    },
+    {
+      "id": 14,
+      "name": "Jollibee",
+      "cat": "F&B"
+    },
+    {
+      "id": 15,
+      "name": "UPS Supply Chain",
+      "cat": "Warehouse"
+    }
+  ],
+  "COURSES": [
+    {
+      "title": "POS — Introduction",
+      "desc": "Guide to the basics of using a Point of Sales system.",
+      "time": "1 Hour",
+      "thumb": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=160&fit=crop",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Getting Started with POS",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Welcome & Course Overview",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Welcome & Course Overview",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<p>Welcome to <strong>POS — Introduction</strong>! In this course you'll learn the fundamentals of Point of Sale systems used across retail, F&amp;B, and warehouse environments.</p><h3>What you'll cover</h3><ul><li>The purpose and components of a POS system</li><li>Processing sales, refunds, and exchanges</li><li>End-of-day procedures and reporting</li></ul><div class=\"info-box\"><strong>💡 Tip:</strong> Take notes as you go — there's a quiz at the end of each module!</div>",
+                "segments": [
+                  {
+                    "id": "pos-acc-1",
+                    "type": "accordion",
+                    "title": "Key Terminology",
+                    "items": [
+                      {
+                        "q": "What is a POS system?",
+                        "a": "A Point of Sale system is the combination of hardware and software used to process customer transactions at the point where a sale is made."
+                      },
+                      {
+                        "q": "What is a PED?",
+                        "a": "A PIN Entry Device — the card reader used by customers to enter their PIN for debit and credit card transactions."
+                      },
+                      {
+                        "q": "What is an EOD report?",
+                        "a": "End-of-Day report — a summary of all transactions processed during a shift, used for cash reconciliation."
+                      }
+                    ]
+                  },
+                  {
+                    "id": "pos-check-1",
+                    "type": "checklist",
+                    "title": "Before You Start Checklist",
+                    "checklist": [
+                      {
+                        "text": "Read through all modules in order"
+                      },
+                      {
+                        "text": "Take notes during lessons"
+                      },
+                      {
+                        "text": "Complete all quizzes before moving on"
+                      },
+                      {
+                        "text": "Ask your supervisor if anything is unclear"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "POS Hardware Components",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "POS Hardware Components",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<p>A modern POS terminal consists of several hardware components working together.</p><ul><li><strong>Touchscreen display</strong> — the main input interface for cashiers</li><li><strong>Barcode scanner</strong> — reads product barcodes at checkout</li><li><strong>Receipt printer</strong> — thermal printer for customer receipts</li><li><strong>Cash drawer</strong> — secure storage for cash, connected to the terminal</li><li><strong>Card reader / PED</strong> — processes credit, debit, and contactless payments</li></ul>",
+                "segments": [
+                  {
+                    "id": "pos-flash-1",
+                    "type": "flashcard",
+                    "title": "Hardware Flashcards",
+                    "cards": [
+                      {
+                        "front": "Touchscreen Terminal",
+                        "back": "The primary cashier interface — all orders are entered here by tapping the screen."
+                      },
+                      {
+                        "front": "Thermal Receipt Printer",
+                        "back": "Uses heat instead of ink to print receipts. Faster and lower maintenance than inkjet."
+                      },
+                      {
+                        "front": "Cash Drawer",
+                        "back": "Locked and connected to the POS. Opens automatically only when a cash transaction is completed."
+                      },
+                      {
+                        "front": "Card Reader / PED",
+                        "back": "Accepts credit, debit, and contactless (NFC/QR) payments. Never share a customer's card details."
+                      }
+                    ]
+                  },
+                  {
+                    "id": "pos-match-1",
+                    "type": "matching",
+                    "title": "Match the Hardware",
+                    "pairs": [
+                      {
+                        "left": "Touchscreen",
+                        "right": "Cashier input interface"
+                      },
+                      {
+                        "left": "Barcode Scanner",
+                        "right": "Reads product codes"
+                      },
+                      {
+                        "left": "PED",
+                        "right": "Processes card payments"
+                      },
+                      {
+                        "left": "Cash Drawer",
+                        "right": "Stores physical cash"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Module 1 Knowledge Check",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Module 1 Knowledge Check",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What device is used to process contactless payments?",
+                    "opts": [
+                      "Cash drawer",
+                      "Barcode scanner",
+                      "PED / Card reader",
+                      "Receipt printer"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "Which printer type is most common in modern POS systems?",
+                    "opts": [
+                      "Inkjet",
+                      "Laser",
+                      "Thermal",
+                      "Dot matrix"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Processing Transactions",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Processing a Sale",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Processing a Sale",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<p>Follow these steps to process a standard sale:</p><ul><li>Scan or manually enter each item using the barcode or item lookup</li><li>Apply any discounts or promotions when prompted</li><li>Select the payment method: <strong>Cash, Card, or E-Wallet</strong></li><li>For cash — enter the tendered amount and dispense correct change</li><li>For card — prompt the customer to tap, insert, or swipe their card</li><li>Print or email the receipt and close the transaction</li></ul><div class=\"info-box\"><strong>⚠️ Important:</strong> Never void a transaction without a supervisor's approval code.</div>",
+                "segments": [
+                  {
+                    "id": "pos-fill-1",
+                    "type": "fillblank",
+                    "title": "Fill in the Blanks",
+                    "questions": [
+                      {
+                        "sentence": "For cash payments, enter the __BLANK__ amount and the system calculates the change.",
+                        "blanks": [
+                          "tendered"
+                        ]
+                      },
+                      {
+                        "sentence": "Always get __BLANK__ approval before voiding a transaction.",
+                        "blanks": [
+                          "supervisor",
+                          "manager"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Transaction Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Transaction Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "A customer pays ₱500 for a ₱320 item. How much change?",
+                    "opts": [
+                      "₱180",
+                      "₱190",
+                      "₱200",
+                      "₱170"
+                    ],
+                    "ans": 0
+                  },
+                  {
+                    "q": "What to do before voiding a transaction?",
+                    "opts": [
+                      "Nothing",
+                      "Ask customer",
+                      "Get supervisor approval",
+                      "Close register"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "A refund must be issued to:",
+                    "opts": [
+                      "Any method",
+                      "Cash only",
+                      "Original payment method",
+                      "Store credit only"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "POS — Intermediate",
+      "desc": "Advanced POS workflows, reporting, and management.",
+      "time": "45 Mins",
+      "thumb": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=160&fit=crop",
+      "cat": "POS",
+      "enrolled": true,
+      "progress": 65,
+      "active": true,
+      "modules": [
+        {
+          "title": "Advanced Sales Workflows",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Handling Discounts & Promotions",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Handling Discounts & Promotions",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=3SL_bhBHRuY",
+                  "label": "Discount & Promo Walkthrough"
+                },
+                "body": "<p>Watch the video above for a live walkthrough, then review the key concepts below.</p><h3>Types of Discounts</h3><ul><li><strong>Percentage discount</strong> — e.g., 10% off all items in the basket</li><li><strong>Fixed amount discount</strong> — e.g., ₱50 off orders over ₱500</li><li><strong>Buy-one-get-one (BOGO)</strong> — automatically applied when conditions are met</li></ul><div class=\"info-box\"><strong>💡 Note:</strong> Always verify discount eligibility before applying. Some promos require a coupon code or loyalty card scan.</div>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Multi-Tender Transactions",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Multi-Tender Transactions",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=Tn6-PIef0ns",
+                  "label": "Split Payment Demo"
+                },
+                "body": "<p>Some customers split payments across two or more methods — for example, part cash and part card. The video above demonstrates how to handle this on a modern POS terminal.</p><ul><li>Enter the total amount first</li><li>Select <strong>Split Tender</strong> from the payment screen</li><li>Assign the partial amount to each payment method</li><li>Collect each payment in sequence</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Intermediate Workflows Quiz",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Intermediate Workflows Quiz",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "Which discount type reduces the price by a set dollar/peso amount?",
+                    "opts": [
+                      "BOGO",
+                      "Percentage discount",
+                      "Fixed amount discount",
+                      "Loyalty discount"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "When splitting a payment, what should you select first?",
+                    "opts": [
+                      "Enter partial cash",
+                      "Swipe card",
+                      "Split Tender option",
+                      "Close the register"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "A ₱1,200 bill is paid with ₱700 cash + card. What card amount is charged?",
+                    "opts": [
+                      "₱700",
+                      "₱1,200",
+                      "₱500",
+                      "₱400"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Reporting & End-of-Day",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Reading Your EOD Report",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Reading Your EOD Report",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1EAYkoeWol0uCRaar821Fl3-SLPrFjPkl45UEuNuwSYE/edit",
+                  "label": "EOD Report Slide Deck"
+                },
+                "body": "<p>The End-of-Day (EOD) report is your primary tool for reconciling sales and cash. Review the presentation above, then read the summary below.</p><h3>Key Sections of an EOD Report</h3><ul><li><strong>Gross Sales</strong> — total revenue before any deductions</li><li><strong>Net Sales</strong> — gross sales minus refunds and voids</li><li><strong>Payment Breakdown</strong> — totals per tender type (cash, card, e-wallet)</li><li><strong>Cash Variance</strong> — the difference between expected and actual cash in drawer</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "EOD Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "EOD Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "Net Sales is calculated as:",
+                    "opts": [
+                      "Gross Sales + Tax",
+                      "Gross Sales − Refunds & Voids",
+                      "Total Transactions",
+                      "Cash in Drawer"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "A cash variance of ₱50 over means:",
+                    "opts": [
+                      "₱50 missing from the drawer",
+                      "₱50 extra in the drawer",
+                      "An error in card transactions",
+                      "A system malfunction"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Prism POS",
+      "desc": "Master the Prism POS system for enterprise use.",
+      "time": "47 Mins",
+      "thumb": null,
+      "thumbEmoji": "🔷",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Introduction to Prism POS",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Platform Overview",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Platform Overview",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=KaAJ86Z1MkE",
+                  "label": "Prism POS Platform Tour"
+                },
+                "body": "<p>Watch the video for a complete tour of the Prism POS interface. Prism is an enterprise-grade system used across multi-location retail and F&amp;B chains.</p><h3>Key Modules in Prism</h3><ul><li><strong>Sales Terminal</strong> — primary cashier-facing screen</li><li><strong>Back Office</strong> — inventory, reporting, and user management</li><li><strong>Central Dashboard</strong> — real-time view across all store locations</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Navigating the Prism Interface",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Navigating the Prism Interface",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OhIbJ6vTs/edit",
+                  "label": "Interface Navigation Guide"
+                },
+                "body": "<p>The presentation above covers each major screen of the Prism interface. Use it as a reference while you explore the system.</p>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Prism Basics Quiz",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Prism Basics Quiz",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "Where do you manage inventory in Prism?",
+                    "opts": [
+                      "Sales Terminal",
+                      "Back Office",
+                      "Central Dashboard",
+                      "Settings Panel"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Which Prism module shows real-time data across all locations?",
+                    "opts": [
+                      "Back Office",
+                      "Sales Terminal",
+                      "Central Dashboard",
+                      "Audit Log"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Aloha by NCR",
+      "desc": "Complete training for the Aloha restaurant platform.",
+      "time": "20 Mins",
+      "thumb": "https://images.unsplash.com/photo-1517077304055-6e89abbf09b0?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Getting to Know Aloha",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Aloha System Walkthrough",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Aloha System Walkthrough",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=mJR3b6MPR2I",
+                  "label": "Aloha POS Video Guide"
+                },
+                "body": "<p>Aloha by NCR is a widely used restaurant management platform. Watch the video to see the system in action.</p><h3>Core Features</h3><ul><li><strong>Table Management</strong> — visual floor plan for managing seated guests</li><li><strong>Order Routing</strong> — orders sent automatically to kitchen and bar printers</li><li><strong>Modifier Groups</strong> — customize items with add-ons and substitutions</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Table Management Deep Dive",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Table Management Deep Dive",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1EAYkoeWol0uCRaar821Fl3-SLPrFjPkl45UEuNuwSYE/edit",
+                  "label": "Table Management Slides"
+                },
+                "body": "<p>Review the slide deck above for a step-by-step breakdown of table management workflows in Aloha.</p>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Aloha Knowledge Check",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Aloha Knowledge Check",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What does Aloha's Order Routing feature do?",
+                    "opts": [
+                      "Sends orders to accounting",
+                      "Routes orders to kitchen/bar printers",
+                      "Manages table reservations",
+                      "Processes card payments"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Modifier Groups in Aloha allow you to:",
+                    "opts": [
+                      "Change table layouts",
+                      "Customize items with add-ons",
+                      "View sales reports",
+                      "Print EOD reports"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Cybersecurity Basics",
+      "desc": "Security best practices for POS and customer data.",
+      "time": "30 Mins",
+      "thumb": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=400&h=160&fit=crop",
+      "cat": "Security",
+      "enrolled": true,
+      "progress": 100,
+      "active": true,
+      "modules": [
+        {
+          "title": "Understanding Cyber Threats",
+          "done": false,
+          "chapters": [
+            {
+              "title": "The Threat Landscape",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "The Threat Landscape",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=inWWhr5tnEA",
+                  "label": "IBM: What is Cybersecurity?"
+                },
+                "body": "<p>Watch the video above for an overview of today's threat landscape, then review the key categories below.</p><h3>Common Threat Types</h3><ul><li><strong>Phishing</strong> — deceptive emails or messages that trick users into revealing credentials</li><li><strong>Malware</strong> — malicious software including viruses, ransomware, and spyware</li><li><strong>Skimming</strong> — physical devices attached to card readers to steal payment data</li><li><strong>Insider Threats</strong> — threats originating from employees or contractors with system access</li></ul><div class=\"info-box\"><strong>💡 Did you know?</strong> Over 70% of data breaches in retail involve POS system vulnerabilities.</div>",
+                "segments": []
+              }
+            },
+            {
+              "title": "POS-Specific Attack Vectors",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "POS-Specific Attack Vectors",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=wzbKXeHAFHc",
+                  "label": "POS Security Threats Explained"
+                },
+                "body": "<p>POS systems are a primary target for cybercriminals because they handle payment data at scale. Watch the video, then review the most common POS-specific risks.</p><ul><li><strong>RAM scraping</strong> — malware that reads card data from terminal memory during processing</li><li><strong>Network sniffing</strong> — intercepting unencrypted data traveling between terminals and servers</li><li><strong>Weak credentials</strong> — default or reused passwords on POS admin accounts</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Threat Awareness Quiz",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Threat Awareness Quiz",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What is RAM scraping in the context of POS security?",
+                    "opts": [
+                      "Deleting old transaction logs",
+                      "Malware reading card data from terminal memory",
+                      "A type of phishing email",
+                      "Physically tampering with a printer"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Which of the following is NOT a common POS attack vector?",
+                    "opts": [
+                      "Network sniffing",
+                      "Weak admin credentials",
+                      "RAM scraping",
+                      "Updating firmware regularly"
+                    ],
+                    "ans": 3
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Protecting Your Systems",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Security Best Practices",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Security Best Practices",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OhIbJ6vTs/edit",
+                  "label": "Security Best Practices Slide Deck"
+                },
+                "body": "<p>The presentation above walks through actionable security practices for your POS environment. Key takeaways:</p><ul><li>Use strong, unique passwords and change them every 90 days</li><li>Enable two-factor authentication (2FA) on all admin accounts</li><li>Segment your POS network from guest Wi-Fi</li><li>Apply software patches and updates promptly</li><li>Physically inspect card readers regularly for skimming devices</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Incident Response Overview",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Incident Response Overview",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1EAYkoeWol0uCRaar821Fl3-SLPrFjPkl45UEuNuwSYE/edit",
+                  "label": "Incident Response Playbook"
+                },
+                "body": "<p>When a security incident occurs, fast and structured response minimizes damage. The slide deck above covers the 5-step incident response process.</p><h3>Quick Reference</h3><ul><li><strong>Identify</strong> — detect and confirm the incident</li><li><strong>Contain</strong> — isolate affected systems immediately</li><li><strong>Eradicate</strong> — remove the threat from all systems</li><li><strong>Recover</strong> — restore normal operations safely</li><li><strong>Review</strong> — post-incident analysis and documentation</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Security Practices Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Security Practices Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "How often should POS admin passwords be changed?",
+                    "opts": [
+                      "Every year",
+                      "Every 90 days",
+                      "Every 30 days",
+                      "Only when compromised"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "What is the FIRST step in incident response?",
+                    "opts": [
+                      "Eradicate",
+                      "Recover",
+                      "Identify",
+                      "Contain"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "Why should POS networks be segmented from guest Wi-Fi?",
+                    "opts": [
+                      "To save bandwidth",
+                      "To prevent payment data from being accessible on the guest network",
+                      "To speed up transactions",
+                      "It is not necessary"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Customer Management",
+      "desc": "Manage customer relationships and data effectively.",
+      "time": "1 hr 30 Mins",
+      "thumb": "https://images.unsplash.com/photo-1556745753-b2904692b3cd?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Understanding Your Customers",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Customer Journey Fundamentals",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Customer Journey Fundamentals",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OhIbJ6vTs/edit",
+                  "label": "Customer Journey Map"
+                },
+                "body": "<p>The slide deck above maps the full customer journey from first contact to post-purchase. Understanding this journey helps you deliver a consistently excellent experience.</p><h3>The 5 Stages</h3><ul><li><strong>Awareness</strong> — customer first discovers your brand</li><li><strong>Consideration</strong> — evaluating your product against alternatives</li><li><strong>Purchase</strong> — the transaction itself</li><li><strong>Retention</strong> — encouraging repeat visits and loyalty</li><li><strong>Advocacy</strong> — turning satisfied customers into brand ambassadors</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Customer Data & CRM Basics",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Customer Data & CRM Basics",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=6iiGFfKr1cU",
+                  "label": "Introduction to CRM Systems"
+                },
+                "body": "<p>Watch the video for a clear introduction to CRM systems, then review key data management principles below.</p><ul><li>Always obtain customer consent before collecting personal data</li><li>Store only what you need — avoid collecting excessive information</li><li>Keep records up to date by verifying details at each visit</li></ul><div class=\"info-box\"><strong>⚠️ Compliance:</strong> Customer data handling must comply with local data privacy laws and your company's data protection policy.</div>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Customer Understanding Quiz",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Customer Understanding Quiz",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "Which stage of the customer journey involves turning satisfied customers into brand ambassadors?",
+                    "opts": [
+                      "Awareness",
+                      "Purchase",
+                      "Retention",
+                      "Advocacy"
+                    ],
+                    "ans": 3
+                  },
+                  {
+                    "q": "Before collecting customer data, you must first:",
+                    "opts": [
+                      "Complete a transaction",
+                      "Obtain customer consent",
+                      "Enter it into the CRM",
+                      "Ask a manager"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Communication & Service Excellence",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Effective Customer Communication",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Effective Customer Communication",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=MnIPpUiTcRc",
+                  "label": "Customer Communication Skills"
+                },
+                "body": "<p>Great communication is the foundation of excellent service. Watch the video, then apply the CLEAR framework below.</p><h3>The CLEAR Framework</h3><ul><li><strong>C</strong>onfirm — repeat the customer's request to confirm understanding</li><li><strong>L</strong>isten — give full attention without interrupting</li><li><strong>E</strong>mpathize — acknowledge the customer's feelings and frustrations</li><li><strong>A</strong>ct — take ownership and follow through on commitments</li><li><strong>R</strong>esolve — ensure the customer leaves satisfied</li></ul>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Handling Complaints & Escalations",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Handling Complaints & Escalations",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1EAYkoeWol0uCRaar821Fl3-SLPrFjPkl45UEuNuwSYE/edit",
+                  "label": "Complaint Handling Playbook"
+                },
+                "body": "<p>Not every interaction goes smoothly. The presentation above covers the step-by-step process for de-escalating difficult situations and resolving complaints professionally.</p>",
+                "segments": []
+              }
+            },
+            {
+              "title": "Service Excellence Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Service Excellence Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "In the CLEAR framework, what does 'E' stand for?",
+                    "opts": [
+                      "Escalate",
+                      "Empathize",
+                      "Explain",
+                      "Execute"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "When a customer is upset, the first thing you should do is:",
+                    "opts": [
+                      "Call a manager",
+                      "Offer a refund",
+                      "Listen and acknowledge their feelings",
+                      "Transfer to another agent"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "What does 'taking ownership' mean in customer service?",
+                    "opts": [
+                      "Blaming system errors",
+                      "Following through on your promise to resolve the issue",
+                      "Letting a manager handle it",
+                      "Documenting the complaint only"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "POS Advanced Reporting",
+      "desc": "Deep dive into sales reports, EOD summaries, and analytics dashboards.",
+      "time": "55 Mins",
+      "thumb": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=160&fit=crop",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Network Troubleshooting",
+      "desc": "Diagnose and resolve common network issues affecting POS terminals.",
+      "time": "40 Mins",
+      "thumb": "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&h=160&fit=crop",
+      "cat": "Security",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Hardware Maintenance 101",
+      "desc": "Routine maintenance and care of POS hardware, scanners, and printers.",
+      "time": "35 Mins",
+      "thumb": "https://images.unsplash.com/photo-1581092160562-40aa08e78837?w=400&h=160&fit=crop",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Data Privacy & Compliance",
+      "desc": "Understanding GDPR, PCI-DSS, and local data protection regulations.",
+      "time": "1 Hour",
+      "thumb": "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=400&h=160&fit=crop",
+      "cat": "Security",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Retail Pro Fundamentals",
+      "desc": "Core workflows for the Retail Pro platform including inventory and sales.",
+      "time": "50 Mins",
+      "thumb": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=160&fit=crop",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Onboarding New Clients",
+      "desc": "Step-by-step process for onboarding new client companies onto the platform.",
+      "time": "25 Mins",
+      "thumb": "https://images.unsplash.com/photo-1521791136064-7986c2920216?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Escalation Handling",
+      "desc": "How to properly escalate tickets, communicate with clients, and resolve critical issues.",
+      "time": "30 Mins",
+      "thumb": "https://images.unsplash.com/photo-1553484771-371a605b060b?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": false
+    },
+    {
+      "title": "F&B POS Workflows",
+      "desc": "Specialized POS training for food and beverage environments including table management.",
+      "time": "45 Mins",
+      "thumb": "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=160&fit=crop",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Phishing & Social Engineering",
+      "desc": "Recognize and respond to phishing attacks and social engineering attempts.",
+      "time": "20 Mins",
+      "thumb": "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=400&h=160&fit=crop",
+      "cat": "Security",
+      "enrolled": false,
+      "progress": 0,
+      "active": false
+    },
+    {
+      "title": "Warehouse POS Operations",
+      "desc": "POS operations tailored for warehouse environments, including bulk order processing.",
+      "time": "1 Hour",
+      "thumb": "https://images.unsplash.com/photo-1553413077-190dd305871c?w=400&h=160&fit=crop",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Team Leadership Basics",
+      "desc": "Foundational leadership skills for team leads and supervisors in client-facing roles.",
+      "time": "1 hr 15 Mins",
+      "thumb": "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Software Update Procedures",
+      "desc": "Guidelines for rolling out software updates to POS systems with minimal downtime.",
+      "time": "35 Mins",
+      "thumb": "https://images.unsplash.com/photo-1629654297299-c8506221ca97?w=400&h=160&fit=crop",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": false
+    },
+    {
+      "title": "Password & Access Management",
+      "desc": "Best practices for managing user credentials and access control across systems.",
+      "time": "25 Mins",
+      "thumb": "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=400&h=160&fit=crop",
+      "cat": "Security",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "SLA & Ticket Management",
+      "desc": "Understanding SLA targets, ticket prioritization, and response time commitments.",
+      "time": "40 Mins",
+      "thumb": "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true
+    },
+    {
+      "title": "Client Communication Skills",
+      "desc": "Professional communication techniques for handling client inquiries and complaints.",
+      "time": "50 Mins",
+      "thumb": "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": false
+    },
+    {
+      "title": "Demo Basic",
+      "desc": "A comprehensive text-only course covering the foundations of workplace professionalism, communication, and service standards.",
+      "time": "2 Hours",
+      "thumb": "https://images.unsplash.com/photo-1507209696998-26f854b79b83?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Module 1 — Workplace Professionalism",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Welcome & Course Overview",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Welcome & Course Overview",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<p>Welcome to <strong>Demo Basic — Workplace Foundations</strong>. This course is designed to give you a thorough grounding in the attitudes, behaviours, and skills that define a true professional in any industry.</p><p>Whether you're joining us fresh from school, returning to the workforce, or stepping into a new role, the principles covered here apply universally. You'll finish this course with a clearer sense of what it means to show up every day with purpose, consistency, and respect for the people around you.</p><h3>What You Will Learn</h3><p>Over the next four modules you will explore:</p><ul><li>What professionalism actually looks like in day-to-day situations</li><li>How effective communication shapes every workplace relationship</li><li>The role of personal accountability and time management</li><li>Conflict resolution techniques that preserve working relationships</li><li>How to give and receive feedback constructively</li><li>The basics of workplace ethics and confidentiality</li></ul><h3>How to Use This Course</h3><p>Each chapter builds on the last. We recommend reading through all the text first before reviewing the supplementary accordion sections. At the end of each module there is a short knowledge check — don't skip these, as they help reinforce what you've read and flag any areas you might want to revisit.</p><div class=\"info-box\"><strong>💡 Tip:</strong> Keep a notepad nearby. Writing down two or three key takeaways per lesson dramatically improves retention.</div><h3>A Note on Mindset</h3><p>Professional development isn't a one-time event — it's a continuous practice. The most effective professionals are those who remain genuinely curious about their craft, who ask questions without ego, and who see every interaction as an opportunity to learn. Approach this course with that mindset, and you'll get far more out of it than the words on the page.</p>",
+                "segments": [
+                  {
+                    "id": "db-acc-1",
+                    "type": "accordion",
+                    "title": "Key Terms & Definitions",
+                    "items": [
+                      {
+                        "q": "What is professionalism?",
+                        "a": "Professionalism is the consistent demonstration of competence, reliability, and respect in your work. It encompasses appearance, attitude, communication, and the quality of your output."
+                      },
+                      {
+                        "q": "What is a growth mindset?",
+                        "a": "A growth mindset is the belief that your abilities and intelligence can be developed through dedication and hard work. People with a growth mindset embrace challenges and view failures as learning opportunities."
+                      },
+                      {
+                        "q": "What does 'accountability' mean at work?",
+                        "a": "Accountability means taking ownership of your actions and their outcomes — both successes and mistakes — without deflecting blame to others or external circumstances."
+                      }
+                    ]
+                  },
+                  {
+                    "id": "db-check-1",
+                    "type": "checklist",
+                    "title": "Before You Begin",
+                    "checklist": [
+                      {
+                        "text": "Read each chapter fully before moving on"
+                      },
+                      {
+                        "text": "Complete every knowledge check before advancing to the next module"
+                      },
+                      {
+                        "text": "Take personal notes — your own words will stick better than ours"
+                      },
+                      {
+                        "text": "If something is unclear, flag it with your supervisor or trainer"
+                      },
+                      {
+                        "text": "Commit to applying at least one insight per lesson in your actual work"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "What Professionalism Really Means",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "What Professionalism Really Means",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<h3>Beyond Dress Codes and Punctuality</h3><p>When most people hear the word 'professional', they picture someone in a suit arriving five minutes early to every meeting. And while presentation and punctuality certainly matter, real professionalism runs much deeper. It shows up in the quality of your thinking, the care you put into your work, and the way you treat the people around you — from the CEO to the cleaning staff.</p><p>Professionalism is fundamentally about <strong>reliability</strong>. Can people count on you? Do you follow through on what you say you'll do? Do you let your colleagues know in advance if something is going to be late, rather than waiting until the deadline has passed? These are the questions that define how you're perceived over time.</p><h3>The Four Pillars</h3><p><strong>1. Competence</strong> — Know your job and keep learning. Take the time to understand not just the 'what' of your role but the 'why'. When you understand why a process exists, you're better equipped to apply it correctly under pressure and to suggest improvements intelligently.</p><p><strong>2. Integrity</strong> — Do the right thing even when no one is watching. This means being honest in your reporting, transparent when you make a mistake, and refusing to take shortcuts that compromise quality or safety, even when you're under time pressure.</p><p><strong>3. Respect</strong> — Treat every person with basic dignity regardless of their position, background, or how they're treating you. Respect isn't just about being polite — it means genuinely valuing the perspectives and contributions of others, even when they differ from your own.</p><p><strong>4. Accountability</strong> — Own your outcomes. When something goes wrong, the professional response is to understand what happened, communicate transparently with those affected, fix the problem as quickly as possible, and put measures in place to prevent recurrence. Blame-shifting and defensiveness destroy trust and slow recovery.</p><h3>Professionalism Under Pressure</h3><p>The real test of professionalism isn't how you behave on a quiet Tuesday afternoon — it's how you behave when you're stressed, tired, understaffed, or dealing with a difficult customer or colleague. Under pressure, our default behaviours surface. If your defaults aren't professional, you'll need to actively build new habits through practice and self-awareness.</p><p>One of the most effective techniques is the <em>pause practice</em>: before responding in a heated moment, give yourself a deliberate two-second pause. That two seconds can be the difference between a measured, professional response and one you'll regret.</p><div class=\"info-box\"><strong>🔍 Reflection:</strong> Think of someone in your own experience you would describe as genuinely professional. What specific behaviours made them stand out?</div>",
+                "segments": [
+                  {
+                    "id": "db-acc-2",
+                    "type": "accordion",
+                    "title": "Common Professionalism Mistakes",
+                    "items": [
+                      {
+                        "q": "Overpromising and underdelivering",
+                        "a": "Committing to more than you can realistically do feels helpful in the moment but erodes trust over time. It is always better to under-promise and over-deliver than the reverse."
+                      },
+                      {
+                        "q": "Gossip and negative talk",
+                        "a": "Speaking negatively about colleagues, managers, or customers — even privately — poisons workplace culture. What you say about others reflects directly on your own character."
+                      },
+                      {
+                        "q": "Selective professionalism",
+                        "a": "Being polite and diligent only when supervisors are watching is easily noticed. Genuine professionalism is consistent across all situations and audiences."
+                      },
+                      {
+                        "q": "Failing to communicate proactively",
+                        "a": "Staying silent when a problem is developing — hoping it will resolve itself — almost always makes things worse. Proactive communication is one of the most valued professional behaviours."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Personal Presentation & Conduct",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Personal Presentation & Conduct",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<h3>First Impressions Are Lasting</h3><p>Research consistently shows that people form initial impressions within the first few seconds of meeting someone. While it's unfair that snap judgments carry such weight, it would be naïve to ignore the reality. Your appearance, posture, and the energy you project when you walk into a room all communicate something about you before you've said a word.</p><p>This doesn't mean you need to be perfectly dressed at all times — it means being intentional about the signals you send. Clean, appropriate attire for your environment, good posture, direct eye contact, and a composed demeanor tell the people around you that you take your role seriously.</p><h3>Your Digital Presence</h3><p>In the modern workplace, your conduct extends beyond the physical space. Your emails, instant messages, and even your social media presence are all part of your professional image. Consider the following:</p><ul><li>Written communication lacks tone — always re-read messages before sending to ensure they can't be misread as curt or dismissive</li><li>Response time matters — even if you can't fully address something immediately, a quick acknowledgement ('Got this, will come back to you by end of day') demonstrates respect for the sender</li><li>Your social media profiles may be visible to colleagues and clients — ensure they reflect how you want to be seen professionally</li></ul><h3>Workplace Conduct Standards</h3><p>Most organisations have a formal code of conduct. Even where no written code exists, there are universal conduct standards that apply everywhere:</p><ul><li>Arrive on time and ready to work, not still waking up</li><li>Give your full attention to conversations instead of looking at your phone</li><li>Keep shared spaces clean and organised</li><li>Honour confidentiality — information about clients, colleagues, and business operations stays internal unless explicitly authorised otherwise</li><li>Follow safe work practices — cutting corners on safety puts everyone at risk</li></ul><div class=\"info-box\"><strong>⚠️ Remember:</strong> Conduct that would be acceptable in a casual social setting may be entirely inappropriate in a professional context. When in doubt, err on the side of formality.</div>",
+                "segments": [
+                  {
+                    "id": "db-check-2",
+                    "type": "checklist",
+                    "title": "Daily Professionalism Checklist",
+                    "checklist": [
+                      {
+                        "text": "I arrived (or logged in) on time and prepared"
+                      },
+                      {
+                        "text": "My appearance is appropriate for my environment"
+                      },
+                      {
+                        "text": "I responded to all outstanding messages within a reasonable time"
+                      },
+                      {
+                        "text": "I honoured all commitments I made yesterday"
+                      },
+                      {
+                        "text": "I spoke positively and constructively about colleagues and customers"
+                      },
+                      {
+                        "text": "I left shared spaces clean and ready for the next person"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Module 1 Knowledge Check",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Module 1 Knowledge Check",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "Which of the four pillars of professionalism means 'doing the right thing even when no one is watching'?",
+                    "opts": [
+                      "Competence",
+                      "Integrity",
+                      "Respect",
+                      "Accountability"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "What is the 'pause practice' recommended for high-pressure situations?",
+                    "opts": [
+                      "Taking a 10-minute break before responding",
+                      "Deliberately pausing two seconds before responding to avoid reactive replies",
+                      "Consulting a supervisor before saying anything",
+                      "Writing your response down and sleeping on it"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Selective professionalism refers to:",
+                    "opts": [
+                      "Being professional only in client-facing roles",
+                      "Applying professional standards only when supervisors are watching",
+                      "Choosing which professional skills to develop",
+                      "Being formal in written communication but casual in person"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "When acknowledging a message you can't fully address immediately, the best approach is:",
+                    "opts": [
+                      "Wait until you have a complete answer",
+                      "Send a quick acknowledgement with an expected response time",
+                      "Ask a colleague to handle it",
+                      "Mark it as unread and return to it later"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Module 2 — Communication Skills",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Verbal & Non-Verbal Communication",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Verbal & Non-Verbal Communication",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<h3>The Mechanics of Communication</h3><p>Effective communication is the single most important professional skill you will ever develop. Everything else — your technical knowledge, your strategic thinking, your leadership ability — is only as valuable as your ability to transmit it clearly to other people.</p><p>Communication happens on multiple channels simultaneously. Research by Albert Mehrabian (though often oversimplified) highlighted that in emotional communication, a substantial portion of meaning is conveyed through tone of voice and body language, not just words. While exact percentages vary by context, the principle stands: <em>how</em> you say something matters enormously.</p><h3>Active Listening</h3><p>Most people, when they think they're listening, are actually just waiting for their turn to speak. True active listening involves:</p><ul><li><strong>Full attention</strong> — put down your phone, close the laptop, make eye contact</li><li><strong>Non-verbal acknowledgement</strong> — nodding, appropriate facial expressions, leaning slightly forward</li><li><strong>Reflective responses</strong> — paraphrasing what you heard back to the speaker to confirm understanding</li><li><strong>Questions that deepen understanding</strong> — ask clarifying questions rather than jumping to conclusions or solutions</li><li><strong>Withholding judgment</strong> — let the person finish their full thought before you evaluate or respond</li></ul><h3>Clarity in Spoken Communication</h3><p>When you speak, aim for clarity over cleverness. Long, complex sentences with multiple embedded clauses are harder to follow than shorter, direct ones — especially in a noisy environment or when the listener is under stress. Structure your communication: state your main point first, then provide supporting detail. This 'headline first' approach ensures that even if someone only catches part of what you're saying, they've caught the most important part.</p><h3>Non-Verbal Signals</h3><p>Your body language can reinforce or undermine everything you say. Some key principles:</p><ul><li>Maintain comfortable eye contact (not a stare, not constant avoidance)</li><li>Keep your posture open — crossed arms signal defensiveness, even if that's not how you feel</li><li>Mirror the energy level of the person you're speaking with — being too formal when someone is relaxed, or too casual when they're stressed, creates distance</li><li>Be aware of cultural differences — eye contact norms, personal space, and gestures vary significantly across cultures</li></ul>",
+                "segments": [
+                  {
+                    "id": "db-acc-3",
+                    "type": "accordion",
+                    "title": "Communication Barriers & How to Overcome Them",
+                    "items": [
+                      {
+                        "q": "Language and jargon",
+                        "a": "Using technical jargon or acronyms with people unfamiliar with them creates confusion. Always gauge your audience and adjust your vocabulary accordingly. When in doubt, use plain language."
+                      },
+                      {
+                        "q": "Emotional state",
+                        "a": "Strong emotions — frustration, anxiety, excitement — cloud our ability to communicate and listen clearly. When emotionally activated, slow down, breathe, and focus on the facts rather than your feelings."
+                      },
+                      {
+                        "q": "Assumptions",
+                        "a": "Assuming the other person already knows something, or shares your perspective, leads to incomplete communication. Treat every important conversation as if the other person has no prior context."
+                      },
+                      {
+                        "q": "Environment and noise",
+                        "a": "Background noise, interruptions, and poor lighting all impede communication. For important conversations, find a quiet, private space where both parties can focus."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Written Communication in the Workplace",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Written Communication in the Workplace",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<h3>Why Written Communication Matters More Than Ever</h3><p>In modern workplaces — especially those with remote or hybrid teams — a significant portion of professional communication happens in writing. Emails, chat messages, reports, and documentation all leave a permanent record and are often shared beyond their original audience. The quality and clarity of your written communication directly affects how you're perceived professionally.</p><h3>Email Best Practices</h3><p>Email remains the dominant formal written channel in most organisations. Follow these principles:</p><ul><li><strong>Subject lines should be specific</strong> — 'Question about Friday's report' is more useful than 'Hi' or 'Question'</li><li><strong>Start with context</strong> — don't assume the recipient knows which project or incident you're referring to</li><li><strong>One topic per email</strong> — emails that cover multiple unrelated subjects are harder to action and archive</li><li><strong>Be direct</strong> — state what you need upfront, not buried at the bottom of a long paragraph</li><li><strong>Close with a clear call to action</strong> — what exactly do you need from the reader, and by when?</li><li><strong>Proofread</strong> — typos and grammatical errors make you look careless</li></ul><h3>Instant Messaging (Chat) Etiquette</h3><p>Chat platforms like Slack or Teams have more informal conventions, but professionalism still applies:</p><ul><li>Avoid sending multiple short messages in rapid succession — compose your thought fully before sending</li><li>Use threads to keep conversations organised and avoid cluttering channels</li><li>Emojis and informal language are generally acceptable in casual channels but should be dialled back in professional or client-facing contexts</li><li>Don't use chat to deliver sensitive feedback, disciplinary matters, or bad news — those warrant a call or in-person conversation</li></ul><h3>Writing Reports and Documentation</h3><p>When writing longer documents — reports, incident logs, handover notes — structure is everything. Use clear headings, keep paragraphs short, use bullet points for lists, and lead with the most important information. Assume the reader is busy and may only read the first third of your document. Make sure everything critical appears there.</p><div class=\"info-box\"><strong>💡 Pro Tip:</strong> Before sending any important written communication, ask yourself: 'If I printed this out and posted it on a company-wide notice board, would I be comfortable with that?' If not, revise it.</div>",
+                "segments": [
+                  {
+                    "id": "db-check-3",
+                    "type": "checklist",
+                    "title": "Email Pre-Send Checklist",
+                    "checklist": [
+                      {
+                        "text": "Subject line is specific and descriptive"
+                      },
+                      {
+                        "text": "I've stated the context clearly at the top"
+                      },
+                      {
+                        "text": "The main point and required action are easy to find"
+                      },
+                      {
+                        "text": "I've specified a deadline or timeframe where relevant"
+                      },
+                      {
+                        "text": "I've proofread for typos and clarity"
+                      },
+                      {
+                        "text": "The tone is appropriate — not passive-aggressive, overly casual, or unnecessarily formal"
+                      },
+                      {
+                        "text": "I've only CC'd people who genuinely need to be on this thread"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Module 2 Knowledge Check",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Module 2 Knowledge Check",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What does 'active listening' involve?",
+                    "opts": [
+                      "Thinking of your response while the other person is still talking",
+                      "Giving full attention, reflecting back what you heard, and withholding judgment",
+                      "Taking detailed notes during every conversation",
+                      "Agreeing with everything the speaker says"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "What is the 'headline first' approach to spoken communication?",
+                    "opts": [
+                      "Starting conversations with a compliment",
+                      "Stating your main point first, then adding supporting detail",
+                      "Always leading with a question",
+                      "Summarising at the end of every conversation"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Which of the following is NOT a best practice for workplace emails?",
+                    "opts": [
+                      "Using specific subject lines",
+                      "Covering multiple unrelated topics in one email for efficiency",
+                      "Closing with a clear call to action",
+                      "Proofreading before sending"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "When should you NOT use instant messaging or chat to communicate?",
+                    "opts": [
+                      "For quick updates on project status",
+                      "For casual check-ins with team members",
+                      "For delivering sensitive feedback or disciplinary matters",
+                      "For sharing links or resources"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Module 3 — Accountability & Time Management",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Owning Your Work",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Owning Your Work",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<h3>The Accountability Mindset</h3><p>Accountability is one of those words that gets used a lot but rarely explained well. At its core, being accountable means this: <em>what I commit to, I deliver — and when I fall short, I own it completely.</em></p><p>This sounds simple, but it cuts against some of our most natural instincts. When things go wrong, the human brain instinctively looks for external causes — system failures, unclear instructions, workload pressures, difficult colleagues. These factors are often real. But the accountable professional asks a different question: 'Given all those circumstances, what could I have done differently?'</p><h3>The Accountability Cycle</h3><p>True accountability operates in a cycle:</p><ol><li><strong>Commit clearly</strong> — Don't let vague or ambiguous commitments stand. If you're not sure exactly what's expected or when, ask. If you don't think you can deliver on a timeline, say so upfront — not after the deadline has passed.</li><li><strong>Deliver consistently</strong> — Follow through on your commitments as a default. When life makes this difficult, the next step applies.</li><li><strong>Communicate early</strong> — If something is going to be late or fall short of what was promised, communicate that as early as possible. This gives the other party time to adjust their plans. Staying silent until the last moment is a significant trust-breaker.</li><li><strong>Own the gap</strong> — When things go wrong, resist the urge to immediately list all the external reasons why. Acknowledge the impact, then explain context if relevant — in that order.</li><li><strong>Learn and improve</strong> — What system, habit, or skill, if improved, would prevent this from happening again? Build that improvement into your practice.</li></ol><h3>Accountability in Teams</h3><p>Individual accountability is only part of the picture. On high-performing teams, members hold each other accountable — not through criticism or blame, but through clear expectations, transparent communication, and a culture where it's safe to raise concerns early. If you see a teammate struggling with a commitment, the accountable thing to do is offer support proactively, not wait for things to collapse and then point fingers.</p>",
+                "segments": [
+                  {
+                    "id": "db-acc-4",
+                    "type": "accordion",
+                    "title": "Accountability vs Blame — What's the Difference?",
+                    "items": [
+                      {
+                        "q": "Accountability focuses on...",
+                        "a": "Future improvement. It asks: what can I learn, and what will I do differently? It is forward-looking and constructive."
+                      },
+                      {
+                        "q": "Blame focuses on...",
+                        "a": "Past fault. It asks: whose fault was it? It is backward-looking and often unproductive, focusing energy on assigning responsibility rather than solving the problem."
+                      },
+                      {
+                        "q": "Can both be legitimate at the same time?",
+                        "a": "Yes. Understanding what went wrong (which may involve identifying whose decisions caused the problem) is valuable. But the primary focus should always be on learning and correction, not punishment or score-keeping."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Time Management Fundamentals",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Time Management Fundamentals",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "<h3>Why Most People Struggle With Time</h3><p>Time management isn't really about managing time — there are always exactly 24 hours in a day. It's about managing <strong>attention, energy, and priorities</strong>. Most people don't fail at time management because they lack willpower or discipline. They fail because they haven't developed clear systems for deciding what to work on, when to work on it, and how to protect that time from interruptions.</p><h3>The Priority Matrix</h3><p>One of the most enduring tools in time management is the Priority Matrix (often called the Eisenhower Matrix). It categorises tasks along two axes: urgency and importance.</p><ul><li><strong>Urgent & Important</strong> — Do these immediately. These are genuine crises that require your immediate attention.</li><li><strong>Important but Not Urgent</strong> — Schedule these. These are the high-value activities — planning, skill development, relationship building — that have the biggest long-term impact. Most professionals spend far too little time here.</li><li><strong>Urgent but Not Important</strong> — Delegate these if possible. These feel pressing but don't actually advance your key goals.</li><li><strong>Neither Urgent nor Important</strong> — Eliminate or minimise these. These are time-wasters.</li></ul><h3>Practical Techniques</h3><p><strong>Time-blocking:</strong> Schedule your most important, cognitively demanding tasks as calendar blocks — just as you would a meeting. Protect these blocks fiercely. Don't let them become the thing that gets pushed when something 'urgent' comes up.</p><p><strong>The two-minute rule:</strong> If a task will take less than two minutes, do it immediately. The overhead of adding it to a list, coming back to it later, and reloading the context often takes longer than just doing it.</p><p><strong>Batching:</strong> Group similar tasks together. Answering all your emails in two dedicated slots per day is far more efficient than dipping in and out every fifteen minutes.</p><p><strong>End-of-day review:</strong> Spend five minutes at the end of each day reviewing what you accomplished, what carries forward, and what your top three priorities are for tomorrow. This prevents the 'where do I even start?' paralysis that derails many mornings.</p><div class=\"info-box\"><strong>📌 Key Insight:</strong> Busy and productive are not the same thing. A day spent responding to other people's urgencies is often a day that produced little of genuine value. Protect time for your most important work.</div>",
+                "segments": [
+                  {
+                    "id": "db-check-4",
+                    "type": "checklist",
+                    "title": "Time Management Habits to Build",
+                    "checklist": [
+                      {
+                        "text": "I plan my top 3 priorities the evening before or at the start of each day"
+                      },
+                      {
+                        "text": "I use time-blocking for deep work tasks"
+                      },
+                      {
+                        "text": "I batch email and chat responses rather than checking them constantly"
+                      },
+                      {
+                        "text": "I regularly review my task list to reassign priorities as things change"
+                      },
+                      {
+                        "text": "I communicate proactively when a deadline is at risk"
+                      },
+                      {
+                        "text": "I do a brief end-of-day review to close the loop on the day"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Module 3 Final Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Module 3 Final Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "In the accountability cycle, what should you do when a commitment is at risk of being missed?",
+                    "opts": [
+                      "Wait until you know for certain before saying anything",
+                      "Communicate early, as soon as you know there's a risk",
+                      "Deliver what you can and apologise afterwards",
+                      "Ask a colleague to take over quietly"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Tasks that are 'Important but Not Urgent' should be:",
+                    "opts": [
+                      "Done immediately",
+                      "Scheduled and protected",
+                      "Delegated to someone else",
+                      "Eliminated"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "What is 'time-blocking'?",
+                    "opts": [
+                      "Blocking out time in your calendar for breaks only",
+                      "Reserving specific calendar slots for important tasks and protecting them",
+                      "Blocking notifications during meetings",
+                      "Setting hard deadlines for every task"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "The end-of-day review practice involves:",
+                    "opts": [
+                      "Writing a full report of everything you did",
+                      "Reviewing accomplishments, identifying carry-forwards, and setting tomorrow's top three priorities",
+                      "Sending a status update to your manager every day",
+                      "Clearing your entire inbox before leaving"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Which statement best describes the difference between 'busy' and 'productive'?",
+                    "opts": [
+                      "They mean the same thing — the more tasks you complete, the more productive you are",
+                      "Busy means responding to others' urgencies; productive means advancing your most important work",
+                      "Productive people are always busy; busy people are always productive",
+                      "Being busy is a sign of poor time management; productive people finish early"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Demo Intermediate",
+      "desc": "A video-led course on retail inventory management, covering receiving, stock counts, replenishment, and loss prevention.",
+      "time": "1 Hour 15 Mins",
+      "thumb": "https://images.unsplash.com/photo-1553413077-190dd305871c?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Module 1 — Inventory Fundamentals",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Why Inventory Management Matters",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Why Inventory Management Matters",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=I_S-UETJeBI",
+                  "label": "Intro to Inventory Management"
+                },
+                "body": "<p>Watch the video above for a high-level introduction to inventory management, then review the key concepts below.</p><h3>The Cost of Poor Inventory Control</h3><ul><li><strong>Overstocking</strong> — ties up cash in unsold goods, increases storage costs, and risks spoilage or obsolescence</li><li><strong>Understocking</strong> — leads to lost sales, disappointed customers, and urgent (expensive) reorders</li><li><strong>Inaccurate records</strong> — make every downstream process — ordering, reporting, forecasting — unreliable</li></ul><div class=\"info-box\"><strong>💡 Did you know?</strong> Retailers lose an estimated 1–3% of revenue annually due to inventory inaccuracies alone.</div>",
+                "segments": [
+                  {
+                    "id": "di-flash-1",
+                    "type": "flashcard",
+                    "title": "Inventory Terminology Flashcards",
+                    "cards": [
+                      {
+                        "front": "SKU",
+                        "back": "Stock Keeping Unit — a unique code assigned to each distinct product for tracking purposes."
+                      },
+                      {
+                        "front": "FIFO",
+                        "back": "First In, First Out — a stock rotation method ensuring the oldest stock is sold or used first."
+                      },
+                      {
+                        "front": "Shrinkage",
+                        "back": "The difference between expected inventory and actual inventory, typically caused by theft, damage, or administrative errors."
+                      },
+                      {
+                        "front": "Reorder Point",
+                        "back": "The stock level at which a new order must be placed to avoid running out before the next shipment arrives."
+                      },
+                      {
+                        "front": "Dead Stock",
+                        "back": "Items that have not sold in a long period and are unlikely to sell in the future without intervention."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Receiving Stock Correctly",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Receiving Stock Correctly",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=6iiGFfKr1cU",
+                  "label": "Stock Receiving Procedures Walkthrough"
+                },
+                "body": "<p>The receiving process is the foundation of accurate inventory. Errors made here cascade through every downstream record. Watch the demonstration above, then review the step-by-step process.</p><h3>The Receiving Process</h3><ol><li>Compare delivery against the <strong>Purchase Order (PO)</strong> — verify item codes, quantities, and expected delivery dates</li><li>Physically count all items before signing any delivery documentation</li><li>Inspect for damage — record and photograph any damaged goods before accepting or rejecting them</li><li>Log received items into the inventory system immediately — do not leave this until end of day</li><li>Store items in designated locations following FIFO rotation</li></ol>",
+                "segments": [
+                  {
+                    "id": "di-acc-1",
+                    "type": "accordion",
+                    "title": "What to Do When There's a Discrepancy",
+                    "items": [
+                      {
+                        "q": "Quantity received is less than the PO",
+                        "a": "Record the actual quantity received. Do not accept payment for goods you didn't receive. Raise a discrepancy note with the supplier immediately and follow your company's short-delivery process."
+                      },
+                      {
+                        "q": "Items are damaged on arrival",
+                        "a": "Photograph all damage before moving anything. Do not put damaged goods into sellable stock. Complete a damage report form and notify your manager and the supplier within the same day."
+                      },
+                      {
+                        "q": "Wrong items were delivered",
+                        "a": "Segregate the incorrect items from your regular stock. Do not shelf them. Notify the supplier and raise a credit note or exchange request. Record the incident in your inventory system with the supplier reference."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Inventory Fundamentals Quiz",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Inventory Fundamentals Quiz",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What does SKU stand for?",
+                    "opts": [
+                      "Stock Keeping Unit",
+                      "Sales Key Update",
+                      "System Key Utility",
+                      "Store Keeping Utility"
+                    ],
+                    "ans": 0
+                  },
+                  {
+                    "q": "FIFO stands for:",
+                    "opts": [
+                      "First Item First Out",
+                      "First In, First Out",
+                      "Fixed Inventory For Operations",
+                      "Frequent Inventory For Ordering"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "What is the correct first step when receiving a delivery?",
+                    "opts": [
+                      "Sign the delivery note",
+                      "Store items in their locations",
+                      "Compare delivery against the Purchase Order",
+                      "Log items into the system"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "Shrinkage is caused by:",
+                    "opts": [
+                      "High sales volume",
+                      "Theft, damage, or administrative errors",
+                      "Overstocking",
+                      "Frequent deliveries"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Module 2 — Stock Counts & Replenishment",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Conducting a Stock Count",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Conducting a Stock Count",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=3SL_bhBHRuY",
+                  "label": "Stock Count Procedures Demo"
+                },
+                "body": "<p>Stock counts are the mechanism by which you verify that your system records match physical reality. Without regular counts, inventory records drift over time, leading to poor decisions about ordering and reporting.</p><h3>Types of Stock Counts</h3><ul><li><strong>Full count</strong> — every item in the store counted at once, usually done monthly or quarterly. Requires all staff and temporarily halting other operations.</li><li><strong>Cycle count</strong> — a rotating system where a subset of inventory is counted each day or week. Less disruptive and provides continuous data rather than periodic snapshots.</li><li><strong>Spot check</strong> — a targeted count of specific, high-value, or frequently shrinking items. Used to investigate suspected discrepancies.</li></ul>",
+                "segments": [
+                  {
+                    "id": "di-check-1",
+                    "type": "checklist",
+                    "title": "Stock Count Preparation Checklist",
+                    "checklist": [
+                      {
+                        "text": "All pending deliveries have been received and logged before counting begins"
+                      },
+                      {
+                        "text": "Count sheets or handheld scanners are prepared and assigned"
+                      },
+                      {
+                        "text": "Two-person teams are assigned to each section to minimise errors"
+                      },
+                      {
+                        "text": "Counters have been briefed on counting methodology"
+                      },
+                      {
+                        "text": "A reconciliation process is in place for any items that don't match"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Replenishment Strategies",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Replenishment Strategies",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=Tn6-PIef0ns",
+                  "label": "Smart Replenishment Explained"
+                },
+                "body": "<p>Replenishment is the process of ensuring shelves and storage are consistently stocked at the right levels. Watch the video above, then review the key replenishment models.</p><h3>Common Replenishment Models</h3><ul><li><strong>Min/Max</strong> — When stock falls below a minimum level, order enough to reach the maximum level. Simple to operate but can lead to uneven order patterns.</li><li><strong>Fixed-period ordering</strong> — Review stock levels at fixed intervals (e.g., every Monday) and order what's needed to cover the next period plus safety stock.</li><li><strong>Demand-driven</strong> — Orders are triggered by actual sales data in real time. Requires robust POS integration but is the most accurate model.</li></ul><div class=\"info-box\"><strong>⚠️ Key Rule:</strong> Always maintain a safety stock buffer — a minimum level of stock that accounts for supply delays and demand spikes. Never let this buffer drop to zero.</div>",
+                "segments": [
+                  {
+                    "id": "di-flash-2",
+                    "type": "flashcard",
+                    "title": "Replenishment Model Flashcards",
+                    "cards": [
+                      {
+                        "front": "Min/Max Model",
+                        "back": "Order when stock falls to the minimum level; order enough to restore the maximum level."
+                      },
+                      {
+                        "front": "Safety Stock",
+                        "back": "A buffer quantity held above the reorder point to cover unexpected demand or supply delays."
+                      },
+                      {
+                        "front": "Lead Time",
+                        "back": "The time between placing an order and receiving it. Critical for calculating reorder points."
+                      },
+                      {
+                        "front": "Demand-Driven Replenishment",
+                        "back": "Orders triggered automatically by real-time sales data from the POS system."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Stock Management Final Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Stock Management Final Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "Which stock count method involves counting a subset of items on a rotating basis?",
+                    "opts": [
+                      "Full count",
+                      "Spot check",
+                      "Cycle count",
+                      "Partial audit"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "What is the purpose of safety stock?",
+                    "opts": [
+                      "To maximise storage utilisation",
+                      "To buffer against supply delays and unexpected demand spikes",
+                      "To reduce ordering frequency",
+                      "To track shrinkage"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "In a Min/Max replenishment model, an order is triggered when:",
+                    "opts": [
+                      "Stock reaches the maximum level",
+                      "Stock falls below the minimum level",
+                      "A delivery is received",
+                      "A cycle count is completed"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Lead time is defined as:",
+                    "opts": [
+                      "The time between a sale and a return",
+                      "The time between placing an order and receiving it",
+                      "The maximum time stock can be held before it expires",
+                      "The interval between cycle counts"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "What should you do FIRST if a received delivery has fewer items than the Purchase Order?",
+                    "opts": [
+                      "Store what arrived and order the difference separately",
+                      "Sign the delivery note and notify the supplier later",
+                      "Record the actual quantity received and raise a discrepancy note with the supplier immediately",
+                      "Return the entire delivery"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Demo Advanced",
+      "desc": "A full-featured course on advanced retail operations covering everything — videos, presentations, flashcards, matching, fill-in-the-blank activities, and comprehensive assessments.",
+      "time": "2 Hours 30 Mins",
+      "thumb": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Module 1 — Store Operations Overview",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Introduction to Advanced Retail Operations",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Introduction to Advanced Retail Operations",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=KaAJ86Z1MkE",
+                  "label": "Advanced Retail Operations Overview"
+                },
+                "body": "<p>Watch the video above for a comprehensive overview, then explore the interactive content below to reinforce your understanding.</p><h3>The Four Pillars of Store Operations</h3><ul><li><strong>People</strong> — Scheduling, training, performance management, and culture</li><li><strong>Product</strong> — Inventory, merchandising, replenishment, and quality control</li><li><strong>Process</strong> — Standard operating procedures, compliance, and efficiency</li><li><strong>Performance</strong> — KPIs, reporting, and continuous improvement</li></ul>",
+                "segments": [
+                  {
+                    "id": "da-flash-1",
+                    "type": "flashcard",
+                    "title": "Key KPI Flashcards",
+                    "cards": [
+                      {
+                        "front": "Conversion Rate",
+                        "back": "The percentage of store visitors who make a purchase. Formula: (Transactions ÷ Footfall) × 100."
+                      },
+                      {
+                        "front": "Average Transaction Value (ATV)",
+                        "back": "The average amount spent per transaction. Formula: Total Revenue ÷ Number of Transactions."
+                      },
+                      {
+                        "front": "Units Per Transaction (UPT)",
+                        "back": "The average number of items bought per transaction. Indicates the effectiveness of upselling."
+                      },
+                      {
+                        "front": "Sell-Through Rate",
+                        "back": "The percentage of stock sold vs. what was available. High sell-through = efficient buying decisions."
+                      },
+                      {
+                        "front": "Gross Margin Return on Inventory (GMROI)",
+                        "back": "Measures how much gross profit is earned for every peso/dollar invested in inventory."
+                      }
+                    ]
+                  },
+                  {
+                    "id": "da-acc-1",
+                    "type": "accordion",
+                    "title": "Retail Operations Glossary",
+                    "items": [
+                      {
+                        "q": "What is a planogram?",
+                        "a": "A detailed diagram or model that specifies the placement of products on shelves to maximise sales and visual appeal. It is provided by the head office and must be followed precisely."
+                      },
+                      {
+                        "q": "What is a shrink audit?",
+                        "a": "A formal review of inventory discrepancies to identify and quantify loss from theft, damage, or administrative error. Usually conducted quarterly or after significant stock count variances."
+                      },
+                      {
+                        "q": "What is a KPI dashboard?",
+                        "a": "A visual display — usually digital — that shows real-time or near-real-time performance against key metrics. Allows managers to spot problems and opportunities quickly."
+                      },
+                      {
+                        "q": "What is a mystery shopper?",
+                        "a": "An external evaluator who poses as a regular customer to assess service quality, compliance with standards, and the overall shopping experience without staff awareness."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Visual Merchandising & Store Layout",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Visual Merchandising & Store Layout",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OhIbJ6vTs/edit",
+                  "label": "Visual Merchandising Best Practices Deck"
+                },
+                "body": "<p>Review the presentation above in full before working through the activities below. Visual merchandising directly affects conversion rates, average transaction value, and brand perception.</p><h3>Core Visual Merchandising Principles</h3><ul><li><strong>The decompression zone</strong> — the first 2–3 metres inside the entrance: never place high-priority products here as customers' senses are still adjusting</li><li><strong>Eye level is buy level</strong> — position best-sellers and highest-margin products at eye level</li><li><strong>The rule of three</strong> — odd numbers of items create more visually interesting displays than even numbers</li><li><strong>Colour blocking</strong> — grouping similar colours together creates visual impact and makes ranges easier to shop</li></ul>",
+                "segments": [
+                  {
+                    "id": "da-match-1",
+                    "type": "matching",
+                    "title": "Match the Merchandising Concept",
+                    "pairs": [
+                      {
+                        "left": "Decompression Zone",
+                        "right": "Entry area — don't place hero products here"
+                      },
+                      {
+                        "left": "Eye Level is Buy Level",
+                        "right": "Position best-sellers at customer eye height"
+                      },
+                      {
+                        "left": "Rule of Three",
+                        "right": "Odd-numbered groupings are more visually appealing"
+                      },
+                      {
+                        "left": "Colour Blocking",
+                        "right": "Group similar colours to create visual impact"
+                      },
+                      {
+                        "left": "Cross-Merchandising",
+                        "right": "Placing complementary products together to encourage add-on purchases"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "da-fill-1",
+                    "type": "fillblank",
+                    "title": "Fill in the Blanks — Merchandising Rules",
+                    "questions": [
+                      {
+                        "sentence": "The first 2–3 metres inside the store entrance is known as the __BLANK__ zone.",
+                        "blanks": [
+                          "decompression"
+                        ]
+                      },
+                      {
+                        "sentence": "Products placed at __BLANK__ level tend to have the highest sell-through rates.",
+                        "blanks": [
+                          "eye"
+                        ]
+                      },
+                      {
+                        "sentence": "Grouping products of similar colour together is called __BLANK__ blocking.",
+                        "blanks": [
+                          "colour",
+                          "color"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Module 1 Knowledge Check",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Module 1 Knowledge Check",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "Conversion Rate is calculated as:",
+                    "opts": [
+                      "Revenue ÷ Footfall",
+                      "(Transactions ÷ Footfall) × 100",
+                      "Total items sold ÷ Transactions",
+                      "Revenue ÷ Transactions"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Where should your highest-margin products ideally be placed?",
+                    "opts": [
+                      "Near the entrance in the decompression zone",
+                      "At floor level for easy access",
+                      "At eye level",
+                      "Near the checkout"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "A planogram is:",
+                    "opts": [
+                      "A type of inventory report",
+                      "A diagram specifying product placement on shelves",
+                      "A KPI dashboard layout",
+                      "A store floor plan"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "The Rule of Three in visual merchandising refers to:",
+                    "opts": [
+                      "Placing products in three separate zones",
+                      "Using three colours in every display",
+                      "Using odd-numbered groupings for visual appeal",
+                      "Rotating displays every three weeks"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Module 2 — Staff Management & Scheduling",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Workforce Planning Principles",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Workforce Planning Principles",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=mJR3b6MPR2I",
+                  "label": "Retail Workforce Planning Masterclass"
+                },
+                "body": "<p>Effective workforce planning ensures you have the right number of people, with the right skills, in the right place, at the right time. Watch the video, then work through the activities below.</p><h3>Key Scheduling Principles</h3><ul><li>Match staffing levels to footfall patterns — not a flat average across the week</li><li>Account for breaks, handovers, and non-sales tasks (stock, cleaning, admin) when calculating headcount needs</li><li>Publish schedules at least two weeks in advance to allow staff to plan their lives</li><li>Build a flex pool — a list of part-time or casual staff who can cover at short notice</li></ul>",
+                "segments": [
+                  {
+                    "id": "da-flash-2",
+                    "type": "flashcard",
+                    "title": "Workforce Management Flashcards",
+                    "cards": [
+                      {
+                        "front": "Headcount Planning",
+                        "back": "Determining how many staff are needed per shift based on expected customer volume and task requirements."
+                      },
+                      {
+                        "front": "Flex Pool",
+                        "back": "A roster of part-time or casual employees available to cover shifts at short notice."
+                      },
+                      {
+                        "front": "Labour Cost Ratio",
+                        "back": "Staff wages as a percentage of revenue. Typically targeted between 15–25% in retail, depending on format."
+                      },
+                      {
+                        "front": "Skill Coverage",
+                        "back": "Ensuring each shift has staff trained in all critical functions — cash handling, customer service, stock, etc."
+                      }
+                    ]
+                  },
+                  {
+                    "id": "da-check-1",
+                    "type": "checklist",
+                    "title": "Scheduling Best Practices",
+                    "checklist": [
+                      {
+                        "text": "Schedules are published at least 2 weeks in advance"
+                      },
+                      {
+                        "text": "Peak footfall periods have adequate staffing cover"
+                      },
+                      {
+                        "text": "Every shift includes at least one trained supervisor or team lead"
+                      },
+                      {
+                        "text": "Break patterns are factored into the schedule — no extended periods with only one person on the floor"
+                      },
+                      {
+                        "text": "A flex/standby list is maintained for last-minute gaps"
+                      },
+                      {
+                        "text": "Labour cost ratio is reviewed weekly against the budget"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Performance Management Basics",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Performance Management Basics",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1EAYkoeWol0uCRaar821Fl3-SLPrFjPkl45UEuNuwSYE/edit",
+                  "label": "Performance Management Framework"
+                },
+                "body": "<p>Review the presentation for the full performance management framework. Key principles are summarised below.</p><h3>Setting Effective Targets</h3><ul><li>Targets should be <strong>SMART</strong>: Specific, Measurable, Achievable, Relevant, Time-bound</li><li>Individual targets should cascade from store targets — everyone should see how their role contributes to the bigger picture</li><li>Review progress formally at least monthly; informally in every coaching conversation</li></ul>",
+                "segments": [
+                  {
+                    "id": "da-match-2",
+                    "type": "matching",
+                    "title": "Match the SMART Criteria",
+                    "pairs": [
+                      {
+                        "left": "Specific",
+                        "right": "Clearly defines what is to be achieved"
+                      },
+                      {
+                        "left": "Measurable",
+                        "right": "Progress can be tracked with data"
+                      },
+                      {
+                        "left": "Achievable",
+                        "right": "Realistic given available resources and constraints"
+                      },
+                      {
+                        "left": "Relevant",
+                        "right": "Aligned with broader team and business goals"
+                      },
+                      {
+                        "left": "Time-bound",
+                        "right": "Has a clear deadline or review date"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "da-fill-2",
+                    "type": "fillblank",
+                    "title": "Fill in the Blanks — Performance Terms",
+                    "questions": [
+                      {
+                        "sentence": "SMART targets must be Specific, Measurable, Achievable, Relevant, and __BLANK__.",
+                        "blanks": [
+                          "Time-bound",
+                          "Time bound"
+                        ]
+                      },
+                      {
+                        "sentence": "Individual targets should __BLANK__ down from store-level goals so every team member understands how their work contributes.",
+                        "blanks": [
+                          "cascade"
+                        ]
+                      },
+                      {
+                        "sentence": "A performance conversation held informally and regularly is called a __BLANK__ conversation.",
+                        "blanks": [
+                          "coaching"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Module 2 Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Module 2 Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What does a 'flex pool' refer to in workforce management?",
+                    "opts": [
+                      "Full-time staff who work flexible hours",
+                      "Part-time or casual staff available for short-notice cover",
+                      "Overtime hours banked for future use",
+                      "A staff rota that rotates every two weeks"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Labour Cost Ratio measures:",
+                    "opts": [
+                      "The number of staff per shift",
+                      "Staff wages as a percentage of revenue",
+                      "Overtime hours vs. regular hours",
+                      "Staff satisfaction score"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "In the SMART framework, 'Achievable' means:",
+                    "opts": [
+                      "The target can be achieved in one day",
+                      "Realistic given available resources and constraints",
+                      "Achievable by the top 10% of performers",
+                      "Defined by the store manager alone"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "How far in advance should schedules ideally be published?",
+                    "opts": [
+                      "Same day",
+                      "3 days",
+                      "1 week",
+                      "At least 2 weeks"
+                    ],
+                    "ans": 3
+                  },
+                  {
+                    "q": "Individual performance targets should cascade from:",
+                    "opts": [
+                      "Each staff member's personal goals",
+                      "The store's overall performance targets",
+                      "Last year's results",
+                      "Industry benchmarks"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Module 3 — Loss Prevention & Compliance",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Understanding Loss Prevention",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Understanding Loss Prevention",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=inWWhr5tnEA",
+                  "label": "Loss Prevention Fundamentals"
+                },
+                "body": "<p>Loss prevention (LP) is the set of practices, systems, and behaviours that protect store assets from theft, damage, fraud, and administrative error. Watch the video, then explore the full range of LP activities below.</p><h3>The Five Sources of Retail Loss</h3><ul><li><strong>External theft</strong> — shoplifting by members of the public</li><li><strong>Internal theft</strong> — theft or fraud by employees</li><li><strong>Supplier fraud</strong> — short deliveries, substitution, or billing fraud</li><li><strong>Administrative error</strong> — inaccurate receiving, pricing errors, or system misuse</li><li><strong>Damage</strong> — loss through mishandling, poor storage, or inadequate training</li></ul>",
+                "segments": [
+                  {
+                    "id": "da-flash-3",
+                    "type": "flashcard",
+                    "title": "Loss Prevention Flashcards",
+                    "cards": [
+                      {
+                        "front": "ORC (Organised Retail Crime)",
+                        "back": "Coordinated theft by groups operating across multiple stores, often reselling stolen goods commercially."
+                      },
+                      {
+                        "front": "EAS (Electronic Article Surveillance)",
+                        "back": "Security tagging systems that trigger alarms at store exits if tags haven't been deactivated at the POS."
+                      },
+                      {
+                        "front": "Sweethearting",
+                        "back": "A form of internal fraud where a cashier doesn't scan items for a friend or co-conspirator."
+                      },
+                      {
+                        "front": "Void Abuse",
+                        "back": "Repeatedly voiding transactions to misappropriate cash from the register — a common form of till fraud."
+                      }
+                    ]
+                  },
+                  {
+                    "id": "da-match-3",
+                    "type": "matching",
+                    "title": "Match the Loss Type to Its Description",
+                    "pairs": [
+                      {
+                        "left": "External Theft",
+                        "right": "Shoplifting by members of the public"
+                      },
+                      {
+                        "left": "Sweethearting",
+                        "right": "Cashier doesn't scan items for an accomplice"
+                      },
+                      {
+                        "left": "Supplier Fraud",
+                        "right": "Short deliveries or billing discrepancies"
+                      },
+                      {
+                        "left": "Void Abuse",
+                        "right": "Repeated transaction voids to misappropriate cash"
+                      },
+                      {
+                        "left": "Administrative Error",
+                        "right": "Incorrect receiving records or pricing mistakes"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "da-fill-3",
+                    "type": "fillblank",
+                    "title": "Fill in the Blanks — Loss Prevention",
+                    "questions": [
+                      {
+                        "sentence": "Electronic Article Surveillance is commonly known by the abbreviation __BLANK__.",
+                        "blanks": [
+                          "EAS"
+                        ]
+                      },
+                      {
+                        "sentence": "A cashier who does not scan items for a friend is committing a form of internal fraud called __BLANK__.",
+                        "blanks": [
+                          "sweethearting"
+                        ]
+                      },
+                      {
+                        "sentence": "Coordinated theft by criminal groups across multiple stores is called __BLANK__ Retail Crime.",
+                        "blanks": [
+                          "Organised",
+                          "Organized"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Compliance & Regulatory Standards",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Compliance & Regulatory Standards",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OhIbJ6vTs/edit",
+                  "label": "Compliance Framework Slide Deck"
+                },
+                "body": "<p>Review the presentation slides, then check your understanding with the activities below. Compliance is not optional — non-compliance exposes your business to legal penalties, financial loss, and reputational damage.</p><h3>Key Compliance Areas in Retail</h3><ul><li><strong>Data privacy</strong> — how customer data is collected, stored, and used (GDPR, local laws)</li><li><strong>Payment card security</strong> — PCI-DSS standards for handling card data</li><li><strong>Health & Safety</strong> — safe working environments, emergency procedures, equipment standards</li><li><strong>Employment law</strong> — correct contracts, hours, breaks, and anti-discrimination practices</li><li><strong>Product compliance</strong> — age restrictions, product safety standards, labelling requirements</li></ul><div class=\"info-box\"><strong>⚠️ Key Rule:</strong> Compliance is everyone's responsibility — not just the manager's. If you see a potential compliance breach, you are obligated to report it.</div>",
+                "segments": [
+                  {
+                    "id": "da-acc-2",
+                    "type": "accordion",
+                    "title": "Compliance Scenarios — What Would You Do?",
+                    "items": [
+                      {
+                        "q": "A colleague asks you to sign off a delivery without counting it because they're busy. What do you do?",
+                        "a": "Decline and explain that delivery counts are a compliance requirement. Offer to assist with counting rather than skipping the step. Never sign a delivery you haven't personally verified."
+                      },
+                      {
+                        "q": "You notice the emergency exit is blocked by a pallet of stock. What do you do?",
+                        "a": "Move the pallet immediately — blocked emergency exits are a health and safety violation that could cost lives. Report the incident to your manager and document it in the safety log."
+                      },
+                      {
+                        "q": "A customer asks you to process their refund but you can't find the original transaction. What do you do?",
+                        "a": "Follow your store's refund without receipt policy. Do not approve a refund outside this policy regardless of how upset the customer becomes. Escalate to a supervisor if necessary."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Advanced Operations Final Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Advanced Operations Final Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "EAS stands for:",
+                    "opts": [
+                      "Employee Accountability System",
+                      "Electronic Article Surveillance",
+                      "External Audit Standard",
+                      "Enhanced Access Security"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Void Abuse involves:",
+                    "opts": [
+                      "Deleting customer accounts",
+                      "Repeatedly voiding transactions to misappropriate cash",
+                      "Bypassing security tags",
+                      "Approving refunds without authorisation"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "PCI-DSS relates to:",
+                    "opts": [
+                      "Health and safety in retail",
+                      "Payment card data security standards",
+                      "Product compliance and labelling",
+                      "Employee contract requirements"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "If you find a blocked emergency exit, you should:",
+                    "opts": [
+                      "Report it to management at the end of the day",
+                      "Move the obstruction immediately and report the incident",
+                      "Put a warning sign on the exit",
+                      "Inform the supplier whose goods are blocking it"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Organised Retail Crime (ORC) refers to:",
+                    "opts": [
+                      "Loss from administrative errors",
+                      "Coordinated theft by groups operating across multiple stores",
+                      "Internal fraud by employees",
+                      "Supplier short-deliveries"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "A Conversion Rate of 35% means:",
+                    "opts": [
+                      "35% of products were sold",
+                      "35 transactions happened today",
+                      "35% of visitors to the store made a purchase",
+                      "35% of the store's target was achieved"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Demo Sample A",
+      "desc": "Food safety and hygiene essentials for F&B environments — a blended course with videos, flashcards, and scenario-based activities.",
+      "time": "45 Mins",
+      "thumb": "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Module 1 — Food Safety Fundamentals",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Introduction to Food Safety",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Introduction to Food Safety",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=3SL_bhBHRuY",
+                  "label": "Food Safety: Why It Matters"
+                },
+                "body": "<p>Food safety is not a back-of-house concern — it is the foundation of every F&B operation. Foodborne illnesses affect millions of people globally every year, with the vast majority caused by preventable hygiene failures.</p><h3>The Four Cs of Food Safety</h3><ul><li><strong>Cleaning</strong> — Keep surfaces, equipment, and hands clean at all times</li><li><strong>Cooking</strong> — Cook foods to the correct internal temperature to kill pathogens</li><li><strong>Chilling</strong> — Keep cold foods below 5°C and hot foods above 60°C</li><li><strong>Cross-contamination</strong> — Prevent raw foods from contaminating ready-to-eat foods</li></ul><div class=\"info-box\"><strong>⚠️ The Temperature Danger Zone:</strong> Bacteria multiply most rapidly between 5°C and 60°C. This range is known as the temperature danger zone. Never leave potentially hazardous food in this range for more than 2 hours.</div>",
+                "segments": [
+                  {
+                    "id": "dsa-flash-1",
+                    "type": "flashcard",
+                    "title": "Food Safety Terminology",
+                    "cards": [
+                      {
+                        "front": "FIFO",
+                        "back": "First In, First Out — always use the oldest stock first to prevent expiry."
+                      },
+                      {
+                        "front": "HACCP",
+                        "back": "Hazard Analysis and Critical Control Points — a systematic approach to identifying and controlling food safety hazards."
+                      },
+                      {
+                        "front": "Critical Control Point (CCP)",
+                        "back": "A step in the food process where a control measure can be applied to prevent, eliminate, or reduce a food safety hazard to an acceptable level."
+                      },
+                      {
+                        "front": "Temperature Danger Zone",
+                        "back": "The range between 5°C and 60°C where bacteria multiply most rapidly in food."
+                      },
+                      {
+                        "front": "Cross-contamination",
+                        "back": "The transfer of bacteria or allergens from one food or surface to another, typically from raw to ready-to-eat food."
+                      }
+                    ]
+                  },
+                  {
+                    "id": "dsa-acc-1",
+                    "type": "accordion",
+                    "title": "Common Food Safety Violations & Consequences",
+                    "items": [
+                      {
+                        "q": "Improper temperature control",
+                        "a": "Leaving food in the danger zone (5–60°C) for more than 2 hours allows bacteria to multiply to unsafe levels. This is the leading cause of foodborne illness in commercial kitchens."
+                      },
+                      {
+                        "q": "Poor personal hygiene",
+                        "a": "Failure to wash hands properly after handling raw meat, using the bathroom, or handling waste can contaminate food. Illness, regulatory action, and business closure can result."
+                      },
+                      {
+                        "q": "Inadequate cleaning and sanitising",
+                        "a": "Cleaning removes visible dirt; sanitising kills pathogens. Both steps are required. Using cleaning products at the wrong concentration makes them ineffective."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Personal Hygiene in F&B",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Personal Hygiene in F&B",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=wzbKXeHAFHc",
+                  "label": "Proper Handwashing Technique Demo"
+                },
+                "body": "<p>Personal hygiene is your first line of defence against food contamination. Watch the demonstration above, then review the mandatory hygiene standards below.</p><h3>Handwashing — When and How</h3><p>Hands must be washed:</p><ul><li>Before handling any food</li><li>After touching raw meat, poultry, or seafood</li><li>After using the bathroom</li><li>After coughing, sneezing, or blowing your nose</li><li>After handling waste or cleaning chemicals</li><li>After touching your face or hair</li></ul><p>The correct technique involves at least 20 seconds of scrubbing with soap, covering all surfaces including the back of hands, between fingers, and under nails, followed by thorough rinsing and drying with a clean paper towel.</p>",
+                "segments": [
+                  {
+                    "id": "dsa-check-1",
+                    "type": "checklist",
+                    "title": "Pre-Shift Personal Hygiene Checklist",
+                    "checklist": [
+                      {
+                        "text": "Hair is tied back or covered with a clean hat/hairnet"
+                      },
+                      {
+                        "text": "Hands and nails are clean; nails are short and unvarnished"
+                      },
+                      {
+                        "text": "Clean uniform is worn — no outdoor clothing in food prep areas"
+                      },
+                      {
+                        "text": "No jewellery except a plain wedding band"
+                      },
+                      {
+                        "text": "Any cuts or wounds are covered with a brightly coloured waterproof plaster"
+                      },
+                      {
+                        "text": "I have not reported to work while ill with vomiting, diarrhoea, or a food-transmissible illness"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Food Safety Knowledge Check",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Food Safety Knowledge Check",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What is the temperature danger zone for food?",
+                    "opts": [
+                      "0°C to 40°C",
+                      "5°C to 60°C",
+                      "10°C to 75°C",
+                      "0°C to 100°C"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "How long should you scrub your hands during proper handwashing?",
+                    "opts": [
+                      "5 seconds",
+                      "10 seconds",
+                      "At least 20 seconds",
+                      "At least 60 seconds"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "HACCP stands for:",
+                    "opts": [
+                      "Hygiene And Cleaning Control Procedures",
+                      "Hazard Analysis and Critical Control Points",
+                      "High-Accuracy Compliance Certification Program",
+                      "Health And Catering Control Protocol"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "FIFO in food storage means:",
+                    "opts": [
+                      "Fix It First Option",
+                      "First In, First Out — use oldest stock first",
+                      "Food Items For Operations",
+                      "Freeze Immediately For Optimal quality"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Module 2 — Allergen Awareness",
+          "done": false,
+          "chapters": [
+            {
+              "title": "The 14 Major Allergens",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "The 14 Major Allergens",
+                "type": "lesson",
+                "media": {
+                  "type": "video",
+                  "url": "https://www.youtube.com/watch?v=6iiGFfKr1cU",
+                  "label": "Understanding Food Allergens"
+                },
+                "body": "<p>Food allergies can be life-threatening. Every person working in an F&B environment must be able to identify the 14 major allergens and understand how to handle allergen queries from customers safely.</p><h3>The 14 Major Allergens</h3><ol><li>Celery</li><li>Cereals containing gluten (wheat, rye, barley, oats)</li><li>Crustaceans (prawns, crabs, lobster)</li><li>Eggs</li><li>Fish</li><li>Lupin</li><li>Milk</li><li>Molluscs (mussels, oysters, squid)</li><li>Mustard</li><li>Peanuts</li><li>Sesame</li><li>Soybeans</li><li>Sulphur dioxide and sulphites</li><li>Tree nuts (almonds, hazelnuts, walnuts, cashews, etc.)</li></ol><div class=\"info-box\"><strong>🚨 Critical:</strong> If a customer discloses an allergy, you must treat it as a potential life-or-death situation. Never guess. Always escalate to a chef or manager who can confirm whether a dish is safe.</div>",
+                "segments": [
+                  {
+                    "id": "dsa-flash-2",
+                    "type": "flashcard",
+                    "title": "Allergen Quick-Reference Cards",
+                    "cards": [
+                      {
+                        "front": "Gluten",
+                        "back": "Found in cereals: wheat, rye, barley, and oats. Present in most breads, pasta, and pastries."
+                      },
+                      {
+                        "front": "Crustaceans",
+                        "back": "Includes prawns, crab, lobster, and crayfish. Often found in seafood sauces and bisques."
+                      },
+                      {
+                        "front": "Tree Nuts",
+                        "back": "Includes almonds, cashews, walnuts, pecans, pistachios, and others. Distinct from peanuts (a legume)."
+                      },
+                      {
+                        "front": "Sulphites",
+                        "back": "Used as preservatives. Found in wine, dried fruits, vinegar, and many processed foods."
+                      },
+                      {
+                        "front": "Lupin",
+                        "back": "A flowering plant whose seeds are used in some flours and bread products. A less-known but important allergen."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Allergen Final Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Allergen Final Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "How many major allergens are legally recognised?",
+                    "opts": [
+                      "8",
+                      "10",
+                      "12",
+                      "14"
+                    ],
+                    "ans": 3
+                  },
+                  {
+                    "q": "A customer tells you they have a nut allergy. What should you do first?",
+                    "opts": [
+                      "Tell them the dish probably doesn't contain nuts",
+                      "Check the menu yourself and make a judgement",
+                      "Escalate immediately to a chef or manager who can confirm the dish is safe",
+                      "Ask them which nuts they're allergic to before deciding"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "Peanuts are classified as:",
+                    "opts": [
+                      "A tree nut",
+                      "A legume — separate allergen from tree nuts",
+                      "A cereal",
+                      "A type of seed"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Sulphites are most commonly found in:",
+                    "opts": [
+                      "Fresh meat and poultry",
+                      "Wine, dried fruits, and vinegar",
+                      "Dairy products",
+                      "Shellfish"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Cross-contamination of allergens occurs when:",
+                    "opts": [
+                      "Two different allergens are stored separately",
+                      "Allergen traces are transferred from one food or surface to another",
+                      "A customer declares multiple allergies",
+                      "Allergen information is printed on the menu"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Demo Sample B",
+      "desc": "An operational excellence course for warehouse environments covering safety protocols, equipment handling, and compliance — featuring presentations, matching activities, and comprehensive assessments.",
+      "time": "1 Hour 10 Mins",
+      "thumb": "https://images.unsplash.com/photo-1553413077-190dd305871c?w=400&h=160&fit=crop",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "modules": [
+        {
+          "title": "Module 1 — Warehouse Safety",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Safety Culture & Risk Awareness",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Safety Culture & Risk Awareness",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OhIbJ6vTs/edit",
+                  "label": "Warehouse Safety Foundations Deck"
+                },
+                "body": "<p>Review the full presentation before proceeding to the activities. A strong safety culture isn't built from posters on a wall — it's built from consistent behaviours and a shared commitment to protecting every person in the facility.</p><h3>The Safety Triangle</h3><p>For every serious injury in a workplace, safety research has consistently found there are many more near-misses and minor incidents that preceded it. Addressing the base of the triangle — unsafe behaviours and conditions — prevents the serious incidents at the top.</p><ul><li><strong>Unsafe Acts</strong> — Taking shortcuts, ignoring PPE requirements, rushing</li><li><strong>Unsafe Conditions</strong> — Wet floors, blocked exits, unsecured loads, faulty equipment</li><li><strong>Near Misses</strong> — Incidents that almost caused injury but didn't — these must always be reported</li></ul><div class=\"info-box\"><strong>📋 Reporting Culture:</strong> Never discourage near-miss reporting. A near miss is a free lesson — an opportunity to fix something before someone gets hurt.</div>",
+                "segments": [
+                  {
+                    "id": "dsb-acc-1",
+                    "type": "accordion",
+                    "title": "Common Warehouse Hazards",
+                    "items": [
+                      {
+                        "q": "Forklift and pedestrian interaction zones",
+                        "a": "The most serious and frequently fatal hazard in warehouse environments. Clearly marked pedestrian lanes, physical barriers, and strict speed limits for forklifts are essential. Pedestrians must never assume a forklift operator can see them."
+                      },
+                      {
+                        "q": "Manual handling and musculoskeletal injuries",
+                        "a": "Improper lifting technique causes more lost-time injuries in warehouses than any other cause. Always lift with a straight back, bend at the knees, keep the load close to your body, and ask for help or use mechanical aids for heavy items."
+                      },
+                      {
+                        "q": "Working at height",
+                        "a": "Any work above 2 metres requires a work-at-height permit and appropriate fall protection. Never use makeshift platforms — always use the correct equipment for the task."
+                      },
+                      {
+                        "q": "Hazardous substances (COSHH)",
+                        "a": "Cleaning agents, battery fluids, and fuel all pose chemical hazards. Always read the Safety Data Sheet (SDS) before using a substance and wear the appropriate PPE as specified."
+                      }
+                    ]
+                  },
+                  {
+                    "id": "dsb-check-1",
+                    "type": "checklist",
+                    "title": "Pre-Shift Safety Walkthrough Checklist",
+                    "checklist": [
+                      {
+                        "text": "All emergency exits are clear and accessible"
+                      },
+                      {
+                        "text": "Pedestrian walkways are free of obstructions and clearly marked"
+                      },
+                      {
+                        "text": "Fire extinguishers are in their designated positions and not obstructed"
+                      },
+                      {
+                        "text": "No spills or wet floor hazards on the warehouse floor"
+                      },
+                      {
+                        "text": "All racking is undamaged and loads are stable"
+                      },
+                      {
+                        "text": "PPE is available, in good condition, and worn by all relevant personnel"
+                      },
+                      {
+                        "text": "All forklifts and MHE (Material Handling Equipment) have completed their pre-use checks"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "PPE Requirements & Emergency Procedures",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "PPE Requirements & Emergency Procedures",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1EAYkoeWol0uCRaar821Fl3-SLPrFjPkl45UEuNuwSYE/edit",
+                  "label": "PPE & Emergency Response Guide"
+                },
+                "body": "<p>The presentation above covers PPE categories and the site emergency response plan. Key summary below.</p><h3>PPE by Zone</h3><ul><li><strong>General warehouse floor</strong> — Safety shoes, high-visibility vest</li><li><strong>Picking and packing</strong> — Cut-resistant gloves where sharp edges are present</li><li><strong>Forklift and MHE operations</strong> — Safety shoes, hi-vis, hard hat in designated zones</li><li><strong>Chemical handling</strong> — As specified in the relevant Safety Data Sheet (SDS)</li><li><strong>Cold storage</strong> — Thermal gloves, insulated jacket, appropriate footwear</li></ul><h3>Emergency Response — Key Points</h3><ul><li>Know the location of your nearest emergency exit before each shift begins</li><li>On hearing the fire alarm — stop work immediately, do not collect personal belongings, proceed to the assembly point</li><li>Never re-enter the building until an authorised person gives the all-clear</li></ul>",
+                "segments": [
+                  {
+                    "id": "dsb-match-1",
+                    "type": "matching",
+                    "title": "Match the Zone to the Required PPE",
+                    "pairs": [
+                      {
+                        "left": "General Warehouse Floor",
+                        "right": "Safety shoes + high-visibility vest"
+                      },
+                      {
+                        "left": "Chemical Handling",
+                        "right": "PPE as specified in the Safety Data Sheet"
+                      },
+                      {
+                        "left": "Cold Storage",
+                        "right": "Thermal gloves + insulated jacket"
+                      },
+                      {
+                        "left": "Forklift Zones",
+                        "right": "Safety shoes + hi-vis + hard hat"
+                      },
+                      {
+                        "left": "Picking with Sharp Edges",
+                        "right": "Cut-resistant gloves"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Warehouse Safety Quiz",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Warehouse Safety Quiz",
+                "type": "quiz",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What is the correct lifting technique for heavy items?",
+                    "opts": [
+                      "Bend at the waist, keep legs straight",
+                      "Bend at the knees, keep back straight, keep load close to the body",
+                      "Twist your torso to position the load",
+                      "Lift quickly to reduce strain duration"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "A near-miss should be:",
+                    "opts": [
+                      "Ignored if no one was hurt",
+                      "Only reported if it happened to you personally",
+                      "Always reported — it's an opportunity to prevent a real incident",
+                      "Reported only if it caused equipment damage"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "On hearing a fire alarm in a warehouse, you should:",
+                    "opts": [
+                      "Look for the source of the fire before evacuating",
+                      "Collect your personal belongings and then exit",
+                      "Stop work immediately and proceed to the assembly point without collecting belongings",
+                      "Contact a supervisor before evacuating"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "What does COSHH relate to?",
+                    "opts": [
+                      "Control of Staff and Shift Hours",
+                      "Control of Substances Hazardous to Health",
+                      "Compliance for Safety in High-risk Handling",
+                      "Checklist of Standard Health Hazards"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Module 2 — Operational Excellence",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Goods-In & Put-Away Processes",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Goods-In & Put-Away Processes",
+                "type": "lesson",
+                "media": {
+                  "type": "presentation",
+                  "url": "https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OhIbJ6vTs/edit",
+                  "label": "Goods-In Process Standard Operating Procedure"
+                },
+                "body": "<p>The Goods-In process is the entry point for all stock into the warehouse. Every error here ripples downstream. Study the SOP in the presentation, then test your understanding below.</p><h3>The 5-Step Goods-In Process</h3><ol><li><strong>Pre-arrival</strong> — Review the expected delivery schedule; prepare docking bay and scanning equipment</li><li><strong>Vehicle check</strong> — Inspect the vehicle temperature (for chilled goods), seal integrity, and driver documentation</li><li><strong>Physical count</strong> — Count all pallets and cartons against the Advance Shipment Notice (ASN)</li><li><strong>System receipt</strong> — Scan or enter all received items into the Warehouse Management System (WMS) immediately</li><li><strong>Put-away</strong> — Move stock to its designated storage location following the location guide and FIFO rotation</li></ol>",
+                "segments": [
+                  {
+                    "id": "dsb-match-2",
+                    "type": "matching",
+                    "title": "Match the Goods-In Step to Its Purpose",
+                    "pairs": [
+                      {
+                        "left": "Pre-arrival",
+                        "right": "Prepare bay and equipment for the incoming delivery"
+                      },
+                      {
+                        "left": "Vehicle check",
+                        "right": "Verify temperature, seal, and documentation"
+                      },
+                      {
+                        "left": "Physical count",
+                        "right": "Count items against the Advance Shipment Notice"
+                      },
+                      {
+                        "left": "System receipt",
+                        "right": "Log all received items into the WMS immediately"
+                      },
+                      {
+                        "left": "Put-away",
+                        "right": "Move stock to designated location following FIFO"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "dsb-acc-2",
+                    "type": "accordion",
+                    "title": "Goods-In Problem Scenarios",
+                    "items": [
+                      {
+                        "q": "The seal on the incoming vehicle has been broken",
+                        "a": "Do not accept the delivery until the discrepancy is investigated and documented. The broken seal may indicate tampering, theft, or a temperature compromise. Contact your manager and the supplier before proceeding."
+                      },
+                      {
+                        "q": "The WMS system is down when a delivery arrives",
+                        "a": "Complete a manual paper count using the backup count sheet. Store the records securely. Notify IT immediately and enter the delivery into the WMS as soon as the system is restored — do not delay the system receipt."
+                      },
+                      {
+                        "q": "You discover damaged goods during the physical count",
+                        "a": "Segregate all damaged items from the main stock. Photograph the damage. Record the quantity and nature of damage on the delivery paperwork and raise a damage claim with the supplier on the same day."
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Warehouse Operations Final Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Warehouse Operations Final Assessment",
+                "type": "assessment",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "body": "",
+                "segments": [],
+                "questions": [
+                  {
+                    "q": "What is an Advance Shipment Notice (ASN)?",
+                    "opts": [
+                      "A safety alert sent before a hazardous chemical delivery",
+                      "A pre-delivery notification from the supplier listing expected items and quantities",
+                      "An automated system receipt confirmation",
+                      "A form completed after a vehicle inspection"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "WMS stands for:",
+                    "opts": [
+                      "Worker Management Schedule",
+                      "Warehouse Management System",
+                      "Weekly Manifest Summary",
+                      "Workplace Maintenance Standard"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "If you find a broken seal on an incoming delivery vehicle, you should:",
+                    "opts": [
+                      "Accept the delivery but note the broken seal on the paperwork",
+                      "Reject the delivery outright without further investigation",
+                      "Do not accept until the discrepancy is investigated, documented, and management is notified",
+                      "Accept the delivery and file a report at end of day"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "If the WMS is unavailable when a delivery arrives, you should:",
+                    "opts": [
+                      "Hold the delivery in the bay until the system is restored",
+                      "Ask the driver to come back another time",
+                      "Complete a manual paper count and enter data into WMS as soon as it's restored",
+                      "Estimate quantities based on the ASN and process the delivery normally"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "The correct PPE for working in cold storage includes:",
+                    "opts": [
+                      "Standard safety shoes and hi-vis vest only",
+                      "Hard hat and safety goggles",
+                      "Thermal gloves and insulated jacket in addition to standard PPE",
+                      "Chemical-resistant gloves"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "FIFO in warehouse put-away means:",
+                    "opts": [
+                      "Fix It First Operations",
+                      "Stock is placed so the newest items are retrieved first",
+                      "Stock is placed so the oldest items are retrieved and used first",
+                      "Items are stored by size from largest to smallest"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "PROGRESS_DATA": [
+    {
+      "name": "John Doe",
+      "company": "Popeyes",
+      "course": "POS — Introduction",
+      "progress": 100,
+      "started": "2025-01-10",
+      "completed": "2025-01-12",
+      "status": "Completed"
+    },
+    {
+      "name": "Ana Reyes",
+      "company": "Popeyes",
+      "course": "Cybersecurity Basics",
+      "progress": 75,
+      "started": "2025-02-01",
+      "completed": null,
+      "status": "In Progress"
+    },
+    {
+      "name": "Mark Santos",
+      "company": "Popeyes",
+      "course": "POS — Intermediate",
+      "progress": 0,
+      "started": null,
+      "completed": null,
+      "status": "Not Started"
+    },
+    {
+      "name": "Chris Park",
+      "company": "Nike Retail",
+      "course": "Customer Management",
+      "progress": 100,
+      "started": "2025-01-20",
+      "completed": "2025-01-25",
+      "status": "Completed"
+    },
+    {
+      "name": "Chris Park",
+      "company": "Nike Retail",
+      "course": "POS — Introduction",
+      "progress": 100,
+      "started": "2025-01-05",
+      "completed": "2025-01-07",
+      "status": "Completed"
+    },
+    {
+      "name": "David Anderson",
+      "company": "Rolex",
+      "course": "Cybersecurity Basics",
+      "progress": 40,
+      "started": "2025-02-10",
+      "completed": null,
+      "status": "In Progress"
+    },
+    {
+      "name": "Sarah Miller",
+      "company": "Lenovo",
+      "course": "Customer Management",
+      "progress": 100,
+      "started": "2024-12-15",
+      "completed": "2024-12-18",
+      "status": "Completed"
+    },
+    {
+      "name": "Sarah Miller",
+      "company": "Lenovo",
+      "course": "Aloha by NCR",
+      "progress": 60,
+      "started": "2025-01-28",
+      "completed": null,
+      "status": "In Progress"
+    },
+    {
+      "name": "Emily Thompson",
+      "company": "Google",
+      "course": "POS — Intermediate",
+      "progress": 30,
+      "started": "2025-02-14",
+      "completed": null,
+      "status": "In Progress"
+    },
+    {
+      "name": "Emily Thompson",
+      "company": "Google",
+      "course": "Cybersecurity Basics",
+      "progress": 0,
+      "started": null,
+      "completed": null,
+      "status": "Not Started"
+    },
+    {
+      "name": "James Roberts",
+      "company": "Stratospark",
+      "course": "POS — Introduction",
+      "progress": 100,
+      "started": "2025-01-03",
+      "completed": "2025-01-04",
+      "status": "Completed"
+    },
+    {
+      "name": "James Roberts",
+      "company": "Stratospark",
+      "course": "Prism POS",
+      "progress": 55,
+      "started": "2025-02-05",
+      "completed": null,
+      "status": "In Progress"
+    },
+    {
+      "name": "Michael Johnson",
+      "company": "Victus",
+      "course": "Customer Management",
+      "progress": 0,
+      "started": null,
+      "completed": null,
+      "status": "Not Started"
+    },
+    {
+      "name": "Ana Reyes",
+      "company": "Popeyes",
+      "course": "Customer Management",
+      "progress": 85,
+      "started": "2025-02-20",
+      "completed": null,
+      "status": "In Progress"
+    },
+    {
+      "name": "Kristina White",
+      "company": "Popeyes",
+      "course": "Aloha by NCR",
+      "progress": 100,
+      "started": "2025-01-15",
+      "completed": "2025-01-16",
+      "status": "Completed"
+    }
+  ],
+  "DEFAULT_CATEGORIES": [
+    "All",
+    "POS",
+    "Security",
+    "Management"
+  ],
+  "CC_COLORS": [
+    "#7c3aed",
+    "#0d9488",
+    "#d97706",
+    "#0284c7",
+    "#dc2626",
+    "#16a34a",
+    "#9333ea",
+    "#0891b2",
+    "#b45309",
+    "#4f46e5"
+  ],
+  "LP_COURSE": {
+    "title": "POS — Introduction",
+    "emoji": "🖥️",
+    "category": "POS Training",
+    "duration": "1 hr 20 min",
+    "modules": [
+      {
+        "id": "m1",
+        "title": "Getting Started",
+        "color": "#0284c7",
+        "chapters": [
+          {
+            "id": "m1c1",
+            "title": "Welcome & Course Overview",
+            "type": "lesson",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "intro",
+                "heading": "Welcome to POS Training",
+                "body": "This course will give you a solid foundation in using point-of-sale systems in a fast-food restaurant environment. By the end, you'll be able to process transactions, handle refunds, and run end-of-day reports with confidence."
+              },
+              {
+                "id": "s2",
+                "type": "keypoints",
+                "heading": "What You'll Learn",
+                "points": [
+                  "How to navigate the POS interface and log in securely",
+                  "Processing sales, refunds, and exchanges correctly",
+                  "Handling all payment types — cash, card, and e-wallet",
+                  "Running end-of-day reports and cash reconciliation"
+                ]
+              },
+              {
+                "id": "s3",
+                "type": "callout",
+                "variant": "tip",
+                "heading": "Before You Begin",
+                "body": "Complete all chapters and pass the assessments to earn your POS Fundamentals certificate. Each chapter builds on the last, so work through them in order."
+              }
+            ]
+          },
+          {
+            "id": "m1c2",
+            "title": "POS Hardware Components",
+            "type": "lesson",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "intro",
+                "heading": "Know Your Hardware",
+                "body": "Before operating the POS software, you need to be familiar with the physical components of the terminal. Understanding each piece of hardware helps you troubleshoot issues and work efficiently."
+              },
+              {
+                "id": "s2",
+                "type": "cards",
+                "heading": "Key Hardware Components",
+                "cards": [
+                  {
+                    "icon": "🖥️",
+                    "title": "Touchscreen Terminal",
+                    "desc": "The primary input interface. All orders are entered here by the cashier."
+                  },
+                  {
+                    "icon": "📠",
+                    "title": "Receipt Printer",
+                    "desc": "Thermal printer for customer receipts and kitchen order tickets."
+                  },
+                  {
+                    "icon": "💵",
+                    "title": "Cash Drawer",
+                    "desc": "Secured by the POS system. Opens automatically on cash sales only."
+                  },
+                  {
+                    "icon": "💳",
+                    "title": "Card Reader / PED",
+                    "desc": "Accepts credit, debit, and contactless (NFC) payments from customers."
+                  },
+                  {
+                    "icon": "📷",
+                    "title": "Barcode Scanner",
+                    "desc": "Reads product barcodes to quickly add items to an order."
+                  },
+                  {
+                    "icon": "📺",
+                    "title": "Customer Display",
+                    "desc": "Faces the customer to show order totals and confirmation."
+                  }
+                ]
+              },
+              {
+                "id": "s3",
+                "type": "callout",
+                "variant": "warning",
+                "heading": "Maintenance Rule",
+                "body": "Never force the cash drawer open manually. Always use the POS system or contact your manager. Forced opening can damage the mechanism and voids warranty coverage."
+              },
+              {
+                "id": "s4",
+                "type": "text",
+                "heading": "Reporting Malfunctions",
+                "body": "If any hardware appears damaged, cracked, or behaves unexpectedly — report it immediately to your shift manager or IT support. Do not attempt repairs yourself."
+              }
+            ]
+          },
+          {
+            "id": "m1c3",
+            "title": "Module 1 Quiz",
+            "type": "quiz",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "quiz_intro",
+                "heading": "Test Your Knowledge",
+                "body": "Answer all questions to complete this chapter. You need at least 70% to pass and unlock the next module."
+              },
+              {
+                "id": "s2",
+                "type": "quiz",
+                "questions": [
+                  {
+                    "q": "What device processes contactless payments at a POS terminal?",
+                    "opts": [
+                      "Cash drawer",
+                      "Barcode scanner",
+                      "PED / Card reader",
+                      "Receipt printer"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "Which printer type is most common in modern POS systems?",
+                    "opts": [
+                      "Inkjet",
+                      "Laser",
+                      "Thermal",
+                      "Dot matrix"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "What should you NEVER do with the cash drawer?",
+                    "opts": [
+                      "Open it for a cash sale",
+                      "Count it at shift start",
+                      "Force it open manually",
+                      "Keep it closed between sales"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "m2",
+        "title": "Processing Transactions",
+        "color": "#7c3aed",
+        "chapters": [
+          {
+            "id": "m2c1",
+            "title": "Taking an Order",
+            "type": "lesson",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "intro",
+                "heading": "The Order Workflow",
+                "body": "Taking an order correctly is the most fundamental skill in POS operation. A consistent process prevents errors, reduces voids, and keeps the line moving efficiently."
+              },
+              {
+                "id": "s2",
+                "type": "steps",
+                "heading": "Step-by-Step: Processing an Order",
+                "steps": [
+                  {
+                    "num": 1,
+                    "title": "Greet & Select Order Type",
+                    "desc": "Choose Dine-In, Takeout, or Drive-Thru to route the order correctly to the kitchen."
+                  },
+                  {
+                    "num": 2,
+                    "title": "Add Items",
+                    "desc": "Tap menu buttons or scan barcodes to add items. Use item lookup for specials or unlisted products."
+                  },
+                  {
+                    "num": 3,
+                    "title": "Apply Modifiers",
+                    "desc": "Customize orders with modifiers — no onions, extra sauce, upsize, etc."
+                  },
+                  {
+                    "num": 4,
+                    "title": "Review with Customer",
+                    "desc": "Always read the order summary aloud with the customer before proceeding to payment."
+                  },
+                  {
+                    "num": 5,
+                    "title": "Process Payment",
+                    "desc": "Select the payment method and follow the prompts to complete the transaction."
+                  },
+                  {
+                    "num": 6,
+                    "title": "Print Receipt",
+                    "desc": "Print or offer a digital receipt. Thank the customer and move to the next order."
+                  }
+                ]
+              },
+              {
+                "id": "s3",
+                "type": "callout",
+                "variant": "warning",
+                "heading": "Critical Rule",
+                "body": "Always repeat the order back to the customer before processing payment. This single step eliminates most order errors and void requests."
+              }
+            ]
+          },
+          {
+            "id": "m2c2",
+            "title": "Payment Methods",
+            "type": "lesson",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "intro",
+                "heading": "Accepting Payments",
+                "body": "Multiple payment methods are accepted. Each has a slightly different workflow. Processing each one correctly prevents discrepancies at end of day."
+              },
+              {
+                "id": "s2",
+                "type": "table",
+                "heading": "Payment Method Reference",
+                "headers": [
+                  "Method",
+                  "Action",
+                  "Key Point"
+                ],
+                "rows": [
+                  [
+                    "💵 Cash",
+                    "Enter tendered amount → system calculates change",
+                    "Use counterfeit pen for large bills"
+                  ],
+                  [
+                    "💳 Card",
+                    "Tap or swipe on card reader → follow prompts",
+                    "Never touch the customer's card"
+                  ],
+                  [
+                    "📱 GCash / Maya",
+                    "Select e-wallet → show QR code to customer",
+                    "Wait for confirmation before releasing order"
+                  ],
+                  [
+                    "🎟️ Voucher",
+                    "Enter voucher code → verify validity",
+                    "Expired vouchers must be declined politely"
+                  ]
+                ]
+              },
+              {
+                "id": "s3",
+                "type": "text",
+                "heading": "Handling Change",
+                "body": "When a customer pays in cash, always count back the change aloud. Place the bills in the customer's hand first, then coins on top."
+              },
+              {
+                "id": "s4",
+                "type": "callout",
+                "variant": "tip",
+                "heading": "Large Bills",
+                "body": "For bills ₱1,000 and above, use the counterfeit detection pen before accepting. A yellow or clear mark is genuine; a dark mark indicates a fake."
+              }
+            ]
+          },
+          {
+            "id": "m2c3",
+            "title": "Refunds & Voids",
+            "type": "lesson",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "intro",
+                "heading": "Handling Returns & Errors",
+                "body": "Refunds and voids are a normal part of operations but require careful handling. Both create an audit trail and most require manager authorization."
+              },
+              {
+                "id": "s2",
+                "type": "cards",
+                "heading": "Void vs. Refund",
+                "cards": [
+                  {
+                    "icon": "🚫",
+                    "title": "Void",
+                    "desc": "Cancels a transaction BEFORE it is fully settled. Used for input errors caught immediately. Requires supervisor approval code."
+                  },
+                  {
+                    "icon": "↩️",
+                    "title": "Refund",
+                    "desc": "Returns money for a COMPLETED transaction. Must be issued to the original payment method. Always requires manager sign-off."
+                  }
+                ]
+              },
+              {
+                "id": "s3",
+                "type": "steps",
+                "heading": "Refund Procedure",
+                "steps": [
+                  {
+                    "num": 1,
+                    "title": "Locate Transaction",
+                    "desc": "Use the receipt number or order ID to find the original transaction."
+                  },
+                  {
+                    "num": 2,
+                    "title": "Select Items to Return",
+                    "desc": "Choose the specific items being returned. Partial refunds are supported."
+                  },
+                  {
+                    "num": 3,
+                    "title": "Choose Refund Method",
+                    "desc": "Must match the original payment method."
+                  },
+                  {
+                    "num": 4,
+                    "title": "Get Manager Approval",
+                    "desc": "Enter the manager's override code to authorize the refund."
+                  },
+                  {
+                    "num": 5,
+                    "title": "Issue & Print",
+                    "desc": "Complete the refund and print a confirmation slip for the customer."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "m2c4",
+            "title": "Transaction Assessment",
+            "type": "assessment",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "quiz_intro",
+                "heading": "Module 2 Assessment",
+                "body": "This graded assessment covers all transaction topics. You must score 70% or higher to complete this module."
+              },
+              {
+                "id": "s2",
+                "type": "quiz",
+                "questions": [
+                  {
+                    "q": "A customer pays ₱500 for a ₱320 item. How much change is due?",
+                    "opts": [
+                      "₱180",
+                      "₱190",
+                      "₱200",
+                      "₱170"
+                    ],
+                    "ans": 0
+                  },
+                  {
+                    "q": "What should you do before voiding a transaction?",
+                    "opts": [
+                      "Nothing, just void it",
+                      "Ask the customer",
+                      "Get supervisor approval",
+                      "Close the register"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "A refund must be issued to:",
+                    "opts": [
+                      "Any payment method",
+                      "Cash only",
+                      "The original payment method",
+                      "Store credit only"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "When should you use the counterfeit detection pen?",
+                    "opts": [
+                      "Every transaction",
+                      "Only for ₱1,000+ bills",
+                      "Never, it damages bills",
+                      "Only for card payments"
+                    ],
+                    "ans": 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "m3",
+        "title": "End-of-Day Procedures",
+        "color": "#0f766e",
+        "chapters": [
+          {
+            "id": "m3c1",
+            "title": "Cash Reconciliation",
+            "type": "lesson",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "intro",
+                "heading": "Closing the Day",
+                "body": "Cash reconciliation ensures your physical cash matches the POS system's expected totals. Discrepancies, if caught early, are much easier to investigate and resolve."
+              },
+              {
+                "id": "s2",
+                "type": "steps",
+                "heading": "Reconciliation Steps",
+                "steps": [
+                  {
+                    "num": 1,
+                    "title": "Count All Cash",
+                    "desc": "Count bills and coins separately. Use a counting sheet. Do this at least twice to confirm accuracy."
+                  },
+                  {
+                    "num": 2,
+                    "title": "Compare to System",
+                    "desc": "Check the Expected Cash amount shown in the EOD report against your physical count."
+                  },
+                  {
+                    "num": 3,
+                    "title": "Record Discrepancy",
+                    "desc": "Note any over/short amount in the shift log. Even small amounts must be recorded."
+                  },
+                  {
+                    "num": 4,
+                    "title": "Prepare Deposit",
+                    "desc": "Place cash in the deposit bag, seal it, and sign the seal tag with your employee ID."
+                  }
+                ]
+              },
+              {
+                "id": "s3",
+                "type": "callout",
+                "variant": "warning",
+                "heading": "Reporting Threshold",
+                "body": "Discrepancies over ₱100 must be reported to the shift manager immediately — do not wait until end of shift."
+              }
+            ]
+          },
+          {
+            "id": "m3c2",
+            "title": "EOD Reports & Final Assessment",
+            "type": "assessment",
+            "segments": [
+              {
+                "id": "s1",
+                "type": "text",
+                "heading": "Running EOD Reports",
+                "body": "The End-of-Day (EOD) report summarizes all transactions for your shift. Navigate to Reports → End of Day in the POS menu. Select the current shift or date range, then review: Total Sales, # of Transactions, Discounts Applied, and Voids. Print one copy for the manager and file one with the cash deposit bag."
+              },
+              {
+                "id": "s2",
+                "type": "callout",
+                "variant": "tip",
+                "heading": "Filing Tip",
+                "body": "Staple the EOD report to the sealed deposit bag before handing it to the manager. This ensures the physical cash always travels with its corresponding report."
+              },
+              {
+                "id": "s3",
+                "type": "quiz_intro",
+                "heading": "Final Course Assessment",
+                "body": "This is the final assessment for POS Introduction. Pass with 70%+ to earn your certificate."
+              },
+              {
+                "id": "s4",
+                "type": "quiz",
+                "questions": [
+                  {
+                    "q": "Where is the End-of-Day report found in the POS?",
+                    "opts": [
+                      "Home screen",
+                      "Reports menu",
+                      "Settings",
+                      "Customer tab"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "What should you do if your cash count is short by ₱200?",
+                    "opts": [
+                      "Ignore it",
+                      "Pocket the difference",
+                      "Report to shift manager",
+                      "Recount the next day"
+                    ],
+                    "ans": 2
+                  },
+                  {
+                    "q": "How many copies of the EOD report should be printed?",
+                    "opts": [
+                      "One",
+                      "Two",
+                      "Three",
+                      "None"
+                    ],
+                    "ans": 1
+                  },
+                  {
+                    "q": "Before submitting the deposit, what should be stapled to the bag?",
+                    "opts": [
+                      "The vouchers",
+                      "Your receipt roll",
+                      "The EOD report",
+                      "The void slips"
+                    ],
+                    "ans": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
