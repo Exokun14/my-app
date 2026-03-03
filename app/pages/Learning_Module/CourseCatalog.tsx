@@ -53,10 +53,10 @@ export default function CourseCatalog({
           <button key={cat} className={`lc-cat${activeCat === cat ? " on" : ""}`} onClick={() => setActiveCat(cat)}>{cat}</button>
         ))}
         <div className="filter-divider" style={{ margin:"0 2px" }} />
-        {["All", "Active", "Inactive"].map(sf => (
+        {["All", "Published", "Draft"].map(sf => (
           <button key={sf} className={`lc-status-chip${statusFilter === sf ? " on" : ""}`} onClick={() => setStatusFilter(sf)}>
-            {sf === "Active"   && <span className="dot" style={{ background:"#16a34a" }} />}
-            {sf === "Inactive" && <span className="dot" style={{ background:"#dc2626" }} />}
+            {sf === "Published" && <span className="dot" style={{ background:"#16a34a" }} />}
+            {sf === "Draft"     && <span className="dot" style={{ background:"#d97706" }} />}
             {sf}
           </button>
         ))}
@@ -100,9 +100,9 @@ export default function CourseCatalog({
                   </div>
 
                   {/* Status */}
-                  <div style={{ position:"absolute", top:12, right:12, padding:"3px 8px", borderRadius:20, background:c.active ? "rgba(21,128,61,0.85)" : "rgba(185,28,28,0.85)", backdropFilter:"blur(6px)", fontSize:9, fontWeight:700, color:"#fff", display:"flex", alignItems:"center", gap:4 }}>
+                  <div style={{ position:"absolute", top:12, right:12, padding:"3px 8px", borderRadius:20, background:c.active ? "rgba(21,128,61,0.85)" : "rgba(161,98,7,0.85)", backdropFilter:"blur(6px)", fontSize:9, fontWeight:700, color:"#fff", display:"flex", alignItems:"center", gap:4 }}>
                     <span style={{ width:5, height:5, borderRadius:"50%", background:"rgba(255,255,255,0.85)" }} />
-                    {c.active ? "Active" : "Inactive"}
+                    {c.active ? "Published" : "Draft"}
                   </div>
 
                   {/* Big emoji */}

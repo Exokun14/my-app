@@ -29,7 +29,6 @@ export default function LearningCenter() {
 
   const handleCreateCourse = (data: Course) => {
     setCourses(prev => [...prev, data]);
-    toast(`Course "${data.title}" published!`);
     setCreateModalOpen(false);
   };
 

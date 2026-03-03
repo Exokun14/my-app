@@ -74,17 +74,15 @@ export function useCourseCatalog({
   const filtered = courses.filter(c => {
     const catOk    = activeCat === "All" || c.cat === activeCat;
     const searchOk = !search || c.title.toLowerCase().includes(search.toLowerCase()) || c.desc.toLowerCase().includes(search.toLowerCase());
-    const statOk   = statusFilter === "All" || (statusFilter === "Active" && c.active) || (statusFilter === "Inactive" && !c.active);
+    const statOk   = statusFilter === "All" || (statusFilter === "Published" && c.active) || (statusFilter === "Draft" && !c.active);
     return catOk && searchOk && statOk;
   });
 
   const handleEditSave = (data: Course) => {
     if (editIdx !== null) {
       setCourses(prev => prev.map((c, i) => i === editIdx ? { ...c, ...data } : c));
-      toast(`Course "${data.title}" updated!`);
     } else {
       setCourses(prev => [...prev, data]);
-      toast(`Course "${data.title}" published!`);
     }
     setEditOpen(false);
     setEditIdx(null);
