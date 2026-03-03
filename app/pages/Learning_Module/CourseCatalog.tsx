@@ -1,6 +1,7 @@
 'use client'
 
 import CreateCourseModal from "../../Components/CreateCourseModal";
+import EditCourseModal from "./EditCourseModal";
 import CourseModuleModal from "./CourseModuleModal";
 
 import type { CourseCatalogProps } from "../Logic/CourseCatalogLogic";
@@ -179,7 +180,7 @@ export default function CourseCatalog({
         </div>
       </div>
 
-      <CreateCourseModal
+      <EditCourseModal
         open={editOpen}
         onClose={closeEdit}
         onSave={handleEditSave}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useToast } from "../../Hooks/useToast";
 import Toast from "../../Components/Toast";
 import CreateCourseModal from "../../Components/CreateCourseModal";
+import CourseCreationWizard from "../../Components/CourseCreationWizard";
 import CourseCatalog from "./CourseCatalog";
 import ClientProgress from "./ClientProgress";
 import CourseViewer from "./CourseViewer";
@@ -19,21 +20,35 @@ export default function LearningCenter() {
   const [panel, setPanel] = useState<number>(0);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES as Course[]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+
+  // ── Modal state (edit only) ──────────────────────────────────────────
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false);
+
+  // ── Wizard state (new course creation) ──────────────────────────────
+  const [wizardOpen, setWizardOpen] = useState<boolean>(false);
+
   const { msg, visible, toast } = useToast();
 
-  // Course viewer state
-  const [viewerIdx,      setViewerIdx]      = useState<number | null>(null);
-  const [viewerOpen,     setViewerOpen]     = useState(false);
-  const [viewerExiting,  setViewerExiting]  = useState(false);
+  // ── Course viewer state ──────────────────────────────────────────────
+  const [viewerIdx,     setViewerIdx]     = useState<number | null>(null);
+  const [viewerOpen,    setViewerOpen]    = useState(false);
+  const [viewerExiting, setViewerExiting] = useState(false);
 
   const handleCreateCourse = (data: Course) => {
     setCourses(prev => [...prev, data]);
     setCreateModalOpen(false);
   };
 
+  /** Called by the wizard when the user finalises (publish / draft / template) */
+  const handleWizardSave = (data: Course) => {
+    setCourses(prev => [...prev, data]);
+    // Wizard handles its own close animation; it calls onCancel after 1.4 s
+  };
+
   const handleProgress = (idx: number, progress: number) => {
-    setCourses(prev => prev.map((c, i) => i === idx ? { ...c, progress, enrolled: true } : c));
+    setCourses(prev =>
+      prev.map((c, i) => i === idx ? { ...c, progress, enrolled: true } : c)
+    );
   };
 
   // Open viewer with page-swap animation
@@ -52,7 +67,7 @@ export default function LearningCenter() {
     }, 320);
   };
 
-  // Render full-page course viewer (replaces main content)
+  // ── Full-page Course Viewer ──────────────────────────────────────────
   if (viewerOpen || viewerExiting) {
     return (
       <>
@@ -79,6 +94,23 @@ export default function LearningCenter() {
     );
   }
 
+  // ── Full-page Course Creation Wizard ────────────────────────────────
+  if (wizardOpen) {
+    return (
+      <>
+        <CourseCreationWizard
+          categories={categories}
+          setCategories={setCategories}
+          onSave={handleWizardSave}
+          onCancel={() => setWizardOpen(false)}
+          toast={toast}
+        />
+        <Toast msg={msg} visible={visible} />
+      </>
+    );
+  }
+
+  // ── Main Learning Center ─────────────────────────────────────────────
   return (
     <>
       <style>{`
@@ -104,7 +136,11 @@ export default function LearningCenter() {
           </div>
           <div className="ph-rule" />
           <div className="ph-actions">
-            <button className="btn btn-p btn-sm" onClick={() => setCreateModalOpen(true)}>
+            {/* ← now opens the wizard instead of the modal */}
+            <button
+              className="btn btn-p btn-sm"
+              onClick={() => setWizardOpen(true)}
+            >
               <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="7" cy="7" r="5.5"/><path d="M7 4.5v5M4.5 7h5"/>
               </svg>
@@ -138,7 +174,10 @@ export default function LearningCenter() {
         </div>
       </div>
 
-      {/* Global Create Course Modal */}
+      {/*
+        CreateCourseModal is kept exclusively for editing existing courses.
+        The wizard above handles all new-course creation.
+      */}
       <CreateCourseModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
