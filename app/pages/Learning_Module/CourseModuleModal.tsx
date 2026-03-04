@@ -771,14 +771,277 @@ export default function CourseModuleModal({
 
                               {/* Activity block */}
                               {block.type==="activity"&&block.activity&&(
-                                <div style={{padding:"10px 12px",borderRadius:8,background:"rgba(124,58,237,0.04)",border:"1.5px solid rgba(124,58,237,0.12)"}}>
-                                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                                    <div style={{fontSize:20}}>{ACT_META[block.activity.type]?.icon||"🧩"}</div>
-                                    <div style={{flex:1}}>
-                                      <div style={{fontSize:13,fontWeight:700,color:"var(--t1,#18103a)"}}>{block.activity.title}</div>
-                                      <div style={{fontSize:10.5,color:"var(--t3,#a89dc8)",marginTop:2}}>{ACT_META[block.activity.type]?.label||block.activity.type}</div>
+                                <div>
+                                  <div style={{
+                                    padding:"12px 14px",
+                                    borderRadius:8,
+                                    background:"rgba(124,58,237,0.04)",
+                                    border:"1.5px solid rgba(124,58,237,0.12)",
+                                    marginBottom:10,
+                                  }}>
+                                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                      <div style={{fontSize:20}}>{ACT_META[block.activity.type]?.icon||"🧩"}</div>
+                                      <div style={{flex:1}}>
+                                        <div style={{fontSize:13,fontWeight:700,color:"var(--t1,#18103a)"}}>{block.activity.title}</div>
+                                        <div style={{fontSize:10.5,color:"var(--t3,#a89dc8)",marginTop:2}}>
+                                          {ACT_META[block.activity.type]?.label||block.activity.type} · 
+                                          {' '}{
+                                            block.activity.items?.length ||
+                                            block.activity.cards?.length ||
+                                            block.activity.questions?.length ||
+                                            block.activity.checklist?.length ||
+                                            block.activity.pairs?.length || 0
+                                          } items
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          // Toggle expanded state
+                                          updateBlock(idx, { 
+                                            activity: { 
+                                              ...block.activity, 
+                                              _expanded: !(block.activity as any)._expanded 
+                                            } 
+                                          });
+                                        }}
+                                        style={{
+                                          padding:"6px 12px",
+                                          borderRadius:6,
+                                          border:"1.5px solid rgba(124,58,237,0.2)",
+                                          background:"rgba(124,58,237,0.06)",
+                                          color:"var(--purple,#7c3aed)",
+                                          fontSize:11,
+                                          fontWeight:600,
+                                          cursor:"pointer",
+                                          transition:"all 0.15s",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = "rgba(124,58,237,0.12)";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = "rgba(124,58,237,0.06)";
+                                        }}
+                                      >
+                                        {(block.activity as any)._expanded ? "Collapse" : "Edit Activity"}
+                                      </button>
                                     </div>
                                   </div>
+                                  
+                                  {/* Expanded Activity Editor */}
+                                  {(block.activity as any)._expanded && (
+                                    <div style={{
+                                      padding:16,
+                                      borderRadius:8,
+                                      background:"var(--surface,#fff)",
+                                      border:"1.5px solid var(--border,rgba(124,58,237,0.1))",
+                                    }}>
+                                      <div style={{marginBottom:12}}>
+                                        <label style={{display:"block",fontSize:11,fontWeight:700,color:"var(--t2,#4a3870)",marginBottom:6,textTransform:"uppercase"}}>
+                                          Activity Title
+                                        </label>
+                                        <input
+                                          className="cmm-input"
+                                          value={block.activity.title}
+                                          onChange={e => updateBlock(idx, {
+                                            activity: { ...block.activity, title: e.target.value }
+                                          })}
+                                          placeholder="Activity title..."
+                                        />
+                                      </div>
+
+                                      {/* Accordion items editor */}
+                                      {block.activity.type === "accordion" && block.activity.items && (
+                                        <div>
+                                          <label style={{display:"block",fontSize:11,fontWeight:700,color:"var(--t2,#4a3870)",marginBottom:8,textTransform:"uppercase"}}>
+                                            Questions & Answers
+                                          </label>
+                                          {block.activity.items.map((item, itemIdx) => (
+                                            <div key={itemIdx} style={{
+                                              padding:12,
+                                              borderRadius:8,
+                                              background:"var(--bg,#faf9ff)",
+                                              border:"1.5px solid var(--border,rgba(124,58,237,0.08)",
+                                              marginBottom:8,
+                                            }}>
+                                              <input
+                                                className="cmm-input"
+                                                value={item.q}
+                                                onChange={e => {
+                                                  const newItems = [...block.activity!.items!];
+                                                  newItems[itemIdx] = { ...item, q: e.target.value };
+                                                  updateBlock(idx, {
+                                                    activity: { ...block.activity, items: newItems }
+                                                  });
+                                                }}
+                                                placeholder="Question"
+                                                style={{marginBottom:8}}
+                                              />
+                                              <textarea
+                                                className="cmm-ta"
+                                                value={item.a}
+                                                onChange={e => {
+                                                  const newItems = [...block.activity!.items!];
+                                                  newItems[itemIdx] = { ...item, a: e.target.value };
+                                                  updateBlock(idx, {
+                                                    activity: { ...block.activity, items: newItems }
+                                                  });
+                                                }}
+                                                placeholder="Answer"
+                                                rows={2}
+                                              />
+                                            </div>
+                                          ))}
+                                          <button
+                                            onClick={() => {
+                                              const newItems = [...(block.activity!.items || []), { q: "", a: "" }];
+                                              updateBlock(idx, {
+                                                activity: { ...block.activity, items: newItems }
+                                              });
+                                            }}
+                                            style={{
+                                              width:"100%",
+                                              padding:"8px",
+                                              borderRadius:8,
+                                              border:"1.5px dashed var(--border,rgba(124,58,237,0.2))",
+                                              background:"transparent",
+                                              color:"var(--purple,#7c3aed)",
+                                              fontSize:11,
+                                              fontWeight:600,
+                                              cursor:"pointer",
+                                            }}
+                                          >
+                                            + Add Item
+                                          </button>
+                                        </div>
+                                      )}
+
+                                      {/* Flashcard editor */}
+                                      {block.activity.type === "flashcard" && block.activity.cards && (
+                                        <div>
+                                          <label style={{display:"block",fontSize:11,fontWeight:700,color:"var(--t2,#4a3870)",marginBottom:8,textTransform:"uppercase"}}>
+                                            Flashcards
+                                          </label>
+                                          {block.activity.cards.map((card, cardIdx) => (
+                                            <div key={cardIdx} style={{
+                                              padding:12,
+                                              borderRadius:8,
+                                              background:"var(--bg,#faf9ff)",
+                                              border:"1.5px solid var(--border,rgba(124,58,237,0.08)",
+                                              marginBottom:8,
+                                            }}>
+                                              <input
+                                                className="cmm-input"
+                                                value={card.front}
+                                                onChange={e => {
+                                                  const newCards = [...block.activity!.cards!];
+                                                  newCards[cardIdx] = { ...card, front: e.target.value };
+                                                  updateBlock(idx, {
+                                                    activity: { ...block.activity, cards: newCards }
+                                                  });
+                                                }}
+                                                placeholder="Front"
+                                                style={{marginBottom:8}}
+                                              />
+                                              <textarea
+                                                className="cmm-ta"
+                                                value={card.back}
+                                                onChange={e => {
+                                                  const newCards = [...block.activity!.cards!];
+                                                  newCards[cardIdx] = { ...card, back: e.target.value };
+                                                  updateBlock(idx, {
+                                                    activity: { ...block.activity, cards: newCards }
+                                                  });
+                                                }}
+                                                placeholder="Back"
+                                                rows={2}
+                                              />
+                                            </div>
+                                          ))}
+                                          <button
+                                            onClick={() => {
+                                              const newCards = [...(block.activity!.cards || []), { front: "", back: "" }];
+                                              updateBlock(idx, {
+                                                activity: { ...block.activity, cards: newCards }
+                                              });
+                                            }}
+                                            style={{
+                                              width:"100%",
+                                              padding:"8px",
+                                              borderRadius:8,
+                                              border:"1.5px dashed var(--border,rgba(124,58,237,0.2))",
+                                              background:"transparent",
+                                              color:"var(--purple,#7c3aed)",
+                                              fontSize:11,
+                                              fontWeight:600,
+                                              cursor:"pointer",
+                                            }}
+                                          >
+                                            + Add Card
+                                          </button>
+                                        </div>
+                                      )}
+
+                                      {/* Checklist editor */}
+                                      {(block.activity.type === "checklist" || block.activity.type === "hotspot") && block.activity.checklist && (
+                                        <div>
+                                          <label style={{display:"block",fontSize:11,fontWeight:700,color:"var(--t2,#4a3870)",marginBottom:8,textTransform:"uppercase"}}>
+                                            Checklist Items
+                                          </label>
+                                          {block.activity.checklist.map((item, itemIdx) => (
+                                            <div key={itemIdx} style={{marginBottom:8}}>
+                                              <input
+                                                className="cmm-input"
+                                                value={item.text}
+                                                onChange={e => {
+                                                  const newItems = [...block.activity!.checklist!];
+                                                  newItems[itemIdx] = { text: e.target.value };
+                                                  updateBlock(idx, {
+                                                    activity: { ...block.activity, checklist: newItems }
+                                                  });
+                                                }}
+                                                placeholder={`Item ${itemIdx + 1}`}
+                                              />
+                                            </div>
+                                          ))}
+                                          <button
+                                            onClick={() => {
+                                              const newItems = [...(block.activity!.checklist || []), { text: "" }];
+                                              updateBlock(idx, {
+                                                activity: { ...block.activity, checklist: newItems }
+                                              });
+                                            }}
+                                            style={{
+                                              width:"100%",
+                                              padding:"8px",
+                                              borderRadius:8,
+                                              border:"1.5px dashed var(--border,rgba(124,58,237,0.2))",
+                                              background:"transparent",
+                                              color:"var(--purple,#7c3aed)",
+                                              fontSize:11,
+                                              fontWeight:600,
+                                              cursor:"pointer",
+                                            }}
+                                          >
+                                            + Add Item
+                                          </button>
+                                        </div>
+                                      )}
+
+                                      {/* Other activity types would go here */}
+                                      {!["accordion", "flashcard", "checklist", "hotspot"].includes(block.activity.type) && (
+                                        <div style={{
+                                          padding:12,
+                                          borderRadius:8,
+                                          background:"rgba(124,58,237,0.04)",
+                                          border:"1.5px solid rgba(124,58,237,0.12)",
+                                          fontSize:11,
+                                          color:"var(--t2,#4a3870)",
+                                        }}>
+                                          Inline editing for {block.activity.type} activities coming soon. Use Activity Builder for full editing.
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

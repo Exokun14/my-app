@@ -231,7 +231,262 @@
       "cat": "Warehouse"
     }
   ],
-  "COURSES": [],
+  "COURSES": [
+    {
+      "title": "POS Systems — Introduction",
+      "desc": "Master the fundamentals of Point of Sale systems used in retail and food service environments.",
+      "time": "45 min",
+      "thumb": null,
+      "thumbEmoji": "🖥️",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "companies": null,
+      "modules": [
+        {
+          "title": "Getting Started with POS",
+          "done": false,
+          "chapters": [
+            {
+              "title": "What is a POS System?",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "What is a POS System?",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_001",
+                    "type": "content",
+                    "title": "Introduction to POS",
+                    "body": "A Point of Sale (POS) system is where a customer completes a transaction. Modern POS systems combine hardware and software to process sales, manage inventory, and track customer data. They're essential tools in retail stores, restaurants, and service businesses."
+                  },
+                  {
+                    "id": "blk_002",
+                    "type": "media",
+                    "mediaType": "video",
+                    "mediaUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "mediaLabel": "POS System Overview"
+                  },
+                  {
+                    "id": "blk_003",
+                    "type": "content",
+                    "title": "Key Benefits",
+                    "body": "POS systems streamline operations by automating sales tracking, reducing human error, and providing real-time business insights. They help businesses make data-driven decisions and improve customer service."
+                  },
+                  {
+                    "id": "blk_004",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_001",
+                      "type": "accordion",
+                      "title": "POS Key Terms",
+                      "status": "published",
+                      "items": [
+                        {
+                          "q": "What is a POS System?",
+                          "a": "A Point of Sale system is hardware + software used to process customer transactions where a sale is made."
+                        },
+                        {
+                          "q": "What is a PED?",
+                          "a": "A PIN Entry Device — the card reader customers use to enter their PIN for debit/credit transactions."
+                        },
+                        {
+                          "q": "What is an EOD Report?",
+                          "a": "End-of-Day report — a summary of all transactions processed during a shift, used for cash reconciliation."
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Hardware Components",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Hardware Components",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_101",
+                    "type": "content",
+                    "title": "Core Hardware",
+                    "body": "A typical POS system includes several hardware components: a touchscreen terminal for input, a receipt printer, a cash drawer, and a barcode scanner. Each component plays a specific role in processing transactions efficiently."
+                  },
+                  {
+                    "id": "blk_102",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_002",
+                      "type": "flashcard",
+                      "title": "Hardware Flashcards",
+                      "status": "published",
+                      "cards": [
+                        {
+                          "front": "Touchscreen Terminal",
+                          "back": "The primary cashier interface — all orders are entered by tapping the screen."
+                        },
+                        {
+                          "front": "Thermal Receipt Printer",
+                          "back": "Uses heat (not ink) to print receipts. Faster and lower maintenance than inkjet."
+                        },
+                        {
+                          "front": "Cash Drawer",
+                          "back": "Locked drawer connected to the POS. Opens automatically only on cash transactions."
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Knowledge Check",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Knowledge Check",
+                "type": "quiz",
+                "body": "Test your understanding of POS system basics.",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "questions": [
+                  {
+                    "q": "What does POS stand for?",
+                    "opts": ["Point of Sale", "Product Order System", "Payment Online Service", "Purchase Operations Software"],
+                    "ans": 0
+                  },
+                  {
+                    "q": "Which device reads product barcodes?",
+                    "opts": ["Cash drawer", "Receipt printer", "Barcode scanner", "Card reader"],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Daily Operations",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Opening Procedures",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Opening Procedures",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_201",
+                    "type": "content",
+                    "title": "Morning Setup",
+                    "body": "Starting your shift correctly ensures smooth operations throughout the day. Follow these procedures every time you open."
+                  },
+                  {
+                    "id": "blk_202",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_003",
+                      "type": "checklist",
+                      "title": "Opening Shift Checklist",
+                      "status": "published",
+                      "checklist": [
+                        { "text": "Verify cash float in drawer" },
+                        { "text": "Power on POS terminal" },
+                        { "text": "Test barcode scanner functionality" },
+                        { "text": "Log in with your credentials" },
+                        { "text": "Print test receipt" }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Customer Service Excellence",
+      "desc": "Learn essential customer service skills for retail and hospitality environments.",
+      "time": "30 min",
+      "thumb": null,
+      "thumbEmoji": "🎯",
+      "cat": "Management",
+      "enrolled": true,
+      "progress": 25,
+      "active": true,
+      "companies": ["Starbucks", "Popeyes"],
+      "modules": [
+        {
+          "title": "Customer Interactions",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Handling Difficult Situations",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Handling Difficult Situations",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_301",
+                    "type": "content",
+                    "title": "De-escalation Techniques",
+                    "body": "When dealing with upset customers, remain calm and professional. Listen actively to their concerns without interrupting. Acknowledge their feelings and apologize for the inconvenience, even if the issue wasn't your fault."
+                  },
+                  {
+                    "id": "blk_302",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_007",
+                      "type": "accordion",
+                      "title": "Customer Service FAQs",
+                      "status": "published",
+                      "items": [
+                        {
+                          "q": "How do I handle a return without a receipt?",
+                          "a": "Check company policy. Most stores allow store credit or exchange with valid ID. Manager approval usually required."
+                        },
+                        {
+                          "q": "What if a customer wants to split payment?",
+                          "a": "Most POS systems allow multiple payment types. Process the first payment, then add second payment method."
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "PROGRESS_DATA": [
     {
       "name": "John Doe",
@@ -267,105 +522,6 @@
       "progress": 100,
       "started": "2025-01-20",
       "completed": "2025-01-25",
-      "status": "Completed"
-    },
-    {
-      "name": "Chris Park",
-      "company": "Nike Retail",
-      "course": "POS — Introduction",
-      "progress": 100,
-      "started": "2025-01-05",
-      "completed": "2025-01-07",
-      "status": "Completed"
-    },
-    {
-      "name": "David Anderson",
-      "company": "Rolex",
-      "course": "Cybersecurity Basics",
-      "progress": 40,
-      "started": "2025-02-10",
-      "completed": null,
-      "status": "In Progress"
-    },
-    {
-      "name": "Sarah Miller",
-      "company": "Lenovo",
-      "course": "Customer Management",
-      "progress": 100,
-      "started": "2024-12-15",
-      "completed": "2024-12-18",
-      "status": "Completed"
-    },
-    {
-      "name": "Sarah Miller",
-      "company": "Lenovo",
-      "course": "Aloha by NCR",
-      "progress": 60,
-      "started": "2025-01-28",
-      "completed": null,
-      "status": "In Progress"
-    },
-    {
-      "name": "Emily Thompson",
-      "company": "Google",
-      "course": "POS — Intermediate",
-      "progress": 30,
-      "started": "2025-02-14",
-      "completed": null,
-      "status": "In Progress"
-    },
-    {
-      "name": "Emily Thompson",
-      "company": "Google",
-      "course": "Cybersecurity Basics",
-      "progress": 0,
-      "started": null,
-      "completed": null,
-      "status": "Not Started"
-    },
-    {
-      "name": "James Roberts",
-      "company": "Stratospark",
-      "course": "POS — Introduction",
-      "progress": 100,
-      "started": "2025-01-03",
-      "completed": "2025-01-04",
-      "status": "Completed"
-    },
-    {
-      "name": "James Roberts",
-      "company": "Stratospark",
-      "course": "Prism POS",
-      "progress": 55,
-      "started": "2025-02-05",
-      "completed": null,
-      "status": "In Progress"
-    },
-    {
-      "name": "Michael Johnson",
-      "company": "Victus",
-      "course": "Customer Management",
-      "progress": 0,
-      "started": null,
-      "completed": null,
-      "status": "Not Started"
-    },
-    {
-      "name": "Ana Reyes",
-      "company": "Popeyes",
-      "course": "Customer Management",
-      "progress": 85,
-      "started": "2025-02-20",
-      "completed": null,
-      "status": "In Progress"
-    },
-    {
-      "name": "Kristina White",
-      "company": "Popeyes",
-      "course": "Aloha by NCR",
-      "progress": 100,
-      "started": "2025-01-15",
-      "completed": "2025-01-16",
       "status": "Completed"
     }
   ],
