@@ -1,210 +1,53 @@
 'use client'
 
 import { useState, useEffect } from "react";
-import type { Course, Module, Chapter, ChapterType, ChapterMedia, MediaType } from "../../Data/types";
-import { ActivityBuilderTrigger, type Activity } from "./ActivityBuilderPanel";
+import {
+  LessonBlocks, blankContentBlock,
+  type LessonBlock, type LessonBlockKind, type Activity,
+} from "./ActivityBuilderPanel";
 
-interface Props {
-  open:      boolean;
-  course:    Course | null;
-  courseIdx: number | null;
-  onClose:   () => void;
-  onSave:    (idx: number, modules: Module[]) => void;
-  toast:     (msg: string) => void;
+// ─── Types ────────────────────────────────────────────────────────────────────
+export type ChapterType = "lesson" | "quiz" | "assessment";
+
+export interface ChapterMedia { type: "none"|"video"|"presentation"; url: string; label?: string; }
+export interface QuizQuestion  { q: string; opts: string[]; ans: number; }
+export interface ChapterContent {
+  title:     string;
+  type:      ChapterType;
+  body?:     string;
+  media:     ChapterMedia;
+  questions?: QuizQuestion[];
+  segments?: LessonBlock[];
+}
+export interface Chapter { title:string; type:ChapterType; done:boolean; content:ChapterContent; }
+export interface Module  { title:string; done:boolean; chapters:Chapter[]; }
+
+export interface CourseModuleModalProps {
+  open:       boolean;
+  course:     { title:string; modules?:Module[] } | null;
+  courseIdx:  number | null;
+  onClose:    () => void;
+  onSave:     (idx:number, modules:Module[]) => void;
+  toast:      (msg:string) => void;
 }
 
-function dc<T>(v: T): T { return JSON.parse(JSON.stringify(v)); }
-
+// ─── Constants ────────────────────────────────────────────────────────────────
 const TM: Record<ChapterType, { c:string; bg:string; border:string; lbl:string; ico:string }> = {
-  lesson:     { c:"#0284c7", bg:"#e0f2fe", border:"rgba(2,132,199,0.22)",   lbl:"Lesson",     ico:"📖" },
-  quiz:       { c:"#7c3aed", bg:"#ede9fe", border:"rgba(124,58,237,0.22)",  lbl:"Quiz",       ico:"❓" },
-  assessment: { c:"#d97706", bg:"#fef3c7", border:"rgba(217,119,6,0.22)",   lbl:"Assessment", ico:"📝" },
+  lesson:     { c:"#0284c7", bg:"#e0f2fe", border:"rgba(2,132,199,0.2)",   lbl:"Lesson",     ico:"📖" },
+  quiz:       { c:"#7c3aed", bg:"#ede9fe", border:"rgba(109,40,217,0.2)",  lbl:"Quiz",       ico:"❓" },
+  assessment: { c:"#d97706", bg:"#fef3c7", border:"rgba(217,119,6,0.2)",   lbl:"Assessment", ico:"📝" },
 };
+type MediaType = "none"|"video"|"presentation";
 
-// Activity display handled in ActivityBuilderPanel
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function dc<T>(v:T):T { return JSON.parse(JSON.stringify(v)); }
 
-// ── Shared styles ─────────────────────────────────────────────────────────────
-const IN: React.CSSProperties = {
-  width:"100%", border:"1.5px solid rgba(109,40,217,0.15)", borderRadius:10,
-  padding:"10px 14px", fontSize:13.5, background:"#fff", outline:"none",
-  color:"#18103a", fontFamily:"'Plus Jakarta Sans',sans-serif",
-  transition:"border-color .18s,box-shadow .18s",
-};
-const LBL: React.CSSProperties = {
-  fontSize:10, fontWeight:700, letterSpacing:".1em",
-  textTransform:"uppercase" as const, color:"#a89dc8", display:"block", marginBottom:7,
-};
-
-// ── CSS ───────────────────────────────────────────────────────────────────────
-const S = `
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
-
-.mb * { box-sizing:border-box; margin:0; padding:0; }
-.mb { font-family:'Plus Jakarta Sans',sans-serif; }
-.mb * { scrollbar-width:thin; scrollbar-color:rgba(109,40,217,0.14) transparent; }
-.mb ::-webkit-scrollbar { width:4px; }
-.mb ::-webkit-scrollbar-thumb { background:rgba(109,40,217,0.18); border-radius:4px; }
-
-@keyframes mb-in     { from{opacity:0;transform:translateY(16px) scale(.985)} to{opacity:1;transform:none} }
-@keyframes mb-out    { from{opacity:1;transform:none} to{opacity:0;transform:translateY(10px) scale(.985)} }
-@keyframes mb-slide  { from{opacity:0;transform:translateX(22px)} to{opacity:1;transform:none} }
-@keyframes mb-up     { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
-@keyframes mb-pop    { 0%{opacity:0;transform:scale(.78)} 70%{transform:scale(1.07)} 100%{opacity:1;transform:none} }
-@keyframes mb-pulse  { 0%,100%{opacity:1} 50%{opacity:.4} }
-@keyframes mb-spin   { to{transform:rotate(360deg)} }
-
-.mb-enter  { animation:mb-in   .46s cubic-bezier(.16,1,.3,1) both; }
-.mb-exit   { animation:mb-out  .26s ease forwards; }
-.mb-slide  { animation:mb-slide .3s cubic-bezier(.16,1,.3,1) both; }
-.mb-up     { animation:mb-up    .26s cubic-bezier(.16,1,.3,1) both; }
-.mb-pulse  { animation:mb-pulse 2.2s ease infinite; }
-
-/* ── Module accordion row ── */
-.mb-mod {
-  border-radius:12px; overflow:hidden; margin-bottom:5px;
-  border:1px solid transparent; transition:border-color .18s,box-shadow .18s;
-}
-.mb-mod.active { border-color:rgba(109,40,217,0.16); box-shadow:0 2px 14px rgba(109,40,217,0.08); }
-
-.mb-mod-hd {
-  display:flex; align-items:center; gap:9px; padding:10px 12px;
-  cursor:pointer; border-radius:11px;
-  transition:background .15s;
-  user-select:none;
-}
-.mb-mod-hd:hover { background:rgba(109,40,217,0.05); }
-.mb-mod.active .mb-mod-hd { background:#fff; border-radius:12px 12px 0 0; }
-
-/* ── Chapter item inside accordion ── */
-.mb-ch-item {
-  display:flex; align-items:center; gap:7px;
-  padding:8px 12px 8px 36px; cursor:pointer;
-  border-radius:0; border-left:0;
-  transition:background .13s,transform .12s;
-  position:relative;
-}
-.mb-ch-item::before {
-  content:''; position:absolute; left:16px; top:50%; transform:translateY(-50%);
-  width:8px; height:1.5px; background:rgba(109,40,217,0.2);
-}
-.mb-ch-item:hover { background:rgba(109,40,217,0.04); transform:translateX(2px); }
-.mb-ch-item.active { background:#f0eeff; }
-.mb-ch-item.active::before { background:#7c3aed; }
-
-/* ── Input focus ── */
-.mb input:focus,.mb textarea:focus,.mb select:focus {
-  border-color:rgba(109,40,217,0.45)!important;
-  box-shadow:0 0 0 3px rgba(109,40,217,0.07)!important;
-  outline:none!important; background:#fff!important;
-}
-
-/* ── Tab ── */
-.mb-tab {
-  padding:13px 20px; border:none; background:transparent; cursor:pointer;
-  font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; font-weight:500;
-  color:#a89dc8; border-bottom:2.5px solid transparent;
-  transition:color .14s,border-color .14s;
-  display:flex; align-items:center; gap:7px; white-space:nowrap; flex-shrink:0;
-}
-.mb-tab.on { color:#7c3aed; border-bottom-color:#7c3aed; font-weight:700; }
-.mb-tab:hover:not(.on) { color:#6d28d9; }
-
-/* ── Primary button ── */
-.mb-btn-p {
-  position:relative; overflow:hidden;
-  padding:10px 22px; border-radius:11px; border:none; cursor:pointer;
-  font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; font-weight:700;
-  background:linear-gradient(135deg,#7c3aed,#0d9488); color:#fff;
-  box-shadow:0 3px 16px rgba(124,58,237,0.28);
-  display:flex; align-items:center; gap:8px;
-  transition:transform .14s,box-shadow .14s,filter .14s;
-}
-.mb-btn-p:hover { transform:translateY(-2px); box-shadow:0 7px 24px rgba(124,58,237,0.36); filter:brightness(1.06); }
-.mb-btn-p:active { transform:scale(.97); }
-.mb-btn-p::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent); transform:translateX(-100%); transition:transform .5s; }
-.mb-btn-p:hover::after { transform:translateX(100%); }
-
-/* ── Secondary ghost button ── */
-.mb-btn-s {
-  padding:8px 16px; border-radius:10px; cursor:pointer;
-  font-family:'Plus Jakarta Sans',sans-serif; font-size:12px; font-weight:600;
-  border:1.5px solid rgba(109,40,217,0.2); background:#fff; color:#6d28d9;
-  transition:background .13s,border-color .13s,transform .12s;
-  display:flex; align-items:center; gap:6px;
-}
-.mb-btn-s:hover { background:#f5f3ff; border-color:rgba(109,40,217,0.35); transform:translateY(-1px); }
-.mb-btn-s:disabled { opacity:.3; cursor:default; transform:none; }
-
-/* ── Grip ── */
-.mb-grip { cursor:grab; flex-shrink:0; opacity:.35; transition:opacity .14s; }
-.mb-mod-hd:hover .mb-grip, .mb-ch-item:hover .mb-grip { opacity:.65; }
-
-/* ── Add chapter mini-chips ── */
-.mb-addch {
-  flex:1; padding:7px 3px; border-radius:9px; cursor:pointer;
-  display:flex; flex-direction:column; align-items:center; gap:2px;
-  font-family:'Plus Jakarta Sans',sans-serif; font-size:9px; font-weight:700; line-height:1;
-  transition:transform .12s,box-shadow .12s;
-}
-.mb-addch:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-
-/* ── Media type btn ── */
-.mb-media-btn {
-  padding:6px 14px; border-radius:9px; font-size:11.5px; font-weight:600; cursor:pointer;
-  font-family:'Plus Jakarta Sans',sans-serif;
-  transition:background .13s,border-color .13s,transform .11s;
-}
-.mb-media-btn:hover { transform:translateY(-1px); }
-
-/* ── Question card ── */
-.mb-q-card {
-  background:#fff; border:1.5px solid rgba(109,40,217,0.09); border-radius:14px;
-  padding:16px 18px; transition:box-shadow .14s,border-color .14s;
-  animation:mb-up .2s ease both;
-}
-.mb-q-card:hover { box-shadow:0 4px 18px rgba(109,40,217,0.08); border-color:rgba(109,40,217,0.18); }
-
-/* ── Activity card ── */
-.mb-act-card {
-  display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:12px;
-  background:#fff; border:1px solid rgba(109,40,217,0.09);
-  transition:border-color .14s,box-shadow .14s,transform .13s;
-}
-.mb-act-card:hover { border-color:rgba(109,40,217,0.22); box-shadow:0 3px 14px rgba(109,40,217,0.08); transform:translateX(3px); }
-
-/* ── Nav prev / next ── */
-.mb-nav {
-  padding:7px 14px; border-radius:9px; font-size:11.5px; font-weight:600; cursor:pointer;
-  font-family:'Plus Jakarta Sans',sans-serif;
-  border:1.5px solid rgba(109,40,217,0.18); background:#fff; color:#6d28d9;
-  transition:background .13s,border-color .13s,transform .12s;
-  display:flex; align-items:center; gap:5px;
-}
-.mb-nav:hover:not(:disabled) { background:#f5f3ff; border-color:rgba(109,40,217,0.32); }
-.mb-nav.prev:hover:not(:disabled) { transform:translateX(-3px); }
-.mb-nav.next:hover:not(:disabled) { transform:translateX(3px); }
-.mb-nav:disabled { opacity:.28; cursor:default; }
-
-/* ── Section heading ── */
-.mb-section-hd {
-  font-size:10.5px; font-weight:700; color:#a89dc8;
-  letter-spacing:.1em; text-transform:uppercase; margin-bottom:14px;
-}
-
-/* ── Empty state ── */
-.mb-empty {
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  flex:1; gap:12px; color:#c4bdd8; padding:40px; text-align:center;
-  animation:mb-up .3s ease both;
-}
-`;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function blankChapter(type:ChapterType="lesson"):Chapter {
-  return { title:"", type, done:false, content:{ title:"", type,
-    body:type==="lesson"?"":undefined,
-    questions:type!=="lesson"?[{q:"",opts:["","","",""],ans:0}]:undefined,
-    media:{type:"none",url:""}, segments:[],
+  return { title:"", type, done:false, content:{
+    title:"", type, body:undefined,
+    questions: type!=="lesson" ? [{q:"",opts:["","","",""],ans:0}] : undefined,
+    media: {type:"none",url:""},
+    segments: type==="lesson" ? [blankContentBlock()] : [] as any,
   } as any };
 }
 function blankModule():Module { return { title:"", done:false, chapters:[blankChapter()] }; }
@@ -228,553 +71,657 @@ function presentationEmbed(url:string):string|null {
   return null;
 }
 
-const GripIcon = () => (
-  <svg className="mb-grip" width="7" height="12" viewBox="0 0 7 12" fill="#b8b0d4">
-    <circle cx="2" cy="2" r="1"/><circle cx="5" cy="2" r="1"/>
-    <circle cx="2" cy="6" r="1"/><circle cx="5" cy="6" r="1"/>
-    <circle cx="2" cy="10" r="1"/><circle cx="5" cy="10" r="1"/>
-  </svg>
-);
+// ─── CSS ──────────────────────────────────────────────────────────────────────
+const S = `
+@keyframes cmm-in  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+@keyframes cmm-up  { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} }
+@keyframes cmm-tab { from{opacity:0;transform:translateX(5px)} to{opacity:1;transform:none} }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-export default function CourseModuleModal({ open, course, courseIdx, onClose, onSave, toast }: Props) {
-  const [modules,    setModules]    = useState<Module[]>([]);
-  const [selMod,     setSelMod]     = useState(0);
-  const [selCh,      setSelCh]      = useState(0);
-  const [inited,     setInited]     = useState(false);
-  const [activeTab,  setActiveTab]  = useState<"content"|"activities">("content");
-  // activity builder handled inline via ActivityBuilderTrigger
-  const [exiting,    setExiting]    = useState(false);
-  const [editorKey,  setEditorKey]  = useState(0);  // triggers re-animation
+/* ── Full-screen container ── */
+.cmm-fs {
+  position:fixed; inset:0; z-index:1001;
+  display:flex; flex-direction:column;
+  background:var(--bg,#f8f7ff);
+  animation:cmm-in .24s cubic-bezier(.16,1,.3,1) both;
+}
 
-  // Drag state
-  const [chDragSrc,   setChDragSrc]   = useState<{mi:number;ci:number}|null>(null);
-  const [chDragOver,  setChDragOver]  = useState<{mi:number;ci:number}|null>(null);
-  const [modDragSrc,  setModDragSrc]  = useState<number|null>(null);
-  const [modDragOver, setModDragOver] = useState<number|null>(null);
+/* ── Header bar ── */
+.cmm-hdr {
+  height:60px; flex-shrink:0;
+  display:flex; align-items:center; gap:14px; padding:0 24px;
+  background:var(--surface,#fff);
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.1));
+  box-shadow:0 1px 6px rgba(124,58,237,0.04);
+}
+.cmm-hdr-ico {
+  width:36px; height:36px; border-radius:10px; flex-shrink:0;
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  display:flex; align-items:center; justify-content:center;
+}
+.cmm-hdr-text { flex-shrink:0; }
+.cmm-hdr-title { font-size:14px; font-weight:700; color:var(--t1,#18103a); line-height:1.2; }
+.cmm-hdr-sub   { font-size:11px; color:var(--t3,#8e7ec0); margin-top:1px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cmm-hdr-divider { width:1px; height:28px; background:var(--border); flex-shrink:0; }
+.cmm-hdr-prog { display:flex; flex-direction:column; gap:4px; width:140px; flex-shrink:0; }
+.cmm-hdr-prog-bar { height:4px; border-radius:4px; background:var(--border,rgba(124,58,237,0.1)); overflow:hidden; }
+.cmm-hdr-prog-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--purple,#7c3aed),var(--teal,#0d9488)); transition:width .5s cubic-bezier(.16,1,.3,1); }
+.cmm-hdr-prog-lbl { font-size:9.5px; font-weight:600; color:var(--t3,#a89dc8); text-align:right; }
 
-  useEffect(() => {
-    if (open && course && !inited) {
-      setModules(dc(course.modules?.length ? course.modules : [blankModule()]));
-      setSelMod(0); setSelCh(0); setInited(true); setExiting(false);
-    }
-    if (!open && inited) setInited(false);
-  }, [open, course, inited]);
+/* ── Step wizard ── */
+.cmm-wizard {
+  display:flex; align-items:center;
+  background:var(--surface2,#f2f0fb);
+  border:1px solid var(--border); border-radius:10px; padding:3px; gap:1px;
+}
+.cmm-wstep {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 14px; border-radius:7px;
+  font-size:11.5px; font-weight:600; color:var(--t3,#8e7ec0);
+  cursor:pointer; border:none; background:transparent; font-family:inherit;
+  transition:all .15s; white-space:nowrap;
+}
+.cmm-wstep:hover:not(.on) { color:var(--t2,#4a3870); background:rgba(124,58,237,0.04); }
+.cmm-wstep.on  { background:var(--surface,#fff); color:var(--purple,#7c3aed); box-shadow:0 1px 5px rgba(124,58,237,0.12); }
+.cmm-wstep.done { color:var(--teal,#0d9488); }
+.cmm-wstep-n {
+  width:18px; height:18px; border-radius:50%;
+  font-size:9px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  background:rgba(124,58,237,0.1); color:var(--t3,#a89dc8);
+  transition:all .15s;
+}
+.cmm-wstep.on .cmm-wstep-n  { background:var(--purple,#7c3aed); color:#fff; }
+.cmm-wstep.done .cmm-wstep-n { background:var(--teal,#0d9488); color:#fff; }
 
-  if (!open || !course || courseIdx === null) return null;
+/* ── Body layout ── */
+.cmm-body { flex:1; display:flex; overflow:hidden; }
 
-  const mod = modules[selMod];
-  const ch  = mod?.chapters[selCh];
+/* ── Sidebar (Structure) ── */
+.cmm-sb {
+  width:320px; flex-shrink:0;
+  display:flex; flex-direction:column;
+  background:var(--surface,#fff);
+  border-right:1px solid var(--border,rgba(124,58,237,0.1));
+}
+.cmm-sb-hdr {
+  padding:16px 18px; border-bottom:1px solid var(--border,rgba(124,58,237,0.08));
+  background:linear-gradient(to bottom, rgba(124,58,237,0.02), transparent);
+}
+.cmm-sb-hdr-title { font-size:12px; font-weight:700; color:var(--t1,#18103a); text-transform:uppercase; letter-spacing:.05em; }
+.cmm-sb-hdr-sub { font-size:10px; color:var(--t3,#a89dc8); margin-top:2px; }
 
-  // ── Navigation helpers ───────────────────────────────────────────────────
-  const gotoChapter = (mi:number, ci:number) => {
-    setSelMod(mi); setSelCh(ci); setActiveTab("content"); setEditorKey(k => k+1);
-  };
-  const gotoMod = (mi:number) => {
-    setSelMod(mi); setSelCh(0); setActiveTab("content"); setEditorKey(k => k+1);
-  };
+.cmm-sb-body { flex:1; overflow-y:auto; padding:12px; }
 
-  // ── Activity helpers ─────────────────────────────────────────────────────
-  const getActivities = (): Activity[] => (ch?.content as any)?.segments ?? [];
-  const setActivities = (acts:Activity[]) => {
-    const u=dc(modules); (u[selMod].chapters[selCh].content as any).segments=acts; setModules(u);
-  };
+/* Module card in sidebar */
+.cmm-mod {
+  background:var(--bg,#faf9ff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  border-radius:10px; padding:10px 12px; margin-bottom:8px;
+  transition:all .15s; cursor:pointer;
+}
+.cmm-mod:hover { border-color:rgba(124,58,237,0.2); background:#f5f3ff; }
+.cmm-mod.sel { border-color:var(--purple,#7c3aed); background:#f5f3ff; box-shadow:0 2px 8px rgba(124,58,237,0.12); }
+.cmm-mod-hdr { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.cmm-mod-n {
+  width:24px; height:24px; border-radius:6px; flex-shrink:0;
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  color:#fff; font-size:10px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.cmm-mod-title {
+  flex:1; font-size:12px; font-weight:700; color:var(--t1,#18103a);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.cmm-mod-title.empty { color:var(--t3,#c4bdd8); font-style:italic; }
+.cmm-mod-del {
+  width:20px; height:20px; border-radius:5px; border:none;
+  background:transparent; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .15s; color:var(--t3,#a89dc8);
+}
+.cmm-mod-del:hover { background:rgba(239,68,68,0.1); color:#dc2626; }
 
-  // ── Module ops ───────────────────────────────────────────────────────────
-  const addMod = () => {
-    const u = [...modules, blankModule()]; setModules(u); gotoMod(u.length-1);
-  };
-  const delModAt = (mi:number) => {
-    if (modules.length===1) { toast("Need at least one module."); return; }
-    const u = modules.filter((_,i)=>i!==mi); setModules(u);
-    gotoMod(Math.min(mi, u.length-1));
-  };
-  const updModTitle = (mi:number, v:string) => { const u=dc(modules); u[mi].title=v; setModules(u); };
-  const moveMod = (from:number, to:number) => {
-    if (to<0||to>=modules.length) return;
-    const u=dc(modules); const[r]=u.splice(from,1); u.splice(to,0,r);
-    setModules(u); setSelMod(to);
-  };
+/* Chapter card in sidebar */
+.cmm-ch {
+  display:flex; align-items:center; gap:7px;
+  padding:6px 8px; border-radius:6px;
+  border:1px solid transparent;
+  transition:all .15s; cursor:pointer;
+  margin-bottom:3px;
+}
+.cmm-ch:hover { background:rgba(124,58,237,0.04); }
+.cmm-ch.sel { background:#f0ebff; border-color:rgba(124,58,237,0.2); }
+.cmm-ch-n {
+  width:18px; height:18px; border-radius:4px; flex-shrink:0;
+  font-size:9px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.cmm-ch-title {
+  flex:1; font-size:11px; font-weight:600; color:var(--t1,#18103a);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.cmm-ch-title.empty { color:var(--t3,#c4bdd8); font-style:italic; }
+.cmm-ch-del {
+  width:18px; height:18px; border-radius:4px; border:none;
+  background:transparent; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:all .15s; color:var(--t3,#a89dc8);
+}
+.cmm-ch:hover .cmm-ch-del { opacity:1; }
+.cmm-ch-del:hover { background:rgba(239,68,68,0.1); color:#dc2626; }
 
-  // ── Chapter ops ──────────────────────────────────────────────────────────
-  const addCh = (type:ChapterType) => {
-    const u=dc(modules); u[selMod].chapters.push(blankChapter(type));
-    setModules(u); gotoChapter(selMod, u[selMod].chapters.length-1);
-  };
-  const delChAt = (mi:number, ci:number) => {
-    if (modules[mi].chapters.length===1) { toast("Need at least one chapter."); return; }
-    const u=dc(modules); u[mi].chapters.splice(ci,1); setModules(u);
-    if (mi===selMod) setSelCh(Math.min(selCh, u[mi].chapters.length-1));
-  };
-  const moveCh = (from:number, to:number) => {
-    if (to<0||to>=modules[selMod].chapters.length) return;
-    const u=dc(modules); const[r]=u[selMod].chapters.splice(from,1); u[selMod].chapters.splice(to,0,r);
-    setModules(u); setSelCh(to);
-  };
-  const updChField = (field:"title"|"type", val:string) => {
-    const u=dc(modules); const c=u[selMod].chapters[selCh];
-    if (field==="title") { c.title=val; c.content.title=val; }
-    else {
-      const t=val as ChapterType; c.type=t; c.content.type=t;
-      c.content.body      = t==="lesson"?(c.content.body??""):undefined;
-      c.content.questions = t!=="lesson"?(c.content.questions??[{q:"",opts:["","","",""],ans:0}]):undefined;
-      c.content.media   ??= {type:"none",url:""};
-      (c.content as any).segments ??= [];
-    }
-    setModules(u);
-  };
-  const updBody  = (v:string) => { const u=dc(modules); u[selMod].chapters[selCh].content.body=v; setModules(u); };
-  const updMedia = (m:ChapterMedia) => { const u=dc(modules); u[selMod].chapters[selCh].content.media=m; setModules(u); };
+.cmm-sb-add {
+  padding:12px 18px; border-top:1px solid var(--border);
+  background:linear-gradient(to top, rgba(124,58,237,0.02), transparent);
+}
+.cmm-sb-add-btn {
+  width:100%; padding:9px 12px; border-radius:8px;
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  color:#fff; font-size:11.5px; font-weight:700; text-align:center;
+  border:none; cursor:pointer; font-family:inherit;
+  transition:all .2s; box-shadow:0 2px 8px rgba(124,58,237,0.25);
+  display:flex; align-items:center; justify-content:center; gap:6px;
+}
+.cmm-sb-add-btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(124,58,237,0.35); }
+.cmm-sb-add-btn:active { transform:translateY(0); }
 
-  // ── Quiz ops ─────────────────────────────────────────────────────────────
-  const addQ    = () => { const u=dc(modules); u[selMod].chapters[selCh].content.questions??=[]; u[selMod].chapters[selCh].content.questions!.push({q:"",opts:["","","",""],ans:0}); setModules(u); };
-  const delQ    = (qi:number) => { const u=dc(modules); const qs=u[selMod].chapters[selCh].content.questions!; if(qs.length===1){toast("Need at least one question.");return;} qs.splice(qi,1); setModules(u); };
-  const updQ    = (qi:number, field:"q"|"ans", val:string|number) => { const u=dc(modules); const q=u[selMod].chapters[selCh].content.questions![qi]; if(field==="q")q.q=val as string; else q.ans=val as number; setModules(u); };
-  const updOpt  = (qi:number, oi:number, val:string) => { const u=dc(modules); u[selMod].chapters[selCh].content.questions![qi].opts[oi]=val; setModules(u); };
+/* ── Main content area ── */
+.cmm-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
 
-  // ── Drag ─────────────────────────────────────────────────────────────────
-  const onChDragStart = (mi:number, ci:number) => setChDragSrc({mi,ci});
-  const onChDragOver  = (e:React.DragEvent, mi:number, ci:number) => { e.preventDefault(); setChDragOver({mi,ci}); };
-  const onChDrop      = (mi:number, ci:number) => { if(chDragSrc&&chDragSrc.mi===mi&&chDragSrc.ci!==ci) moveCh(chDragSrc.ci,ci); setChDragSrc(null); setChDragOver(null); };
-  const onChDragEnd   = () => { setChDragSrc(null); setChDragOver(null); };
-  const onModDragStart = (e:React.DragEvent, mi:number) => { e.stopPropagation(); setModDragSrc(mi); };
-  const onModDragOver  = (e:React.DragEvent, mi:number) => { e.preventDefault(); e.stopPropagation(); setModDragOver(mi); };
-  const onModDrop      = (e:React.DragEvent, mi:number) => { e.stopPropagation(); if(modDragSrc!==null&&modDragSrc!==mi) moveMod(modDragSrc,mi); setModDragSrc(null); setModDragOver(null); };
-  const onModDragEnd   = () => { setModDragSrc(null); setModDragOver(null); };
+/* Action bar at top of content */
+.cmm-actions {
+  display:flex; align-items:center; gap:8px;
+  padding:12px 20px;
+  background:var(--surface,#fff);
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.08));
+}
+.cmm-actions-title {
+  font-size:11px; font-weight:700; color:var(--t2,#4a3870);
+  text-transform:uppercase; letter-spacing:.06em; margin-right:auto;
+}
+.cmm-action-btn {
+  padding:7px 14px; border-radius:8px;
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  color:#fff; font-size:11px; font-weight:700;
+  border:none; cursor:pointer; font-family:inherit;
+  transition:all .2s; box-shadow:0 2px 6px rgba(124,58,237,0.2);
+  display:flex; align-items:center; gap:5px;
+}
+.cmm-action-btn:hover { transform:translateY(-1px); box-shadow:0 3px 10px rgba(124,58,237,0.3); }
+.cmm-action-btn:active { transform:translateY(0); }
+.cmm-action-btn.secondary {
+  background:linear-gradient(135deg,#0284c7,#0d9488);
+  box-shadow:0 2px 6px rgba(2,132,199,0.2);
+}
+.cmm-action-btn.secondary:hover { box-shadow:0 3px 10px rgba(2,132,199,0.3); }
 
-  // ── Save / Close ─────────────────────────────────────────────────────────
-  const save = () => {
-    for (const m of modules) {
-      if (!m.title.trim()) { toast("All modules need a title."); return; }
-      for (const c of m.chapters) {
-        if (!c.title.trim()) { toast("All chapters need a title."); return; }
-        if (c.type!=="lesson") {
-          const qs=c.content.questions??[];
-          if (!qs.length) { toast("Quiz/Assessment needs at least one question."); return; }
-          for (const q of qs) if (!q.q.trim()||q.opts.some(o=>!o.trim())) { toast("Fill all question fields."); return; }
-        }
-      }
-    }
-    onSave(courseIdx, modules);
-    toast(`Modules saved for "${course.title}"!`);
-    handleClose();
-  };
-  const handleClose = () => { setExiting(true); setTimeout(()=>{ setExiting(false); onClose(); }, 260); };
+.cmm-canvas {
+  flex:1; overflow-y:auto; padding:20px 24px;
+}
 
-  // ── Derived ──────────────────────────────────────────────────────────────
-  const media     = ch?.content.media ?? { type:"none" as MediaType, url:"" };
-  const vidEmbed  = media.type==="video" ? videoEmbed(media.url) : null;
-  const pptEmbed  = media.type==="presentation" ? presentationEmbed(media.url) : null;
-  const directVid = media.type==="video" && /\.(mp4|webm|ogg)(\?|$)/i.test(media.url);
-  const totalCh   = modules.reduce((s,m)=>s+m.chapters.length, 0);
-  const totalActs = modules.reduce((s,m)=>s+m.chapters.reduce((s2,c)=>s2+((c.content as any).segments?.length??0),0), 0);
-  const activities = getActivities();
-  const chMeta     = ch ? TM[ch.type] : null;
+/* ── Tabs (Content/Media/etc) ── */
+.cmm-tabs {
+  display:flex; gap:2px; padding:3px; background:var(--surface2,#f2f0fb);
+  border:1px solid var(--border); border-radius:9px;
+  margin-bottom:16px;
+}
+.cmm-tab {
+  flex:1; padding:7px 12px; border-radius:6px;
+  font-size:11.5px; font-weight:600; color:var(--t3,#8e7ec0);
+  text-align:center; cursor:pointer; border:none;
+  background:transparent; font-family:inherit;
+  transition:all .15s;
+}
+.cmm-tab:hover:not(.on) { color:var(--t2,#4a3870); background:rgba(124,58,237,0.04); }
+.cmm-tab.on { background:var(--surface,#fff); color:var(--purple,#7c3aed); box-shadow:0 1px 4px rgba(124,58,237,0.1); }
 
-  // ── Flat chapter list for prev/next ──────────────────────────────────────
-  const allChapters: {mi:number;ci:number}[] = modules.flatMap((m,mi) => m.chapters.map((_,ci) => ({mi,ci})));
-  const flatIdx = allChapters.findIndex(x => x.mi===selMod && x.ci===selCh);
-  const prevCh  = flatIdx > 0 ? allChapters[flatIdx-1] : null;
-  const nextCh  = flatIdx < allChapters.length-1 ? allChapters[flatIdx+1] : null;
+/* Form inputs */
+.cmm-field { margin-bottom:14px; }
+.cmm-lbl { display:block; font-size:11.5px; font-weight:700; color:var(--t2,#4a3870); margin-bottom:6px; }
+.cmm-input, .cmm-ta, .cmm-sel {
+  width:100%; padding:9px 12px; border-radius:8px;
+  border:1.5px solid var(--border,rgba(109,40,217,0.1));
+  background:var(--surface,#fff); color:var(--t1,#18103a);
+  font-size:12px; font-family:inherit; transition:all .15s;
+}
+.cmm-input:focus, .cmm-ta:focus, .cmm-sel:focus {
+  outline:none; border-color:var(--purple,#7c3aed);
+  box-shadow:0 0 0 3px rgba(124,58,237,0.08);
+}
+.cmm-ta { resize:vertical; min-height:80px; line-height:1.5; }
 
-  // ── Completion stats ─────────────────────────────────────────────────────
-  let filledChapters = 0;
-  modules.forEach(m => m.chapters.forEach(c => { if(c.title.trim()) filledChapters++; }));
-  const progressPct = totalCh > 0 ? Math.round((filledChapters/totalCh)*100) : 0;
+/* ── Footer ── */
+.cmm-foot {
+  height:64px; flex-shrink:0;
+  display:flex; align-items:center; gap:10px; padding:0 24px;
+  background:var(--surface,#fff);
+  border-top:1px solid var(--border,rgba(124,58,237,0.1));
+  box-shadow:0 -1px 6px rgba(124,58,237,0.04);
+}
+
+/* Buttons */
+.btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600; border:none; cursor:pointer; font-family:inherit; transition:all .15s; }
+.btn svg { width:13px; height:13px; }
+.btn-s { background:transparent; color:var(--t2,#4a3870); border:1.5px solid var(--border,rgba(109,40,217,0.12)); }
+.btn-s:hover { background:rgba(124,58,237,0.04); border-color:rgba(109,40,217,0.2); }
+.btn-p { background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488)); color:#fff; border:none; }
+.btn-p:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(124,58,237,0.3); }
+.btn-p:active { transform:translateY(0); }
+.btn-sm { padding:6px 12px; font-size:11px; }
+.btn-sm svg { width:11px; height:11px; }
+
+/* Lesson-only notice */
+.cmm-lesson-only {
+  display:flex; align-items:flex-start; gap:7px;
+  padding:10px 12px; border-radius:8px;
+  background:rgba(124,58,237,0.04);
+  border:1.5px solid rgba(124,58,237,0.1);
+  font-size:11px; color:var(--t2,#4a3870); line-height:1.5;
+}
+
+/* Media embed */
+.cmm-media { margin-top:12px; border-radius:10px; overflow:hidden; border:1.5px solid var(--border); }
+.cmm-media iframe { width:100%; height:360px; border:none; display:block; }
+`;
+
+// ─── COMPONENT ────────────────────────────────────────────────────────────────
+export default function CourseModuleModal({ open, course, courseIdx, onClose, onSave, toast }: CourseModuleModalProps) {
+  const [modules,  setModules]  = useState<Module[]>([]);
+  const [step,     setStep]     = useState<0|1|2>(0);
+  const [selMod,   setSelMod]   = useState(0);
+  const [selCh,    setSelCh]    = useState(0);
+  const [tab,      setTab]      = useState<"content"|"media"|"quiz">("content");
+  const [closing,  setClosing]  = useState(false);
+
+  useEffect(()=>{ if(open&&course){ setModules(course.modules?dc(course.modules):[blankModule()]); setStep(0); setSelMod(0); setSelCh(0); setTab("content"); setClosing(false); } },[open,course]);
+
+  if(!open||!course||courseIdx===null) return null;
+
+  const m = modules[selMod];
+  const c = m?.chapters[selCh];
+
+  // Progress
+  const totalCh = modules.reduce((s,m)=>s+m.chapters.length,0);
+  const titledCh = modules.reduce((s,m)=>s+m.chapters.filter(c=>c.title.trim()).length,0);
+  const progressPct = totalCh>0?Math.round((titledCh/totalCh)*100):0;
+  const step0done = modules.every(m=>m.title.trim()&&m.chapters.every(c=>c.title.trim()));
+  const totalActs = modules.reduce((s,m)=>s+m.chapters.reduce((a,c)=>{
+    const segs=(c.content as any).segments??[];
+    return a+segs.filter((x:any)=>x.kind==="activity").length;
+  },0),0);
+
+  // Footer
+  let footerNote = "";
+  let footerNoteColor = "var(--t3,#a89dc8)";
+  if(step===0) {
+    if(!step0done) { footerNote="⚠️ All modules and chapters need titles"; footerNoteColor="#d97706"; }
+    else { footerNote="✓ Structure complete"; footerNoteColor="var(--teal,#0d9488)"; }
+  } else if(step===1) {
+    footerNote=`Editing ${modules.length} module${modules.length!==1?"s":""}, ${totalCh} chapter${totalCh!==1?"s":""}`;
+  } else {
+    footerNote=`Ready to save ${totalCh} chapter${totalCh!==1?"s":""}`;
+  }
+
+  // Handlers
+  const handleClose=()=>{setClosing(true);setTimeout(onClose,150);};
+  const save=()=>{ if(courseIdx===null)return; onSave(courseIdx,modules); handleClose(); toast("Modules saved successfully!"); };
+  const addMod=()=>setModules([...modules,blankModule()]);
+  const delMod=(mi:number)=>{ if(modules.length<=1){toast("Need at least one module.");return;} setModules(modules.filter((_,i)=>i!==mi)); if(selMod>=modules.length-1)setSelMod(Math.max(0,modules.length-2)); };
+  const updMod=(mi:number,k:keyof Module,v:any)=>setModules(modules.map((x,i)=>i===mi?{...x,[k]:v}:x));
+  const addCh=(mi:number)=>{ const u=[...modules]; u[mi].chapters.push(blankChapter()); setModules(u); setSelCh(u[mi].chapters.length-1); };
+  const delCh=(mi:number,ci:number)=>{ if(modules[mi].chapters.length<=1){toast("Module needs at least one chapter.");return;} const u=[...modules]; u[mi].chapters.splice(ci,1); setModules(u); if(selCh>=u[mi].chapters.length)setSelCh(Math.max(0,u[mi].chapters.length-1)); };
+  const updCh=(mi:number,ci:number,k:keyof Chapter,v:any)=>{ const u=[...modules]; u[mi].chapters[ci]={...u[mi].chapters[ci],[k]:v}; setModules(u); };
+  const updChCont=(mi:number,ci:number,k:keyof ChapterContent,v:any)=>{ const u=[...modules]; u[mi].chapters[ci].content={...u[mi].chapters[ci].content,[k]:v}; setModules(u); };
+
+  // Inputs
+  const IN:React.CSSProperties={width:"100%",padding:"9px 12px",borderRadius:8,border:"1.5px solid var(--border,rgba(109,40,217,0.1))",background:"var(--surface,#fff)",color:"var(--t1,#18103a)",fontSize:12,fontFamily:"inherit",transition:"all .15s"};
+  const TA:React.CSSProperties={...IN,resize:"vertical" as const,minHeight:80,lineHeight:1.5};
 
   return (
     <>
       <style>{S}</style>
+      <div className={`cmm-fs${closing?" closing":""}`}>
 
-      {/* ActivityBuilderPanel rendered via ActivityBuilderTrigger portal */}
-
-      {/* ══ FULL-SCREEN SHELL ═══════════════════════════════════════════════ */}
-      <div className="mb" style={{ position:"fixed", inset:0, zIndex:600, background:"#faf9ff", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-
-        {/* Ambient light orbs — identical to wizard */}
-        <div style={{ position:"absolute", inset:0, overflow:"hidden", pointerEvents:"none", zIndex:0 }}>
-          <div style={{ position:"absolute", top:"-8%", right:"10%", width:440, height:440, borderRadius:"50%", background:"radial-gradient(circle,rgba(109,40,217,0.055),transparent 68%)" }}/>
-          <div style={{ position:"absolute", bottom:"-7%", left:"5%", width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle,rgba(13,148,136,0.06),transparent 68%)" }}/>
-          <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(109,40,217,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(109,40,217,0.022) 1px,transparent 1px)", backgroundSize:"52px 52px" }}/>
+        {/* ── Header ── */}
+        <div className="cmm-hdr">
+          <div className="cmm-hdr-ico">📚</div>
+          <div className="cmm-hdr-text">
+            <div className="cmm-hdr-title">Course Modules</div>
+            <div className="cmm-hdr-sub">{course.title}</div>
+          </div>
+          <div className="cmm-hdr-divider"/>
+          <div className="cmm-wizard">
+            {[{n:1,l:"Structure"},{n:2,l:"Content"},{n:3,l:"Review"}].map((s,i)=>(
+              <button key={i} className={`cmm-wstep${step===i?" on":""}${step>i?" done":""}`} onClick={()=>setStep(i as 0|1|2)}>
+                <div className="cmm-wstep-n">{step>i?"✓":s.n}</div>
+                {s.l}
+              </button>
+            ))}
+          </div>
+          <div style={{flex:1}}/>
+          <div className="cmm-hdr-prog">
+            <div className="cmm-hdr-prog-bar"><div className="cmm-hdr-prog-fill" style={{width:`${progressPct}%`}}/></div>
+            <div className="cmm-hdr-prog-lbl">{progressPct}% titled</div>
+          </div>
         </div>
 
-        <div className={exiting ? "mb-exit" : "mb-enter"} style={{ display:"flex", flexDirection:"column", flex:1, overflow:"hidden", position:"relative", zIndex:1 }}>
+        {/* ── Body ── */}
+        <div className="cmm-body">
 
-          {/* ══ TOP BAR ════════════════════════════════════════════════════ */}
-          <div style={{ display:"flex", alignItems:"center", padding:"0 28px", height:58, flexShrink:0, background:"rgba(255,255,255,0.96)", backdropFilter:"blur(16px)", borderBottom:"1px solid rgba(109,40,217,0.09)", boxShadow:"0 1px 0 rgba(109,40,217,0.05)" }}>
-
-            {/* Logo + title */}
-            <div style={{ display:"flex", alignItems:"center", gap:11, flexShrink:0 }}>
-              <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#7c3aed,#0d9488)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 3px 12px rgba(124,58,237,0.28)", flexShrink:0 }}>
-                <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.6"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg>
+          {/* ── Sidebar (Structure) ── */}
+          {step<2 && (
+            <div className="cmm-sb">
+              <div className="cmm-sb-hdr">
+                <div className="cmm-sb-hdr-title">Structure</div>
+                <div className="cmm-sb-hdr-sub">{modules.length} module{modules.length!==1?"s":""} · {totalCh} chapter{totalCh!==1?"s":""}</div>
               </div>
-              <div>
-                <div style={{ fontSize:14, fontWeight:700, color:"#0f0a2a", letterSpacing:"-0.01em" }}>Module Builder</div>
-                <div style={{ fontSize:10, color:"#a89dc8", marginTop:1 }}>{course.title}</div>
-              </div>
-            </div>
-
-            {/* Progress bar — same as wizard */}
-            <div style={{ flex:1, margin:"0 36px" }}>
-              <div style={{ height:5, borderRadius:4, background:"#e9e6f8", overflow:"hidden" }}>
-                <div style={{ height:"100%", borderRadius:4, background:"linear-gradient(90deg,#7c3aed,#0d9488)", width:`${progressPct}%`, transition:"width .6s cubic-bezier(.16,1,.3,1)" }}/>
-              </div>
-              <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
-                <span style={{ fontSize:9.5, fontWeight:600, color:"#a89dc8", letterSpacing:".05em", textTransform:"uppercase" }}>{modules.length} module{modules.length!==1?"s":""} · {totalCh} chapter{totalCh!==1?"s":""}{totalActs>0?` · ${totalActs} activities`:""}</span>
-                <span style={{ fontSize:9.5, fontWeight:700, color: progressPct===100?"#10b981":"#7c3aed" }}>{progressPct}% titled</span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-              <button className="mb-btn-p" onClick={save}>
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M2 7.5l3 3 7-7"/></svg>
-                Save Modules
-              </button>
-              <button onClick={handleClose}
-                style={{ width:32, height:32, borderRadius:9, border:"1.5px solid rgba(109,40,217,0.15)", background:"#f5f3ff", color:"#7c65a8", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"background .13s,border-color .13s" }}
-                onMouseEnter={e=>{e.currentTarget.style.background="#ede9fe";e.currentTarget.style.borderColor="rgba(109,40,217,0.3)";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="#f5f3ff";e.currentTarget.style.borderColor="rgba(109,40,217,0.15)";}}>
-                <svg width="10" height="10" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M1 1l9 9M10 1L1 10"/></svg>
-              </button>
-            </div>
-          </div>
-
-          {/* ══ BODY ════════════════════════════════════════════════════════ */}
-          <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
-
-            {/* ──────────────────────────────────────────────────────────────
-                LEFT SIDEBAR  –  Module accordion navigator (like wizard steps)
-            ────────────────────────────────────────────────────────────── */}
-            <div style={{ width:280, flexShrink:0, display:"flex", flexDirection:"column", borderRight:"1px solid rgba(109,40,217,0.09)", background:"#f5f3ff", overflow:"hidden" }}>
-
-              {/* Sidebar header */}
-              <div style={{ padding:"22px 18px 12px", flexShrink:0 }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-                  <div>
-                    <div style={{ fontSize:11, fontWeight:700, color:"#a89dc8", letterSpacing:".12em", textTransform:"uppercase" }}>Course Structure</div>
-                    <div style={{ fontSize:10, color:"#c4bdd8", marginTop:2 }}>Click a chapter to edit it</div>
+              <div className="cmm-sb-body">
+                {modules.map((mod,mi)=>(
+                  <div key={mi} className={`cmm-mod${selMod===mi?" sel":""}`} onClick={()=>{setSelMod(mi);setSelCh(0);}}>
+                    <div className="cmm-mod-hdr">
+                      <div className="cmm-mod-n">{mi+1}</div>
+                      <div className={`cmm-mod-title${mod.title.trim()?"":" empty"}`}>
+                        {mod.title.trim()||"Untitled module"}
+                      </div>
+                      <button className="cmm-mod-del" onClick={e=>{e.stopPropagation();delMod(mi);}}>
+                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+                      </button>
+                    </div>
+                    {mod.chapters.map((ch,ci)=>{
+                      const meta=TM[ch.type];
+                      return (
+                        <div key={ci} className={`cmm-ch${selMod===mi&&selCh===ci?" sel":""}`} onClick={e=>{e.stopPropagation();setSelMod(mi);setSelCh(ci);}}>
+                          <div className="cmm-ch-n" style={{background:meta.bg,color:meta.c}}>{ci+1}</div>
+                          <div className={`cmm-ch-title${ch.title.trim()?"":" empty"}`}>
+                            {ch.title.trim()||"Untitled chapter"}
+                          </div>
+                          <button className="cmm-ch-del" onClick={e=>{e.stopPropagation();delCh(mi,ci);}}>
+                            <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <button onClick={addMod}
-                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:9, background:"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", border:"none", cursor:"pointer", fontSize:11, fontWeight:700, boxShadow:"0 2px 10px rgba(124,58,237,0.28)", transition:"transform .13s,box-shadow .13s" }}
-                    onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 5px 16px rgba(124,58,237,0.38)";}}
-                    onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 2px 10px rgba(124,58,237,0.28)";}}>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="2.2"><path d="M5 1v8M1 5h8"/></svg>
-                    Module
+                ))}
+              </div>
+              <div className="cmm-sb-add">
+                <button className="cmm-sb-add-btn" onClick={addMod}>
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M7 1v12M1 7h12"/></svg>
+                  Add Module
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Main Content Area ── */}
+          <div className="cmm-main">
+
+            {/* Step 0: Structure editing */}
+            {step===0 && m && c && (
+              <>
+                <div className="cmm-actions">
+                  <div className="cmm-actions-title">Module {selMod+1} · Chapter {selCh+1}</div>
+                  <button className="cmm-action-btn secondary" onClick={()=>addCh(selMod)}>
+                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M7 1v12M1 7h12"/></svg>
+                    Add Chapter
                   </button>
                 </div>
-              </div>
-
-              {/* Accordion module list */}
-              <div style={{ flex:1, overflowY:"auto", padding:"0 12px 16px" }}>
-                {modules.map((m, mi) => {
-                  const isActiveMod = selMod===mi;
-                  const isDragOver  = modDragOver===mi && modDragSrc!==mi;
-                  const isDragging  = modDragSrc===mi;
-                  const acts = m.chapters.reduce((s,c)=>s+((c.content as any).segments?.length??0),0);
-
-                  return (
-                    <div key={mi} draggable
-                      className={`mb-mod${isActiveMod?" active":""}`}
-                      onDragStart={e=>onModDragStart(e,mi)} onDragOver={e=>onModDragOver(e,mi)}
-                      onDrop={e=>onModDrop(e,mi)} onDragEnd={onModDragEnd}
-                      style={{ opacity:isDragging?.25:1, borderColor:isDragOver?"rgba(109,40,217,0.5)":"" }}>
-
-                      {/* Module header row — click to expand */}
-                      <div className="mb-mod-hd" onClick={() => gotoMod(mi)}>
-                        <GripIcon/>
-                        {/* Number with gradient when active */}
-                        <div style={{ width:26, height:26, borderRadius:8, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10.5, fontWeight:700, background:isActiveMod?"linear-gradient(135deg,#7c3aed,#5b21b6)":"#e2dff5", color:isActiveMod?"#fff":"#7c65a8", boxShadow:isActiveMod?"0 2px 8px rgba(124,58,237,0.3)":"none", transition:"all .22s" }}>{mi+1}</div>
-
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontSize:12.5, fontWeight:700, color:isActiveMod?"#4c1d95":"#18103a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", transition:"color .2s" }}>
-                            {m.title || <em style={{ opacity:.4, fontWeight:400, fontSize:12 }}>Untitled module</em>}
-                          </div>
-                          <div style={{ fontSize:9.5, color:"#a89dc8", marginTop:2, display:"flex", gap:6 }}>
-                            <span>{m.chapters.length} ch{m.chapters.length!==1?"apters":"apter"}</span>
-                            {acts>0 && <span style={{ color:"#10b981" }}>· {acts} 🧩</span>}
-                          </div>
-                        </div>
-
-                        {/* Pulse when active */}
-                        {isActiveMod && <div className="mb-pulse" style={{ width:6, height:6, borderRadius:"50%", background:"#7c3aed", boxShadow:"0 0 6px rgba(124,58,237,0.6)", flexShrink:0 }}/>}
-
-                        {/* Chevron */}
-                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#c4bdd8" strokeWidth="2" style={{ transition:"transform .22s", transform:isActiveMod?"rotate(180deg)":"none", flexShrink:0 }}><path d="M2 4l4 4 4-4"/></svg>
-
-                        <button onClick={e=>{e.stopPropagation();delModAt(mi);}}
-                          style={{ width:18, height:18, border:"none", background:"transparent", color:"#c4bdd8", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:4, flexShrink:0, transition:"color .12s" }}
-                          onMouseEnter={e=>e.currentTarget.style.color="#dc2626"}
-                          onMouseLeave={e=>e.currentTarget.style.color="#c4bdd8"}>✕</button>
-                      </div>
-
-                      {/* ── Expanded: chapter list ── */}
-                      {isActiveMod && (
-                        <div style={{ background:"#f9f8ff", borderTop:"1px solid rgba(109,40,217,0.07)", paddingBottom:6 }}>
-                          {m.chapters.map((c, ci) => {
-                            const meta = TM[c.type];
-                            const isSel = selCh===ci;
-                            const isChDragOver = chDragOver?.mi===mi && chDragOver.ci===ci && chDragSrc?.ci!==ci;
-                            const isChDragging = chDragSrc?.mi===mi && chDragSrc.ci===ci;
-                            const actCt = ((c.content as any).segments?.length??0);
-                            return (
-                              <div key={ci} draggable
-                                className={`mb-ch-item${isSel?" active":""}`}
-                                onDragStart={()=>onChDragStart(mi,ci)} onDragOver={e=>onChDragOver(e,mi,ci)}
-                                onDrop={()=>onChDrop(mi,ci)} onDragEnd={onChDragEnd}
-                                onClick={()=>gotoChapter(mi,ci)}
-                                style={{ opacity:isChDragging?.22:1, borderLeft:isChDragOver?"2px solid #7c3aed":"2px solid transparent" }}>
-                                <GripIcon/>
-                                <div style={{ width:18, height:18, borderRadius:5, background:meta.bg, color:meta.c, fontSize:8, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{ci+1}</div>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ fontSize:11.5, fontWeight:isSel?600:500, color:isSel?"#18103a":"#4a3880", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                                    {c.title || <em style={{ opacity:.38, fontWeight:400 }}>Untitled</em>}
-                                  </div>
-                                  <div style={{ fontSize:8.5, marginTop:1, display:"flex", gap:4, alignItems:"center" }}>
-                                    <span style={{ color:meta.c, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>{meta.ico} {meta.lbl}</span>
-                                    {actCt>0 && <span style={{ background:"#ede9fe", color:"#7c3aed", borderRadius:4, padding:"0 4px", fontSize:7.5, fontWeight:700 }}>+{actCt}</span>}
-                                  </div>
-                                </div>
-                                <button onClick={e=>{e.stopPropagation();delChAt(mi,ci);}}
-                                  style={{ width:14, height:14, border:"none", background:"transparent", color:"#d4d0e8", cursor:"pointer", fontSize:9, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:3, flexShrink:0, transition:"color .12s" }}
-                                  onMouseEnter={e=>e.currentTarget.style.color="#dc2626"}
-                                  onMouseLeave={e=>e.currentTarget.style.color="#d4d0e8"}>✕</button>
-                              </div>
-                            );
-                          })}
-
-                          {/* Add chapter row */}
-                          <div style={{ padding:"6px 12px 4px 34px" }}>
-                            <div style={{ display:"flex", gap:5 }}>
-                              {(["lesson","quiz","assessment"] as ChapterType[]).map(t => (
-                                <button key={t} className="mb-addch" onClick={()=>addCh(t)}
-                                  style={{ border:`1px dashed ${TM[t].c}55`, background:TM[t].bg+"44", color:TM[t].c }}>
-                                  <span style={{ fontSize:13 }}>{TM[t].ico}</span>{TM[t].lbl}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Sidebar footer — module ± controls */}
-              <div style={{ padding:"10px 16px", borderTop:"1px solid rgba(109,40,217,0.08)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexShrink:0 }}>
-                <span style={{ fontSize:11, color:"#a89dc8", fontWeight:600 }}>{modules.length} module{modules.length!==1?"s":""}</span>
-                <div style={{ display:"flex", gap:6 }}>
-                  <button onClick={()=>delModAt(modules.length-1)}
-                    style={{ width:28, height:28, borderRadius:8, background:"#fee2e2", color:"#dc2626", border:"1px solid rgba(220,38,38,0.12)", cursor:"pointer", fontSize:17, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", transition:"transform .12s" }}
-                    onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
-                    onMouseLeave={e=>e.currentTarget.style.transform="none"}>−</button>
-                  <button onClick={addMod}
-                    style={{ width:28, height:28, borderRadius:8, background:"#ede9fe", color:"#7c3aed", border:"1px solid rgba(109,40,217,0.18)", cursor:"pointer", fontSize:17, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", transition:"transform .12s" }}
-                    onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
-                    onMouseLeave={e=>e.currentTarget.style.transform="none"}>+</button>
+                <div className="cmm-canvas">
+                  <div className="cmm-field">
+                    <label className="cmm-lbl">Module {selMod+1} Title</label>
+                    <input className="cmm-input" value={m.title} onChange={e=>updMod(selMod,"title",e.target.value)} placeholder="e.g., Introduction to the System"/>
+                  </div>
+                  <div className="cmm-field">
+                    <label className="cmm-lbl">Chapter {selCh+1} Title</label>
+                    <input className="cmm-input" value={c.title} onChange={e=>updCh(selMod,selCh,"title",e.target.value)} placeholder="e.g., Basic Concepts"/>
+                  </div>
+                  <div className="cmm-field">
+                    <label className="cmm-lbl">Chapter Type</label>
+                    <select className="cmm-sel" value={c.type} onChange={e=>{
+                      const t=e.target.value as ChapterType;
+                      const u=[...modules];
+                      u[selMod].chapters[selCh]={...blankChapter(t),title:c.title};
+                      setModules(u);
+                    }}>
+                      <option value="lesson">📖 Lesson</option>
+                      <option value="quiz">❓ Quiz</option>
+                      <option value="assessment">📝 Assessment</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
 
-            {/* ──────────────────────────────────────────────────────────────
-                RIGHT EDITOR  –  Full spacious editing area
-            ────────────────────────────────────────────────────────────── */}
-            <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"#fff" }}>
-              {ch && chMeta ? (
+            {/* Step 1: Content editing */}
+            {step===1 && (
+              c ? (
                 <>
-                  {/* ── Editor top bar: tabs + context ── */}
-                  <div style={{ display:"flex", alignItems:"center", padding:"0 32px", borderBottom:"1px solid rgba(109,40,217,0.09)", background:"#fff", flexShrink:0 }}>
-                    <button className={`mb-tab${activeTab==="content"?" on":""}`} onClick={()=>setActiveTab("content")}>
-                      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M2 3.5h10M2 7h8M2 10.5h6"/></svg>
-                      Content
-                    </button>
-
-                    {/* Right — Activities button + chapter type badge + breadcrumb */}
-                    <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:10 }}>
-                      <ActivityBuilderTrigger
-                        activities={activities}
-                        onSave={acts => { setActivities(acts); toast(`${acts.length} activit${acts.length===1?"y":"ies"} saved!`); }}
-                        chapterLabel={ch?.title || `Chapter ${selCh + 1}`}
-                      />
-                      <span style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"4px 12px", borderRadius:20, background:chMeta.bg, color:chMeta.c, border:`1.5px solid ${chMeta.border}`, fontSize:11.5, fontWeight:700 }}>
-                        {chMeta.ico} {chMeta.lbl}
-                      </span>
-                      <span style={{ fontSize:10.5, color:"#c4bdd8" }}>
-                        {mod.title||"Module"} <span style={{ margin:"0 3px" }}>›</span>
-                        <span style={{ color:"#7c65a8", fontWeight:600 }}>{ch.title||"Untitled chapter"}</span>
-                      </span>
+                  {/* Action bar with gradient buttons */}
+                  {c.type==="lesson" && (
+                    <div className="cmm-actions">
+                      <div className="cmm-actions-title">{c.title||"Untitled Chapter"}</div>
+                      <button className="cmm-action-btn" onClick={()=>{
+                        const segs=(c.content.segments??[]) as LessonBlock[];
+                        const u=[...modules];
+                        u[selMod].chapters[selCh].content.segments=[...segs,blankContentBlock()] as any;
+                        setModules(u);
+                        toast("Content block added");
+                      }}>
+                        <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M7 1v12M1 7h12"/></svg>
+                        Add Content
+                      </button>
+                      <button className="cmm-action-btn secondary" onClick={()=>{
+                        toast("Activity builder opens here (use existing panel)");
+                      }}>
+                        <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1"/><rect x="8" y="1.5" width="4.5" height="4.5" rx="1"/><rect x="1.5" y="8" width="4.5" height="4.5" rx="1"/><path d="M10.25 8v4.5M8 10.25h4.5"/></svg>
+                        Add Activity
+                      </button>
                     </div>
-                  </div>
+                  )}
 
-                  {/* ── Module title field (contextual, right above chapter editor) ── */}
-                  <div style={{ padding:"12px 32px 0", borderBottom:"1px solid rgba(109,40,217,0.07)", background:"#faf9ff", flexShrink:0 }}>
-                    <div style={{ display:"flex", gap:12, alignItems:"flex-end", paddingBottom:12 }}>
-                      <div style={{ minWidth:200 }}>
-                        <label style={{ ...LBL, marginBottom:4 }}>Module Title</label>
-                        <input value={mod.title} onChange={e=>updModTitle(selMod,e.target.value)}
-                          placeholder="e.g. Getting Started"
-                          style={{ ...IN, fontSize:13, padding:"8px 12px", background:"#fff" }}/>
-                      </div>
-                      <div style={{ fontSize:10.5, color:"#a89dc8", paddingBottom:10, fontWeight:600 }}>
-                        Chapter {selCh+1} of {mod.chapters.length}
-                      </div>
-                      <div style={{ marginLeft:"auto", display:"flex", gap:6, paddingBottom:4 }}>
-                        <button className="mb-nav prev" disabled={!prevCh}
-                          onClick={()=>prevCh&&gotoChapter(prevCh.mi,prevCh.ci)}>
-                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M8 2L4 6l4 4"/></svg>
-                          {prevCh && prevCh.mi!==selMod ? `← Module ${prevCh.mi+1}` : "← Prev"}
-                        </button>
-                        <button className="mb-nav next" disabled={!nextCh}
-                          onClick={()=>nextCh&&gotoChapter(nextCh.mi,nextCh.ci)}>
-                          {nextCh && nextCh.mi!==selMod ? `Module ${nextCh.mi+1} →` : "Next →"}
-                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M4 2l4 4-4 4"/></svg>
-                        </button>
-                      </div>
+                  <div className="cmm-canvas">
+                    <div className="cmm-tabs">
+                      <button className={`cmm-tab${tab==="content"?" on":""}`} onClick={()=>setTab("content")}>Content</button>
+                      <button className={`cmm-tab${tab==="media"?" on":""}`} onClick={()=>setTab("media")}>Media</button>
+                      {c.type!=="lesson"&&<button className={`cmm-tab${tab==="quiz"?" on":""}`} onClick={()=>setTab("quiz")}>Questions</button>}
                     </div>
-                  </div>
 
-                  {/* ── Main editor scroll body ── */}
-                  <div key={editorKey} className="mb-slide" style={{ flex:1, overflowY:"auto", padding:"28px 32px 40px", display:"flex", flexDirection:"column", gap:24 }}>
+                    {/* Content tab */}
+                    {tab==="content"&&(
+                      c.type==="lesson" ? (
+                        <div>
+                          <LessonBlocks
+                            blocks={(c.content.segments??[]) as LessonBlock[]}
+                            onChange={segs=>updChCont(selMod,selCh,"segments",segs)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="cmm-field">
+                          <label className="cmm-lbl">Chapter Body (optional)</label>
+                          <textarea className="cmm-ta" value={c.content.body??""} onChange={e=>updChCont(selMod,selCh,"body",e.target.value)} placeholder="Add introductory text..." rows={6}/>
+                        </div>
+                      )
+                    )}
 
-                    {/* ══ CONTENT TAB ══════════════════════════════════════════ */}
-                    {activeTab==="content" && (
+                    {/* Media tab */}
+                    {tab==="media"&&(
                       <>
-                        {/* ── Chapter identity ── */}
-                        <section>
-                          <div className="mb-section-hd">
-                            <span style={{ color:"rgba(124,58,237,0.7)" }}>01 </span>Chapter Identity
-                          </div>
-                          <div style={{ display:"flex", gap:16 }}>
-                            <div style={{ flex:1 }}>
-                              <label style={LBL}>Title <span style={{ color:"#dc2626" }}>*</span></label>
-                              <input value={ch.title} onChange={e=>updChField("title",e.target.value)}
-                                placeholder="e.g. Welcome & Overview"
-                                style={{ ...IN, fontSize:15, fontWeight:600, padding:"12px 15px" }}/>
+                        <div className="cmm-field">
+                          <label className="cmm-lbl">Media Type</label>
+                          <select className="cmm-sel" value={c.content.media.type} onChange={e=>updChCont(selMod,selCh,"media",{...c.content.media,type:e.target.value as MediaType})}>
+                            <option value="none">None</option>
+                            <option value="video">🎥 Video</option>
+                            <option value="presentation">📊 Presentation</option>
+                          </select>
+                        </div>
+                        {c.content.media.type!=="none"&&(
+                          <>
+                            <div className="cmm-field">
+                              <label className="cmm-lbl">Media URL</label>
+                              <input className="cmm-input" value={c.content.media.url} onChange={e=>updChCont(selMod,selCh,"media",{...c.content.media,url:e.target.value})} placeholder="YouTube, Vimeo, Google Drive, etc."/>
                             </div>
-                            <div style={{ minWidth:172 }}>
-                              <label style={LBL}>Type <span style={{ color:"#dc2626" }}>*</span></label>
-                              <select value={ch.type} onChange={e=>updChField("type",e.target.value)}
-                                style={{ ...IN, cursor:"pointer", padding:"12px 15px", appearance:"none", WebkitAppearance:"none", backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%237c3aed' stroke-width='1.8'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E\")", backgroundRepeat:"no-repeat", backgroundPosition:"right 14px center" }}>
-                                <option value="lesson">📖 Lesson</option>
-                                <option value="quiz">❓ Quiz</option>
-                                <option value="assessment">📝 Assessment</option>
-                              </select>
-                            </div>
-                          </div>
-                        </section>
-
-                        {/* ── Media ── */}
-                        <section>
-                          <div className="mb-section-hd">
-                            <span style={{ color:"rgba(13,148,136,0.7)" }}>02 </span>Media
-                          </div>
-                          <div style={{ background:"#faf9ff", border:"1px solid rgba(109,40,217,0.1)", borderRadius:16, padding:"18px 20px" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-                              <span style={{ fontSize:12.5, color:"#7c65a8", fontWeight:600 }}>Attach media to this chapter</span>
-                              <div style={{ display:"flex", gap:7, marginLeft:"auto" }}>
-                                {(["none","video","presentation"] as MediaType[]).map(t => (
-                                  <button key={t} className="mb-media-btn"
-                                    onClick={()=>updMedia({type:t, url:media.url, label:media.label})}
-                                    style={{ border:`1.5px solid ${media.type===t?"rgba(109,40,217,0.4)":"rgba(109,40,217,0.13)"}`, background:media.type===t?"#ede9fe":"#fff", color:media.type===t?"#6d28d9":"#8e7ec0" }}>
-                                    {t==="none"?"None":t==="video"?"🎬 Video":"📊 Slides"}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            {media.type!=="none" && (
-                              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                                <input value={media.url} onChange={e=>updMedia({...media,url:e.target.value})}
-                                  placeholder={media.type==="video"?"YouTube · Vimeo · direct .mp4 URL…":"Google Slides · OneDrive URL…"}
-                                  style={IN}/>
-                                <input value={media.label??""} onChange={e=>updMedia({...media,label:e.target.value})}
-                                  placeholder="Caption / label (optional)" style={{ ...IN, fontSize:12.5 }}/>
-                                {media.url.trim() && (
-                                  <div style={{ borderRadius:13, overflow:"hidden", background:"#111", aspectRatio:"16/9" }}>
-                                    {media.type==="video"&&directVid ? <video src={media.url} controls style={{ width:"100%",height:"100%",display:"block" }}/>
-                                    :media.type==="video"&&vidEmbed  ? <iframe src={vidEmbed} style={{ width:"100%",height:"100%",border:"none",display:"block" }} allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowFullScreen title="Video"/>
-                                    :media.type==="presentation"&&pptEmbed ? <iframe src={pptEmbed} style={{ width:"100%",height:"100%",border:"none",display:"block" }} allowFullScreen title="Presentation"/>
-                                    :<div style={{ minHeight:90,display:"flex",alignItems:"center",justifyContent:"center",color:"#8e7ec0",background:"#f5f3ff",fontSize:12 }}>Preview not available</div>}
-                                  </div>
-                                )}
+                            {c.content.media.url&&(
+                              <div className="cmm-media">
+                                {c.content.media.type==="video"&&videoEmbed(c.content.media.url)&&<iframe src={videoEmbed(c.content.media.url)!} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>}
+                                {c.content.media.type==="presentation"&&presentationEmbed(c.content.media.url)&&<iframe src={presentationEmbed(c.content.media.url)!}/>}
                               </div>
                             )}
-                          </div>
-                        </section>
-
-                        {/* ── Lesson body ── */}
-                        {ch.type==="lesson" && (
-                          <section>
-                            <div className="mb-section-hd">
-                              <span style={{ color:"rgba(2,132,199,0.7)" }}>03 </span>
-                              Lesson Content <span style={{ fontWeight:400, fontSize:10, color:"#c4bdd8", letterSpacing:0 }}>· HTML supported</span>
-                            </div>
-                            <textarea value={ch.content.body??""} onChange={e=>updBody(e.target.value)}
-                              placeholder={"<p>Enter lesson content here...</p>\n<h2>Subheading</h2>\n<p>More content…</p>"}
-                              rows={14}
-                              style={{ ...IN, fontFamily:"ui-monospace,'Fira Code',monospace", resize:"vertical", lineHeight:1.72, fontSize:12.5, padding:"14px 16px" }}/>
-                          </section>
-                        )}
-
-                        {/* ── Quiz / Assessment ── */}
-                        {(ch.type==="quiz"||ch.type==="assessment") && (
-                          <section>
-                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-                              <div>
-                                <div className="mb-section-hd" style={{ marginBottom:3 }}>
-                                  <span style={{ color:ch.type==="assessment"?"rgba(217,119,6,0.7)":"rgba(124,58,237,0.7)" }}>03 </span>Questions
-                                </div>
-                                <div style={{ fontSize:11, color:"#c4bdd8" }}>{(ch.content.questions??[]).length} question{(ch.content.questions??[]).length!==1?"s":""} · select the radio to mark correct answer</div>
-                              </div>
-                              <button className="mb-btn-p" onClick={addQ} style={{ padding:"8px 18px", fontSize:12 }}>+ Add Question</button>
-                            </div>
-                            <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
-                              {(ch.content.questions??[]).map((q,qi) => (
-                                <div key={qi} className="mb-q-card">
-                                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-                                    <div style={{ width:28, height:28, borderRadius:8, background:ch.type==="assessment"?"#fef3c7":"#ede9fe", color:ch.type==="assessment"?"#b45309":"#7c3aed", fontSize:11.5, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{qi+1}</div>
-                                    <input value={q.q} onChange={e=>updQ(qi,"q",e.target.value)} placeholder="Type your question…"
-                                      style={{ flex:1, border:"1.5px solid rgba(109,40,217,0.12)", borderRadius:10, padding:"9px 13px", fontSize:13.5, background:"#faf9ff", outline:"none", color:"#18103a", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"border-color .15s" }}/>
-                                    <button onClick={()=>delQ(qi)} style={{ width:30, height:30, borderRadius:9, border:"1px solid rgba(220,38,38,0.15)", background:"#fee2e2", color:"#dc2626", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
-                                  </div>
-                                  <div style={{ display:"flex", flexDirection:"column", gap:8, paddingLeft:38 }}>
-                                    {q.opts.map((opt,oi) => (
-                                      <div key={oi} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                                        <input type="radio" name={`ans-${selMod}-${selCh}-${qi}`} checked={q.ans===oi} onChange={()=>updQ(qi,"ans",oi)}
-                                          style={{ accentColor:"#7c3aed", width:16, height:16, flexShrink:0, cursor:"pointer" }}/>
-                                        <input value={opt} onChange={e=>updOpt(qi,oi,e.target.value)}
-                                          placeholder={`Option ${oi+1}${q.ans===oi?" ✓ correct":""}`}
-                                          style={{ flex:1, border:`1.5px solid ${q.ans===oi?"rgba(22,163,74,0.45)":"rgba(109,40,217,0.1)"}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:q.ans===oi?"#f0fdf4":"#fff", outline:"none", color:"#18103a", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"border-color .14s,background .14s" }}/>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </section>
+                          </>
                         )}
                       </>
                     )}
 
-                    {/* Activities are now accessible via the 🧩 Activities button in the header above */}
-
+                    {/* Quiz tab */}
+                    {tab==="quiz"&&c.type!=="lesson"&&(
+                      <div>
+                        {(c.content.questions??[]).map((q,qi)=>{
+                          const updQ=(k:keyof QuizQuestion,v:any)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi]={...q,[k]:v}; setModules(u); };
+                          const updOpt=(oi:number,v:string)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi].opts[oi]=v; setModules(u); };
+                          const safeMod=`m${selMod}`,safeCh=`c${selCh}`;
+                          return (
+                            <div key={qi} style={{background:"var(--surface,#fff)",border:"1.5px solid var(--border,rgba(109,40,217,0.1))",borderRadius:10,padding:14,marginBottom:12}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                                <div style={{width:26,height:26,borderRadius:7,background:"linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488))",color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{qi+1}</div>
+                                <input value={q.q} onChange={e=>updQ("q",e.target.value)} placeholder={`Question ${qi+1}`} style={{...IN,flex:1}}/>
+                                <button onClick={()=>{const u=[...modules];u[selMod].chapters[selCh].content.questions!.splice(qi,1);setModules(u);}} style={{width:26,height:26,borderRadius:7,border:"1.5px solid rgba(239,68,68,0.2)",background:"rgba(239,68,68,0.05)",color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>×</button>
+                              </div>
+                              <div style={{display:"flex",flexDirection:"column",gap:7,paddingLeft:33}}>
+                                {q.opts.map((opt,oi)=>(
+                                  <div key={oi} style={{display:"flex",alignItems:"center",gap:9}}>
+                                    <input type="radio" name={`ans-${safeMod}-${safeCh}-${qi}`} checked={q.ans===oi} onChange={()=>updQ("ans",oi)} style={{accentColor:"var(--purple,#7c3aed)",width:15,height:15,flexShrink:0,cursor:"pointer"}}/>
+                                    <input value={opt} onChange={e=>updOpt(oi,e.target.value)}
+                                      placeholder={`Option ${oi+1}${q.ans===oi?" ✓ correct":""}`}
+                                      style={{...IN,border:`1.5px solid ${q.ans===oi?"rgba(22,163,74,0.45)":"var(--border,rgba(109,40,217,0.1))"}`,background:q.ans===oi?"#f0fdf4":"#fff"}}/>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <button onClick={()=>{const u=[...modules];u[selMod].chapters[selCh].content.questions!.push({q:"",opts:["","","",""],ans:0});setModules(u);}} style={{width:"100%",padding:"10px",borderRadius:8,border:"1.5px dashed var(--border,rgba(109,40,217,0.2))",background:"var(--surface,#fff)",color:"var(--purple,#7c3aed)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Question</button>
+                        <div className="cmm-lesson-only" style={{marginTop:12}}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--t3)" strokeWidth="1.5" style={{flexShrink:0,marginTop:1}}>
+                            <circle cx="8" cy="8" r="6"/><path d="M8 7v4"/><circle cx="8" cy="5.5" r=".6" fill="var(--t3)"/>
+                          </svg>
+                          <span>Interactive activities are available on <strong>Lesson</strong> chapters only.</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
-                /* Empty state — no chapter selected */
-                <div className="mb-empty">
-                  <div style={{ width:72, height:72, borderRadius:20, background:"#f5f3ff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, boxShadow:"0 3px 16px rgba(109,40,217,0.09)" }}>📖</div>
-                  <div style={{ fontSize:16, fontWeight:700, color:"#a89dc8" }}>No chapter selected</div>
-                  <div style={{ fontSize:13, color:"#c4bdd8", lineHeight:1.7 }}>
-                    Pick a chapter from the sidebar to start editing,<br/>or add a new chapter inside any module.
-                  </div>
+                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t3)",fontSize:13}}>
+                  Select a chapter to edit
                 </div>
-              )}
-            </div>
+              )
+            )}
 
-          </div>
+            {/* Step 2: Review */}
+            {step===2 && (
+              <div className="cmm-canvas">
+                <div style={{maxWidth:680,margin:"0 auto"}}>
+
+                  {/* Course summary card */}
+                  <div style={{background:"var(--surface,#fff)",borderRadius:14,padding:"20px 22px",border:"1.5px solid var(--border,rgba(109,40,217,0.1))",marginBottom:16,boxShadow:"0 2px 10px rgba(124,58,237,0.05)"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+                      <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>📚</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:17,fontWeight:800,color:"var(--t1,#18103a)",letterSpacing:"-.02em"}}>{course.title}</div>
+                        <div style={{fontSize:11.5,color:"var(--t3,#a89dc8)",marginTop:3}}>
+                          {modules.length} module{modules.length!==1?"s":""} · {totalCh} chapter{totalCh!==1?"s":""}
+                          {totalActs>0&&<span> · {totalActs} activit{totalActs===1?"y":"ies"}</span>}
+                        </div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:22,fontWeight:800,color:progressPct===100?"var(--teal,#0d9488)":"var(--purple,#7c3aed)"}}>{progressPct}%</div>
+                        <div style={{fontSize:9.5,color:"var(--t3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"}}>titled</div>
+                      </div>
+                    </div>
+                    <div style={{height:6,borderRadius:6,background:"var(--border,#ede9f6)",overflow:"hidden"}}>
+                      <div style={{height:"100%",borderRadius:6,background:"linear-gradient(90deg,var(--purple,#7c3aed),var(--teal,#0d9488))",width:`${progressPct}%`,transition:"width .5s"}}/>
+                    </div>
+                  </div>
+
+                  {/* Module review cards */}
+                  {modules.map((mod,mi) => (
+                    <div key={mi} style={{background:"var(--surface,#fff)",borderRadius:12,padding:"14px 16px",border:"1.5px solid var(--border,rgba(109,40,217,0.1))",marginBottom:10}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                        <div style={{width:28,height:28,borderRadius:8,background:"var(--purple,#7c3aed)",color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{mi+1}</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13.5,fontWeight:700,color:mod.title?"var(--t1,#18103a)":"var(--t3,#c4bdd8)"}}>
+                            {mod.title||<em>Untitled module</em>}
+                          </div>
+                          <div style={{fontSize:10.5,color:"var(--t3,#a89dc8)",marginTop:2}}>{mod.chapters.length} chapter{mod.chapters.length!==1?"s":""}</div>
+                        </div>
+                        <button className="btn btn-s btn-sm" style={{fontSize:11}}
+                          onClick={()=>{setSelMod(mi);setSelCh(0);setStep(0);}}>Edit</button>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                        {mod.chapters.map((ch,ci) => {
+                          const meta  = TM[ch.type];
+                          const segs  = (ch.content as any).segments ?? [];
+                          const acts  = segs.filter((s:any)=>s.kind==="activity").length;
+                          const blocks= segs.filter((s:any)=>s.kind==="content").length;
+                          return (
+                            <div key={ci} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,background:"var(--bg,#faf9ff)",border:`1.5px solid ${ch.title?"var(--border,#ede9f6)":"rgba(220,38,38,0.18)"}`}}>
+                              <div style={{width:22,height:22,borderRadius:6,background:meta.bg,color:meta.c,fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{ci+1}</div>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:12,fontWeight:600,color:ch.title?"var(--t1,#18103a)":"var(--red,#dc2626)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  {ch.title||<em>Missing title!</em>}
+                                </div>
+                                <div style={{fontSize:9.5,color:"var(--t3)",marginTop:1,display:"flex",gap:5,alignItems:"center"}}>
+                                  <span style={{color:meta.c,fontWeight:700,textTransform:"uppercase",letterSpacing:".04em"}}>{meta.ico} {meta.lbl}</span>
+                                  {ch.type==="lesson"&&blocks>0&&<span>· {blocks} block{blocks!==1?"s":""}</span>}
+                                  {acts>0&&<span style={{color:"var(--purple,#7c3aed)"}}>· {acts} 🧩</span>}
+                                  {ch.type!=="lesson"&&<span>· {(ch.content.questions??[]).length} Q</span>}
+                                </div>
+                              </div>
+                              <button className="btn btn-s btn-sm" style={{fontSize:10,padding:"3px 9px"}}
+                                onClick={()=>{setSelMod(mi);setSelCh(ci);setStep(1);}}>Edit</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>{/* /cmm-main */}
+        </div>{/* /cmm-body */}
+
+        {/* ── Footer ── */}
+        <div className="cmm-foot">
+          <div style={{fontSize:10.5,color:footerNoteColor,flex:1,fontWeight:500}}>{footerNote}</div>
+          <button className="btn btn-s btn-sm" onClick={handleClose}>Cancel</button>
+          {step>0 && (
+            <button className="btn btn-s btn-sm" onClick={()=>setStep((step-1) as 0|1|2)}>
+              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 1L3 5l4 4"/></svg>
+              Back
+            </button>
+          )}
+          {step<2 ? (
+            <button className="btn btn-p btn-sm"
+              style={{padding:"8px 20px",fontSize:12.5,borderRadius:10,boxShadow:"0 3px 12px rgba(124,58,237,0.25)"}}
+              onClick={()=>{
+                if(step===0&&!step0done){toast("Name all modules and chapters first.");return;}
+                setStep((step+1) as 0|1|2);
+              }}>
+              Continue
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M3 7h8M8 4l3 3-3 3"/></svg>
+            </button>
+          ) : (
+            <button className="btn btn-p btn-sm"
+              style={{padding:"8px 22px",fontSize:12.5,borderRadius:10,boxShadow:"0 3px 12px rgba(124,58,237,0.3)"}}
+              onClick={save}>
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M2 7.5l3.5 3.5 6.5-7"/></svg>
+              Save Modules
+            </button>
+          )}
         </div>
-      </div>
+
+      </div>{/* /cmm-fs */}
     </>
   );
 }

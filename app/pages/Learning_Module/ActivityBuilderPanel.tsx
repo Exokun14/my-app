@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { useState, useRef, useEffect } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type SegmentType = "accordion" | "flashcard" | "fillblank" | "checklist" | "matching" | "hotspot";
@@ -12,595 +11,483 @@ export interface ChecklistItem  { text: string; }
 export interface MatchPair      { left: string; right: string; }
 export interface Activity {
   id: string; type: SegmentType; title: string;
-  items?: AccordionItem[]; cards?: FlashCard[];
-  questions?: FillBlankQ[]; checklist?: ChecklistItem[]; pairs?: MatchPair[];
+  items?: AccordionItem[]; cards?: FlashCard[]; questions?: FillBlankQ[];
+  checklist?: ChecklistItem[]; pairs?: MatchPair[];
 }
-interface Props {
-  open: boolean; onClose: () => void;
-  activities: Activity[]; onSave: (a: Activity[]) => void;
-  dropTargetLabel?: string;
-}
-
-// ── TS-safe tab type (fixes "Property 'count' does not exist" error) ─────────
-type TabKey = "build" | "types" | "templates";
-interface TabDef { key: TabKey; label: string; icon: string; count?: number; }
+export type LessonBlockKind = "content" | "activity";
+export interface LessonBlock { id: string; kind: LessonBlockKind; body?: string; activity?: Activity; }
 
 // ─── Meta ─────────────────────────────────────────────────────────────────────
-const TYPE_META: Record<SegmentType, { icon:string; label:string; color:string; bg:string; border:string; desc:string; hint:string }> = {
-  accordion: { icon:"🗂️", label:"Accordion",     color:"#0284c7", bg:"#e0f2fe", border:"rgba(2,132,199,0.22)",   desc:"Expandable Q&A sections",     hint:"FAQs & glossaries"         },
-  flashcard: { icon:"🃏", label:"Flashcards",    color:"#7c3aed", bg:"#ede9fe", border:"rgba(124,58,237,0.22)",  desc:"Flip-card memory drill",       hint:"Key terms & vocabulary"     },
-  fillblank: { icon:"✏️", label:"Fill in Blank", color:"#0f766e", bg:"#ccfbf1", border:"rgba(15,118,110,0.22)",  desc:"Sentence completion exercise", hint:"Recall & procedure steps"   },
-  checklist: { icon:"☑️", label:"Checklist",     color:"#15803d", bg:"#dcfce7", border:"rgba(21,128,61,0.22)",   desc:"Step-by-step task list",       hint:"SOPs & procedures"          },
-  matching:  { icon:"🔗", label:"Matching",      color:"#9333ea", bg:"#f3e8ff", border:"rgba(147,51,234,0.22)",  desc:"Match two-column pairs",       hint:"Definitions & associations" },
-  hotspot:   { icon:"🎯", label:"Hotspot Task",  color:"#d97706", bg:"#fef3c7", border:"rgba(217,119,6,0.22)",   desc:"Interactive task checklist",   hint:"Walkthroughs & EOD tasks"   },
+export const ACT_META: Record<SegmentType, { icon:string; label:string; color:string; bg:string; border:string; desc:string }> = {
+  accordion: { icon:"🗂️", label:"Accordion",     color:"#0369a1", bg:"#f0f9ff", border:"rgba(3,105,161,0.18)",  desc:"Expandable Q&A sections" },
+  flashcard: { icon:"🃏", label:"Flashcards",    color:"#6d28d9", bg:"#faf5ff", border:"rgba(109,40,217,0.18)", desc:"Flip-card memory drill"   },
+  fillblank: { icon:"✏️", label:"Fill in Blank", color:"#0f766e", bg:"#f0fdf9", border:"rgba(15,118,110,0.18)", desc:"Sentence completion"      },
+  checklist: { icon:"☑️", label:"Checklist",     color:"#15803d", bg:"#f0fdf4", border:"rgba(21,128,61,0.18)",  desc:"Step-by-step task list"   },
+  matching:  { icon:"🔗", label:"Matching",      color:"#7c3aed", bg:"#faf5ff", border:"rgba(124,58,237,0.18)", desc:"Match two columns"        },
+  hotspot:   { icon:"🎯", label:"Hotspot",       color:"#b45309", bg:"#fffbeb", border:"rgba(180,83,9,0.18)",   desc:"Interactive task list"    },
 };
-const ALL_TYPES = Object.keys(TYPE_META) as SegmentType[];
+export const ALL_TYPES = Object.keys(ACT_META) as SegmentType[];
 
-function mkId(): string { return Math.random().toString(36).slice(2, 9); }
-function dc<T>(v: T): T { return JSON.parse(JSON.stringify(v)); }
-function blankActivity(type: SegmentType): Activity {
-  const base = { id: mkId(), type, title: "" };
+// ─── Utils ────────────────────────────────────────────────────────────────────
+export function mkId(): string { return Math.random().toString(36).slice(2, 9); }
+export function dc<T>(v: T): T { return JSON.parse(JSON.stringify(v)); }
+export function blankActivity(type: SegmentType): Activity {
+  const b = { id: mkId(), type, title: "" };
   switch (type) {
-    case "accordion": return { ...base, items:     [{ q: "", a: "" }] };
-    case "flashcard": return { ...base, cards:     [{ front: "", back: "" }] };
-    case "fillblank": return { ...base, questions: [{ sentence: "Type your sentence with __BLANK__ here.", blanks: [""] }] };
+    case "accordion": return { ...b, items:     [{ q:"", a:"" }] };
+    case "flashcard": return { ...b, cards:     [{ front:"", back:"" }] };
+    case "fillblank": return { ...b, questions: [{ sentence:"Type a sentence with __BLANK__ here.", blanks:[""] }] };
     case "checklist":
-    case "hotspot":   return { ...base, checklist: [{ text: "" }] };
-    case "matching":  return { ...base, pairs:     [{ left: "", right: "" }] };
+    case "hotspot":   return { ...b, checklist: [{ text:"" }] };
+    case "matching":  return { ...b, pairs:     [{ left:"", right:"" }] };
   }
 }
+export function blankContentBlock(): LessonBlock { return { id: mkId(), kind: "content", body: "" }; }
 
 // ─── Templates ────────────────────────────────────────────────────────────────
-const TEMPLATES: Array<{ id:string; name:string; type:SegmentType; tags:string[]; desc:string; activity:Activity }> = [
-  { id:"t1", name:"POS Key Terms",             type:"accordion", tags:["POS","Glossary"],  desc:"Expandable glossary of POS terms",
-    activity:{ id:mkId(),type:"accordion",title:"POS Key Terms",items:[{q:"What is a POS System?",a:"Hardware + software used to process transactions at the point of sale."},{q:"What is a PED?",a:"A PIN Entry Device — the card reader customers use for card payments."},{q:"What is an EOD Report?",a:"End-of-Day report summarising all transactions for cash reconciliation."}] } },
-  { id:"t2", name:"Hardware Flashcards",       type:"flashcard",  tags:["POS","Memory"],   desc:"Flip-cards for hardware components",
-    activity:{ id:mkId(),type:"flashcard",title:"POS Hardware",cards:[{front:"Touchscreen Terminal",back:"Primary cashier interface — all orders entered here."},{front:"Thermal Receipt Printer",back:"Uses heat (not ink) — faster and lower maintenance."},{front:"Cash Drawer",back:"Locked drawer, opens automatically on cash transactions."}] } },
-  { id:"t3", name:"Opening Shift Checklist",   type:"checklist",  tags:["SOP","Opening"],  desc:"Morning opening procedure steps",
-    activity:{ id:mkId(),type:"checklist",title:"Opening Shift",checklist:[{text:"Verify cash float matches opening amount"},{text:"Power on POS and confirm server connection"},{text:"Test barcode scanner and receipt printer"},{text:"Confirm card reader (PED) is online"},{text:"Log in with personal employee credentials"}] } },
-  { id:"t4", name:"Hardware Matching",         type:"matching",   tags:["POS","Quiz"],     desc:"Match hardware names to functions",
-    activity:{ id:mkId(),type:"matching",title:"Match the Hardware",pairs:[{left:"Touchscreen",right:"Main cashier input"},{left:"Barcode Scanner",right:"Reads product codes"},{left:"PED / Card Reader",right:"Processes card payments"},{left:"Cash Drawer",right:"Stores physical currency"}] } },
-  { id:"t5", name:"Transaction Fill-in-Blank", type:"fillblank",  tags:["Recall","Quiz"],  desc:"Test recall of transaction procedures",
-    activity:{ id:mkId(),type:"fillblank",title:"Transaction Procedures",questions:[{sentence:"For cash payments, enter the __BLANK__ amount and the system calculates change.",blanks:["tendered"]},{sentence:"Always obtain __BLANK__ approval before voiding any transaction.",blanks:["supervisor","manager"]}] } },
-  { id:"t6", name:"EOD Procedure",             type:"hotspot",    tags:["EOD","Closing"],  desc:"Interactive end-of-day walkthrough",
-    activity:{ id:mkId(),type:"hotspot",title:"End-of-Day Procedure",checklist:[{text:"Run EOD report from manager dashboard"},{text:"Count cash and compare to POS total"},{text:"Investigate any discrepancies"},{text:"Secure cash in the safe"},{text:"Log out all cashier sessions"},{text:"Power down terminals and peripherals"}] } },
+const TEMPLATES: Array<{id:string;name:string;type:SegmentType;tags:string[];desc:string;activity:Activity}> = [
+  { id:"t1", name:"POS Key Terms",      type:"accordion", tags:["Glossary"], desc:"Expandable glossary of key terms",
+    activity:{ id:mkId(),type:"accordion",title:"POS Key Terms",items:[{q:"What is a POS System?",a:"Hardware + software for transactions."},{q:"What is a PED?",a:"PIN Entry Device — the card reader."},{q:"What is an EOD Report?",a:"End-of-Day report for cash reconciliation."}] } },
+  { id:"t2", name:"Hardware Flashcards",type:"flashcard", tags:["Memory"],   desc:"Flip-cards for hardware recall",
+    activity:{ id:mkId(),type:"flashcard",title:"POS Hardware",cards:[{front:"Touchscreen Terminal",back:"Primary cashier interface."},{front:"Thermal Printer",back:"Uses heat, not ink."},{front:"Cash Drawer",back:"Opens automatically on cash transactions."}] } },
+  { id:"t3", name:"Opening Checklist",  type:"checklist", tags:["SOP"],      desc:"Morning opening procedure steps",
+    activity:{ id:mkId(),type:"checklist",title:"Opening Shift",checklist:[{text:"Verify cash float"},{text:"Power on POS"},{text:"Test barcode scanner"},{text:"Log in with credentials"}] } },
+  { id:"t4", name:"Hardware Matching",  type:"matching",  tags:["Quiz"],     desc:"Match hardware to functions",
+    activity:{ id:mkId(),type:"matching",title:"Match the Hardware",pairs:[{left:"Touchscreen",right:"Main cashier input"},{left:"Barcode Scanner",right:"Reads product codes"},{left:"Cash Drawer",right:"Stores physical currency"}] } },
+  { id:"t5", name:"Fill-in-Blank",      type:"fillblank", tags:["Recall"],   desc:"Test recall of transaction steps",
+    activity:{ id:mkId(),type:"fillblank",title:"Transaction Procedures",questions:[{sentence:"For cash payments enter the __BLANK__ amount first.",blanks:["tendered"]},{sentence:"Always obtain __BLANK__ before voiding.",blanks:["supervisor approval"]}] } },
+  { id:"t6", name:"EOD Procedure",      type:"hotspot",   tags:["Closing"],  desc:"End-of-day walkthrough",
+    activity:{ id:mkId(),type:"hotspot",title:"End-of-Day Procedure",checklist:[{text:"Run EOD report"},{text:"Count cash"},{text:"Secure cash in safe"},{text:"Log out all sessions"},{text:"Power down terminals"}] } },
 ];
 
-// ─── CSS ─────────────────────────────────────────────────────────────────────
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+// ─── CSS ──────────────────────────────────────────────────────────────────────
+export const BUILDER_CSS = `
+.ab-r,.ab-r *,.ab-r *::before,.ab-r *::after{box-sizing:border-box;margin:0;padding:0;}
+.ab-r{font-family:'Plus Jakarta Sans',sans-serif;}
+.ab-r *{scrollbar-width:thin;scrollbar-color:rgba(109,40,217,0.12) transparent;}
+.ab-r ::-webkit-scrollbar{width:4px;}
+.ab-r ::-webkit-scrollbar-thumb{background:rgba(109,40,217,0.14);border-radius:4px;}
+@keyframes ab-back{from{opacity:0}to{opacity:1}}
+@keyframes ab-in  {from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes ab-out {from{opacity:1;transform:none}to{opacity:0;transform:translateY(5px) scale(.98)}}
+@keyframes ab-up  {from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes ab-dz  {0%,100%{border-color:rgba(109,40,217,0.22)}50%{border-color:rgba(109,40,217,0.45)}}
+@keyframes ab-stp {from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+.ab-backdrop{position:fixed;inset:0;z-index:900;background:rgba(15,10,40,0.3);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;animation:ab-back .18s ease both;padding:24px;}
+.ab-backdrop.ab-out{animation:ab-back .14s ease reverse both;}
+.ab-panel{width:100%;max-width:480px;max-height:82vh;background:#fff;border-radius:14px;border:1px solid var(--border,rgba(109,40,217,0.1));box-shadow:0 20px 56px rgba(15,10,40,0.14),0 4px 14px rgba(0,0,0,0.06);display:flex;flex-direction:column;overflow:hidden;animation:ab-in .22s cubic-bezier(.16,1,.3,1) both;}
+.ab-panel.ab-out{animation:ab-out .15s ease both;}
+.ab-panel.ab-floating{position:fixed;}
+.ab-hd{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border,#ede9f6);background:#fff;flex-shrink:0;}
+.ab-hd-ico{width:32px;height:32px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--purple-lt,#f0ebff);}
+.ab-hd-title{font-size:13.5px;font-weight:700;color:var(--t1,#18103a);line-height:1.2;}
+.ab-hd-sub{font-size:10px;color:var(--t3,#8e7ec0);margin-top:1px;}
+.ab-close{width:28px;height:28px;border-radius:7px;border:none;background:transparent;cursor:pointer;margin-left:auto;display:flex;align-items:center;justify-content:center;color:var(--t3,#a89dc8);flex-shrink:0;transition:all .12s;}
+.ab-close:hover{background:#f5f0ff;color:var(--t2,#4a3870);}
+.ab-body{flex:1;overflow-y:auto;padding:14px 16px;}
+.ab-stp{margin-bottom:16px;animation:ab-stp .3s cubic-bezier(.16,1,.3,1) both;}
+.ab-stp:nth-child(1){animation-delay:0s;}
+.ab-stp:nth-child(2){animation-delay:.04s;}
+.ab-stp:nth-child(3){animation-delay:.08s;}
+.ab-stp:nth-child(4){animation-delay:.12s;}
+.ab-stp:nth-child(5){animation-delay:.16s;}
+.ab-lbl{display:block;font-size:11.5px;font-weight:700;color:var(--t2,#4a3870);margin-bottom:6px;}
+.ab-in,.ab-ta,.ab-sel{width:100%;padding:9px 11px;border-radius:8px;border:1.5px solid var(--border,#e8e3f3);background:#fff;color:var(--t1,#18103a);font-size:12px;font-family:inherit;transition:all .15s;}
+.ab-in:focus,.ab-ta:focus,.ab-sel:focus{outline:none;border-color:var(--purple,#6d28d9);box-shadow:0 0 0 3px rgba(109,40,217,0.06);}
+.ab-in::placeholder,.ab-ta::placeholder{color:#c5bdd9;}
+.ab-ta{resize:vertical;min-height:70px;line-height:1.5;}
+.ab-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px;}
+.ab-type{padding:9px;border-radius:9px;border:1.5px solid var(--border,#ede9f6);background:#fff;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;}
+.ab-type:hover{border-color:rgba(109,40,217,0.25);background:rgba(109,40,217,0.02);transform:translateY(-1px);}
+.ab-type.sel{border-color:var(--purple,#6d28d9);background:#f5f0ff;box-shadow:0 2px 8px rgba(109,40,217,0.12);}
+.ab-type-ico{font-size:20px;line-height:1;}
+.ab-type-lbl{font-size:10.5px;font-weight:700;color:var(--t2,#4a3870);}
+.ab-type-desc{font-size:9px;color:var(--t3,#a89dc8);line-height:1.3;}
+.ab-items{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.ab-item{background:#faf9ff;border:1.5px solid var(--border,#ede9f6);border-radius:9px;padding:10px;display:flex;flex-direction:column;gap:7px;animation:ab-up .2s cubic-bezier(.16,1,.3,1) both;}
+.ab-item-hdr{display:flex;align-items:center;gap:7px;}
+.ab-item-n{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ab-item-del{width:22px;height:22px;border-radius:6px;border:1.5px solid rgba(239,68,68,0.18);background:rgba(239,68,68,0.04);color:#dc2626;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-left:auto;transition:all .12s;}
+.ab-item-del:hover{background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.35);}
+.ab-add{width:100%;padding:9px;border-radius:9px;border:1.5px dashed var(--border,#e8e3f3);background:transparent;color:var(--purple,#6d28d9);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:8px;}
+.ab-add:hover{border-color:var(--purple,#6d28d9);background:rgba(109,40,217,0.03);}
+.ab-tmpl{margin-top:10px;}
+.ab-tmpl-title{font-size:10px;font-weight:700;color:var(--t3,#a89dc8);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.ab-tmpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.ab-tmpl-card{padding:8px 10px;border-radius:8px;border:1.5px solid var(--border,#ede9f6);background:#fff;cursor:pointer;transition:all .15s;}
+.ab-tmpl-card:hover{border-color:rgba(109,40,217,0.25);background:rgba(109,40,217,0.02);transform:translateY(-1px);}
+.ab-tmpl-name{font-size:11px;font-weight:700;color:var(--t1,#18103a);margin-bottom:2px;}
+.ab-tmpl-desc{font-size:9px;color:var(--t3,#a89dc8);line-height:1.3;}
+.ab-foot{padding:12px 16px;border-top:1px solid var(--border,#ede9f6);display:flex;gap:8px;background:#fff;flex-shrink:0;}
+.ab-btn{flex:1;padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:700;border:none;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.ab-btn-c{background:transparent;border:1.5px solid var(--border,#e8e3f3);color:var(--t2,#4a3870);}
+.ab-btn-c:hover{background:#faf9ff;border-color:rgba(109,40,217,0.2);}
+.ab-btn-p{background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));color:#fff;box-shadow:0 3px 10px rgba(124,58,237,0.25);}
+.ab-btn-p:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(124,58,237,0.35);}
+.ab-btn-p:active{transform:translateY(0);}
 
-.abp { font-family:'DM Sans',sans-serif; color:#0f0a2a; }
-.abp *, .abp *::before, .abp *::after { box-sizing:border-box; margin:0; padding:0; }
-.abp * { scrollbar-width:thin; scrollbar-color:rgba(109,40,217,0.12) transparent; }
-.abp ::-webkit-scrollbar { width:3px; }
-.abp ::-webkit-scrollbar-thumb { background:rgba(109,40,217,0.18); border-radius:6px; }
-
-@keyframes abp-in  { from{opacity:0;transform:scale(.96) translateY(14px)} to{opacity:1;transform:none} }
-@keyframes abp-out { from{opacity:1;transform:none} to{opacity:0;transform:scale(.96) translateY(10px)} }
-@keyframes abp-up  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
-@keyframes abp-glow{ 0%,100%{box-shadow:0 0 0 0 rgba(109,40,217,0.3)} 50%{box-shadow:0 0 0 6px rgba(109,40,217,0)} }
-
-.abp-enter { animation:abp-in  .4s cubic-bezier(0.16,1,0.3,1) both; }
-.abp-exit  { animation:abp-out .26s ease forwards; }
-.abp-up    { animation:abp-up  .24s cubic-bezier(0.16,1,0.3,1) both; }
-
-.abp-panel {
-  position:fixed; display:flex; flex-direction:column; background:#f8f7ff;
-  border-radius:18px; overflow:hidden;
-  box-shadow:0 40px 100px rgba(10,6,30,0.22), 0 0 0 1px rgba(109,40,217,0.1);
-  min-width:500px; min-height:380px; z-index:900;
-}
-.abp-panel.fs { border-radius:0; top:0!important; left:0!important; width:100%!important; height:100%!important; }
-
-.abp-bar {
-  height:48px; padding:0 14px; flex-shrink:0;
-  display:flex; align-items:center; gap:10px;
-  background:linear-gradient(110deg,#160a3a 0%,#082830 100%);
-  cursor:grab; user-select:none; border-radius:18px 18px 0 0;
-  position:relative; overflow:hidden;
-}
-.abp-bar::after {
-  content:''; position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(110deg,rgba(124,58,237,0.15),transparent 50%,rgba(13,148,136,0.12));
-}
-.abp-panel.fs .abp-bar { border-radius:0; cursor:default; }
-.abp-bar:active { cursor:grabbing; }
-.abp-bar-logo { width:30px; height:30px; border-radius:9px; flex-shrink:0; background:linear-gradient(135deg,rgba(124,58,237,0.6),rgba(13,148,136,0.55)); display:flex; align-items:center; justify-content:center; font-size:14px; position:relative; z-index:1; }
-.abp-bar-name { font-family:'Syne',sans-serif; font-size:12.5px; font-weight:800; color:#fff; letter-spacing:.02em; line-height:1; position:relative; z-index:1; }
-.abp-bar-sub  { font-size:9.5px; color:rgba(255,255,255,0.38); letter-spacing:.04em; position:relative; z-index:1; }
-.abp-wbtn { width:22px; height:22px; border-radius:6px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; position:relative; z-index:1; transition:transform .12s,filter .12s; }
-.abp-wbtn:hover { transform:scale(1.14); filter:brightness(1.2); }
-
-.abp-nav { display:flex; align-items:center; gap:2px; padding:10px 16px 0; flex-shrink:0; }
-.abp-navbtn { padding:7px 13px; border-radius:9px; border:none; background:transparent; font-family:'DM Sans',sans-serif; font-size:11.5px; font-weight:500; color:#9585c0; cursor:pointer; display:flex; align-items:center; gap:5px; white-space:nowrap; transition:color .13s, background .13s; }
-.abp-navbtn.on { color:#160a3a; font-weight:700; background:#fff; box-shadow:0 1px 8px rgba(109,40,217,0.1); }
-.abp-navbtn:hover:not(.on) { color:#6d28d9; background:rgba(109,40,217,0.05); }
-.abp-navpill { padding:1px 6px; border-radius:20px; font-size:9px; font-weight:700; background:rgba(109,40,217,0.1); color:#6d28d9; }
-.abp-navbtn.on .abp-navpill { background:rgba(109,40,217,0.12); }
-
-.abp-body { flex:1; overflow-y:auto; padding:14px 16px 16px; display:flex; flex-direction:column; gap:10px; }
-
-.abp-block { border-radius:13px; overflow:hidden; border:1.5px solid rgba(109,40,217,0.1); background:#fff; transition:box-shadow .15s,border-color .15s; }
-.abp-block:hover { border-color:rgba(109,40,217,0.2); box-shadow:0 4px 20px rgba(109,40,217,0.09); }
-.abp-bhead { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; transition:background .12s; user-select:none; }
-.abp-bhead:hover { background:rgba(109,40,217,0.025); }
-
-.abp-tcard { border-radius:12px; padding:14px 14px 12px; border:1.5px solid transparent; cursor:pointer; display:flex; flex-direction:column; gap:5px; transition:transform .18s cubic-bezier(0.16,1,0.3,1),box-shadow .18s,border-color .14s; user-select:none; position:relative; overflow:hidden; }
-.abp-tcard:hover { transform:translateY(-3px) scale(1.01); box-shadow:0 8px 24px rgba(109,40,217,0.14); }
-.abp-tcard:active { transform:scale(.98); }
-
-.abp-tpl { border-radius:12px; overflow:hidden; border:1px solid rgba(109,40,217,0.1); background:#fff; transition:transform .18s,box-shadow .18s,border-color .14s; }
-.abp-tpl:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(109,40,217,0.12); border-color:rgba(109,40,217,0.24); }
-
-.abp-dz { border:2px dashed rgba(109,40,217,0.16); border-radius:13px; padding:22px 18px; text-align:center; background:rgba(109,40,217,0.015); transition:all .18s; cursor:pointer; }
-.abp-dz:hover { border-color:rgba(109,40,217,0.3); background:rgba(109,40,217,0.04); }
-.abp-dz.over { border-color:#7c3aed; background:rgba(109,40,217,0.07); animation:abp-glow .7s ease-out; }
-
-.abp-footer { padding:10px 16px; border-top:1px solid rgba(109,40,217,0.08); background:#fff; display:flex; align-items:center; gap:10px; flex-shrink:0; }
-
-.abp-save { padding:9px 20px; border-radius:10px; border:none; background:linear-gradient(135deg,#6d28d9,#0d9488); color:#fff; font-size:12.5px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; display:flex; align-items:center; gap:7px; transition:transform .13s,box-shadow .13s,filter .13s; position:relative; overflow:hidden; }
-.abp-save:hover { transform:translateY(-2px); box-shadow:0 6px 22px rgba(109,40,217,0.35); filter:brightness(1.06); }
-.abp-save:active { transform:scale(.97); }
-.abp-save:disabled { background:#e2dff5; color:#a89dc8; cursor:not-allowed; transform:none; box-shadow:none; filter:none; }
-.abp-save::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent); transform:translateX(-100%); transition:transform .5s; }
-.abp-save:hover::after { transform:translateX(100%); }
-
-.abp-ghost-btn { padding:7px 14px; border-radius:9px; border:1.5px solid rgba(109,40,217,0.18); background:#fff; color:#6d28d9; font-size:11.5px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; display:flex; align-items:center; gap:5px; transition:all .13s; }
-.abp-ghost-btn:hover { background:#f5f3ff; border-color:rgba(109,40,217,0.38); }
-
-.abp-del { width:26px; height:26px; border-radius:7px; border:none; background:#fee2e2; color:#dc2626; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .12s,transform .12s; flex-shrink:0; }
-.abp-del:hover { background:#fca5a5; transform:scale(1.1); }
-
-.abp-in { width:100%; border:1.5px solid rgba(109,40,217,0.13); border-radius:9px; padding:8px 11px; font-size:13px; background:#faf9ff; outline:none; color:#0f0a2a; font-family:'DM Sans',sans-serif; transition:border-color .14s,box-shadow .14s; }
-.abp-in:focus { border-color:rgba(109,40,217,0.42); background:#fff; box-shadow:0 0 0 3px rgba(109,40,217,0.06); }
-.abp-in::placeholder { color:#b8afd4; }
-.abp-lbl { font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#8e7ec0; display:block; margin-bottom:4px; }
-
-.abp-rh { position:absolute; background:transparent; }
-.abp-rh.e  { top:18px; right:0; width:5px; height:calc(100% - 36px); cursor:ew-resize; }
-.abp-rh.s  { bottom:0; left:18px; height:5px; width:calc(100% - 36px); cursor:ns-resize; }
-.abp-rh.se { bottom:0; right:0; width:14px; height:14px; cursor:se-resize; }
-.abp-rh.w  { top:18px; left:0; width:5px; height:calc(100% - 36px); cursor:ew-resize; }
-.abp-rh.n  { top:0; left:18px; height:5px; width:calc(100% - 36px); cursor:ns-resize; }
-.abp-rh.sw { bottom:0; left:0; width:14px; height:14px; cursor:sw-resize; }
-.abp-rh.ne { top:0; right:0; width:14px; height:14px; cursor:ne-resize; }
-.abp-rh.nw { top:0; left:0; width:14px; height:14px; cursor:nw-resize; }
-
-.abp-ghost-chip { position:fixed; pointer-events:none; z-index:9999; border-radius:10px; padding:8px 13px; display:flex; align-items:center; gap:7px; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:700; box-shadow:0 18px 48px rgba(0,0,0,0.2); transform:rotate(-2deg); border:2px solid; backdrop-filter:blur(10px); }
+/* ── LessonBlocks CSS ── */
+.lb-empty{padding:32px;text-align:center;border-radius:10px;border:1.5px dashed var(--border,#e8e3f3);background:#fefeff;}
+.lb-add{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 0;}
+.lb-add-sep{width:1px;height:20px;background:var(--border,#e8e3f3);}
+.lb-add-btn{flex:1;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border,#e8e3f3);background:#fff;color:var(--t2,#4a3870);font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.lb-add-btn:hover{border-color:rgba(109,40,217,0.22);background:#faf9ff;transform:translateY(-1px);}
+.lb-add-btn.content{color:#0369a1;}
+.lb-add-btn.activity{color:var(--purple,#6d28d9);}
+.lb-block{background:var(--surface,#fff);border:1.5px solid var(--border,#ede9f6);border-radius:10px;margin-bottom:10px;transition:all .15s;}
+.lb-block:hover{border-color:rgba(109,40,217,0.18);}
+.lb-block.dragging{opacity:.5;border-style:dashed;}
+.lb-block.over{border-color:var(--purple,#6d28d9);box-shadow:0 2px 8px rgba(109,40,217,0.15);}
+.lb-hdr{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:move;}
+.lb-hdr-grip{width:16px;height:16px;flex-shrink:0;opacity:.3;display:flex;align-items:center;justify-content:center;}
+.lb-hdr-ico{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.lb-hdr-title{flex:1;font-size:12px;font-weight:700;color:var(--t1,#18103a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lb-hdr-lbl{font-size:9px;color:var(--t3,#a89dc8);padding:2px 6px;border-radius:4px;background:rgba(109,40,217,0.06);font-weight:700;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;}
+.lb-hdr-del{width:24px;height:24px;border-radius:6px;border:none;background:transparent;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--t3,#a89dc8);transition:all .12s;}
+.lb-hdr-del:hover{background:rgba(239,68,68,0.1);color:#dc2626;}
+.lb-body{padding:0 12px 12px 12px;}
+.ab-ta{width:100%;padding:9px 11px;border-radius:8px;border:1.5px solid var(--border,#e8e3f3);background:#fff;color:var(--t1,#18103a);font-size:12px;font-family:inherit;resize:vertical;min-height:70px;line-height:1.5;}
+.lb-prev-row{font-size:11px;color:var(--t2,#4a3870);line-height:1.6;padding:4px 0;}
+.lb-dz{height:32px;border-radius:8px;border:2px dashed transparent;margin:6px 0;transition:all .18s;}
+.lb-dz.on{border-color:var(--purple,#6d28d9);background:rgba(109,40,217,0.05);animation:ab-dz 1.2s ease-in-out infinite;}
 `;
 
-// Shared inline input style
-const SI: React.CSSProperties = { width:"100%", border:"1.5px solid rgba(109,40,217,0.13)", borderRadius:9, padding:"8px 11px", fontSize:13, background:"#faf9ff", outline:"none", color:"#0f0a2a", fontFamily:"'DM Sans',sans-serif" };
-
-// ══════════════════════════════════════════════════════════════════════════════
-// EDITORS
-// ══════════════════════════════════════════════════════════════════════════════
-
-function AccordionEditor({ act, onChange }: { act:Activity; onChange:(a:Activity)=>void }) {
-  const items = act.items ?? [];
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {items.map((item,i) => (
-        <div key={i} style={{background:"#fff",border:"1px solid rgba(2,132,199,0.12)",borderRadius:11,padding:"11px 13px"}}>
-          <div style={{display:"flex",gap:8,marginBottom:8}}>
-            <div style={{width:22,height:22,borderRadius:6,background:"#e0f2fe",color:"#0284c7",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>Q{i+1}</div>
-            <input value={item.q} onChange={e=>{const u=dc(items);u[i].q=e.target.value;onChange({...act,items:u});}} placeholder="Question / heading…" className="abp-in" style={{flex:1}} />
-            <button className="abp-del" onClick={()=>onChange({...act,items:items.filter((_,j)=>j!==i)})}><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l8 8M8 1L1 9"/></svg></button>
-          </div>
-          <textarea value={item.a} onChange={e=>{const u=dc(items);u[i].a=e.target.value;onChange({...act,items:u});}} placeholder="Answer shown when expanded…" rows={2} style={{...SI,resize:"vertical",fontSize:12.5,lineHeight:1.55}} />
-        </div>
-      ))}
-      <button onClick={()=>onChange({...act,items:[...items,{q:"",a:""}]})} style={{padding:"7px",borderRadius:9,border:"1.5px dashed rgba(2,132,199,0.3)",background:"#f0f9ff",color:"#0284c7",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Item</button>
-    </div>
-  );
+// ─── ActivityBuilderPanel ─────────────────────────────────────────────────────
+export interface ActivityBuilderPanelProps {
+  open: boolean;
+  editingAct: Activity | null;
+  insertAtIdx?: number;
+  onSave: (act: Activity, atIdx?: number) => void;
+  onClose: () => void;
 }
 
-function FlashcardEditor({ act, onChange }: { act:Activity; onChange:(a:Activity)=>void }) {
-  const cards = act.cards ?? [];
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {cards.map((c,i) => (
-        <div key={i} style={{background:"#fff",border:"1px solid rgba(124,58,237,0.1)",borderRadius:11,padding:"11px 13px",display:"flex",gap:10}}>
-          <div style={{flex:1}}><label className="abp-lbl" style={{color:"#7c3aed"}}>Front</label><input value={c.front} onChange={e=>{const u=dc(cards);u[i].front=e.target.value;onChange({...act,cards:u});}} placeholder="Front…" className="abp-in" /></div>
-          <div style={{flex:1}}><label className="abp-lbl" style={{color:"#0d9488"}}>Back</label><input value={c.back} onChange={e=>{const u=dc(cards);u[i].back=e.target.value;onChange({...act,cards:u});}} placeholder="Back…" className="abp-in" /></div>
-          <button className="abp-del" style={{alignSelf:"flex-end",marginBottom:1}} onClick={()=>onChange({...act,cards:cards.filter((_,j)=>j!==i)})}><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l8 8M8 1L1 9"/></svg></button>
-        </div>
-      ))}
-      <button onClick={()=>onChange({...act,cards:[...cards,{front:"",back:""}]})} style={{padding:"7px",borderRadius:9,border:"1.5px dashed rgba(124,58,237,0.3)",background:"#f5f3ff",color:"#7c3aed",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Card</button>
-    </div>
-  );
-}
-
-function FillBlankEditor({ act, onChange }: { act:Activity; onChange:(a:Activity)=>void }) {
-  const qs = act.questions ?? [];
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      <div style={{fontSize:11,color:"#7c65a8",background:"#f0f9ff",borderRadius:9,padding:"7px 11px",lineHeight:1.6}}>
-        💡 Use <code style={{background:"rgba(15,118,110,0.12)",padding:"1px 5px",borderRadius:4,fontSize:10.5}}>__BLANK__</code> where students type. Separate correct answers with <strong>|</strong>
-      </div>
-      {qs.map((q,i) => (
-        <div key={i} style={{background:"#fff",border:"1px solid rgba(15,118,110,0.12)",borderRadius:11,padding:"11px 13px"}}>
-          <div style={{display:"flex",gap:8,marginBottom:8}}>
-            <div style={{width:22,height:22,borderRadius:6,background:"#ccfbf1",color:"#0f766e",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>Q{i+1}</div>
-            <input value={q.sentence} onChange={e=>{const u=dc(qs);u[i].sentence=e.target.value;onChange({...act,questions:u});}} placeholder='e.g. "The cash drawer opens __BLANK__ automatically."' className="abp-in" style={{flex:1}} />
-            <button className="abp-del" onClick={()=>onChange({...act,questions:qs.filter((_,j)=>j!==i)})}><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l8 8M8 1L1 9"/></svg></button>
-          </div>
-          <label className="abp-lbl">Correct answer(s) — separate with |</label>
-          <input value={q.blanks.join("|")} onChange={e=>{const u=dc(qs);u[i].blanks=e.target.value.split("|").map(s=>s.trim());onChange({...act,questions:u});}} placeholder='e.g. "only | automatically"' className="abp-in" />
-        </div>
-      ))}
-      <button onClick={()=>onChange({...act,questions:[...qs,{sentence:"__BLANK__",blanks:[""]}]})} style={{padding:"7px",borderRadius:9,border:"1.5px dashed rgba(15,118,110,0.3)",background:"#f0fdf9",color:"#0f766e",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Question</button>
-    </div>
-  );
-}
-
-function ChecklistEditor({ act, onChange }: { act:Activity; onChange:(a:Activity)=>void }) {
-  const items = act.checklist ?? [];
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:6}}>
-      {items.map((item,i) => (
-        <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:9,background:"#fff",border:"1px solid rgba(21,128,61,0.1)"}}>
-          <span style={{fontSize:13,color:"#15803d",flexShrink:0}}>☑</span>
-          <input value={item.text} onChange={e=>{const u=dc(items);u[i].text=e.target.value;onChange({...act,checklist:u});}} placeholder={`Step ${i+1}…`} className="abp-in" style={{flex:1,padding:"5px 9px"}} />
-          <button className="abp-del" style={{width:23,height:23}} onClick={()=>onChange({...act,checklist:items.filter((_,j)=>j!==i)})}><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l8 8M8 1L1 9"/></svg></button>
-        </div>
-      ))}
-      <button onClick={()=>onChange({...act,checklist:[...items,{text:""}]})} style={{padding:"7px",borderRadius:9,border:"1.5px dashed rgba(21,128,61,0.3)",background:"#f0fdf4",color:"#15803d",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Item</button>
-    </div>
-  );
-}
-
-function MatchingEditor({ act, onChange }: { act:Activity; onChange:(a:Activity)=>void }) {
-  const pairs = act.pairs ?? [];
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:7}}>
-      {pairs.map((p,i) => (
-        <div key={i} style={{display:"flex",gap:8,alignItems:"center"}}>
-          <input value={p.left}  onChange={e=>{const u=dc(pairs);u[i].left=e.target.value;onChange({...act,pairs:u});}}  placeholder="Left…"  className="abp-in" style={{flex:1}} />
-          <span style={{color:"#c4bdd8",fontSize:14,flexShrink:0}}>↔</span>
-          <input value={p.right} onChange={e=>{const u=dc(pairs);u[i].right=e.target.value;onChange({...act,pairs:u});}} placeholder="Right…" className="abp-in" style={{flex:1}} />
-          <button className="abp-del" onClick={()=>onChange({...act,pairs:pairs.filter((_,j)=>j!==i)})}><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l8 8M8 1L1 9"/></svg></button>
-        </div>
-      ))}
-      <button onClick={()=>onChange({...act,pairs:[...pairs,{left:"",right:""}]})} style={{padding:"7px",borderRadius:9,border:"1.5px dashed rgba(147,51,234,0.3)",background:"#f3e8ff",color:"#9333ea",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Pair</button>
-    </div>
-  );
-}
-
-function ActivityBlock({ act, idx, open, onToggle, onChange, onDelete }: {
-  act:Activity; idx:number; open:boolean;
-  onToggle:()=>void; onChange:(a:Activity)=>void; onDelete:()=>void;
-}) {
-  const m = TYPE_META[act.type];
-  return (
-    <div className="abp-block abp-up" style={{animationDelay:`${idx*0.04}s`}}>
-      <div className="abp-bhead" onClick={onToggle} style={{background:open?`${m.bg}99`:"#fff"}}>
-        <div style={{width:32,height:32,borderRadius:9,background:m.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,border:`1px solid ${m.border}`}}>{m.icon}</div>
-        <div style={{flex:1,minWidth:0}}>
-          <input value={act.title} onChange={e=>{e.stopPropagation();onChange({...act,title:e.target.value});}} onClick={e=>e.stopPropagation()}
-            placeholder={`${m.label} title…`} className="abp-in"
-            style={{border:"none",background:"transparent",padding:"2px 0",fontSize:13,fontWeight:700,color:"#0f0a2a",width:"100%",outline:"none"}} />
-          <span style={{fontSize:10,color:m.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.label}</span>
-        </div>
-        <button className="abp-del" style={{width:24,height:24}} onClick={e=>{e.stopPropagation();onDelete();}}><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l8 8M8 1L1 9"/></svg></button>
-        <svg width="9" height="6" viewBox="0 0 10 7" fill={m.color} style={{transform:open?"rotate(180deg)":"none",transition:"transform .2s",flexShrink:0,marginLeft:2}}><path d="M1 1l4 4 4-4"/></svg>
-      </div>
-      {open && (
-        <div style={{padding:"12px 14px",background:"#faf9ff",borderTop:`1px solid ${m.border}`}}>
-          {act.type==="accordion" && <AccordionEditor act={act} onChange={onChange} />}
-          {act.type==="flashcard" && <FlashcardEditor act={act} onChange={onChange} />}
-          {act.type==="fillblank" && <FillBlankEditor act={act} onChange={onChange} />}
-          {(act.type==="checklist"||act.type==="hotspot") && <ChecklistEditor act={act} onChange={onChange} />}
-          {act.type==="matching"  && <MatchingEditor  act={act} onChange={onChange} />}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// MAIN PANEL
-// ══════════════════════════════════════════════════════════════════════════════
-export default function ActivityBuilderPanel({ open, onClose, activities: initActs, onSave, dropTargetLabel }: Props) {
-  const [acts,       setActs]       = useState<Activity[]>([]);
-  const [expanded,   setExpanded]   = useState<Set<string>>(new Set());
-  const [tab,        setTab]        = useState<TabKey>("build");
-  const [dropping,   setDropping]   = useState(false);
-  const [exiting,    setExiting]    = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
-  const [tplSearch,  setTplSearch]  = useState("");
-  const [ghostType,  setGhostType]  = useState<SegmentType|null>(null);
-  const [ghostPos,   setGhostPos]   = useState({x:0,y:0});
-  const isDragging = ghostType !== null;
-
-  const [pos,  setPos]  = useState({x:100, y:80});
-  const [size, setSize] = useState({w:660, h:560});
-  const dragRef   = useRef<{mx:number;my:number;ox:number;oy:number}|null>(null);
-  const resizeRef = useRef<{edge:string;mx:number;my:number;x:number;y:number;w:number;h:number}|null>(null);
+export default function ActivityBuilderPanel({ open, editingAct, insertAtIdx, onSave, onClose }: ActivityBuilderPanelProps) {
+  const [step,    setStep]    = useState(1);
+  const [type,    setType]    = useState<SegmentType>("accordion");
+  const [title,   setTitle]   = useState("");
+  const [items,   setItems]   = useState<any[]>([]);
+  const [closing, setClosing] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setActs(dc(initActs));
-      setExpanded(initActs[0]?.id ? new Set([initActs[0].id]) : new Set());
-      setTab("build");
+      if (editingAct) {
+        setStep(2);
+        setType(editingAct.type);
+        setTitle(editingAct.title);
+        switch (editingAct.type) {
+          case "accordion": setItems(editingAct.items ?? []); break;
+          case "flashcard": setItems(editingAct.cards ?? []); break;
+          case "fillblank": setItems(editingAct.questions ?? []); break;
+          case "checklist":
+          case "hotspot":   setItems(editingAct.checklist ?? []); break;
+          case "matching":  setItems(editingAct.pairs ?? []); break;
+        }
+      } else {
+        setStep(1);
+        setType("accordion");
+        setTitle("");
+        setItems([]);
+      }
+      setClosing(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, editingAct]);
 
-  const handleClose = useCallback(() => { setExiting(true); setTimeout(()=>{setExiting(false);onClose();},260); }, [onClose]);
-  const handleSave  = () => { onSave(acts); handleClose(); };
+  if (!open) return null;
 
-  const addAct = (type: SegmentType) => {
-    const a = blankActivity(type);
-    setActs(prev => [...prev, a]);
-    setExpanded(prev => new Set([...prev, a.id]));
-    setTab("build");
+  const meta = ACT_META[type];
+
+  const selectType = (t: SegmentType) => {
+    setType(t);
+    setStep(2);
+    setTitle("");
+    switch (t) {
+      case "accordion": setItems([{ q:"", a:"" }]); break;
+      case "flashcard": setItems([{ front:"", back:"" }]); break;
+      case "fillblank": setItems([{ sentence:"Type a sentence with __BLANK__ here.", blanks:[""] }]); break;
+      case "checklist":
+      case "hotspot":   setItems([{ text:"" }]); break;
+      case "matching":  setItems([{ left:"", right:"" }]); break;
+    }
   };
 
-  // Chip drag
-  const startChipDrag = (e: React.MouseEvent, type: SegmentType) => {
-    e.preventDefault();
-    setGhostType(type);
-    setGhostPos({x:e.clientX-44, y:e.clientY-22});
-  };
-  useEffect(() => {
-    if (!isDragging) return;
-    const mv = (e:MouseEvent) => { setGhostPos({x:e.clientX-44,y:e.clientY-22}); setDropping(!!document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-dz]")); };
-    const up = (e:MouseEvent) => { if (document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-dz]")&&ghostType) addAct(ghostType); setGhostType(null); setDropping(false); };
-    window.addEventListener("mousemove",mv); window.addEventListener("mouseup",up);
-    return ()=>{window.removeEventListener("mousemove",mv);window.removeEventListener("mouseup",up);};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDragging, ghostType]);
-
-  // Panel drag
-  const startPanelDrag = (e: React.MouseEvent) => {
-    if (fullscreen) return; e.preventDefault();
-    dragRef.current = {mx:e.clientX,my:e.clientY,ox:pos.x,oy:pos.y};
-    const mv = (ev:MouseEvent) => { if (!dragRef.current) return; setPos({x:dragRef.current.ox+ev.clientX-dragRef.current.mx,y:dragRef.current.oy+ev.clientY-dragRef.current.my}); };
-    const up = () => { dragRef.current=null; window.removeEventListener("mousemove",mv); window.removeEventListener("mouseup",up); };
-    window.addEventListener("mousemove",mv); window.addEventListener("mouseup",up);
+  const loadTemplate = (tmpl: typeof TEMPLATES[0]) => {
+    setType(tmpl.type);
+    setTitle(tmpl.activity.title);
+    setStep(2);
+    switch (tmpl.type) {
+      case "accordion": setItems(dc(tmpl.activity.items ?? [])); break;
+      case "flashcard": setItems(dc(tmpl.activity.cards ?? [])); break;
+      case "fillblank": setItems(dc(tmpl.activity.questions ?? [])); break;
+      case "checklist":
+      case "hotspot":   setItems(dc(tmpl.activity.checklist ?? [])); break;
+      case "matching":  setItems(dc(tmpl.activity.pairs ?? [])); break;
+    }
   };
 
-  // Resize
-  const startResize = (e: React.MouseEvent, edge: string) => {
-    if (fullscreen) return; e.preventDefault(); e.stopPropagation();
-    resizeRef.current = {edge,mx:e.clientX,my:e.clientY,x:pos.x,y:pos.y,w:size.w,h:size.h};
-    const mv = (ev:MouseEvent) => {
-      const r=resizeRef.current; if (!r) return;
-      const dx=ev.clientX-r.mx, dy=ev.clientY-r.my;
-      let nx=r.x,ny=r.y,nw=r.w,nh=r.h;
-      if (r.edge.includes("e")) nw=Math.max(500,r.w+dx);
-      if (r.edge.includes("s")) nh=Math.max(380,r.h+dy);
-      if (r.edge.includes("w")) { nw=Math.max(500,r.w-dx); nx=r.x+(r.w-nw); }
-      if (r.edge.includes("n")) { nh=Math.max(380,r.h-dy); ny=r.y+(r.h-nh); }
-      setSize({w:nw,h:nh}); setPos({x:nx,y:ny});
-    };
-    const up = ()=>{resizeRef.current=null;window.removeEventListener("mousemove",mv);window.removeEventListener("mouseup",up);};
-    window.addEventListener("mousemove",mv); window.addEventListener("mouseup",up);
+  const addItem = () => {
+    switch (type) {
+      case "accordion": setItems([...items, { q:"", a:"" }]); break;
+      case "flashcard": setItems([...items, { front:"", back:"" }]); break;
+      case "fillblank": setItems([...items, { sentence:"Type a sentence with __BLANK__ here.", blanks:[""] }]); break;
+      case "checklist":
+      case "hotspot":   setItems([...items, { text:"" }]); break;
+      case "matching":  setItems([...items, { left:"", right:"" }]); break;
+    }
   };
 
-  if (!open && !exiting) return null;
+  const delItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
+  const updItem = (idx: number, k: string, v: any) => setItems(items.map((x, i) => i === idx ? { ...x, [k]: v } : x));
 
-  // ── Tab definitions (explicit interface avoids TS union narrowing error) ──
-  const TABS: TabDef[] = [
-    { key:"build",     label:"Build",          icon:"◈", count: acts.length || undefined },
-    { key:"types",     label:"Activity Types", icon:"⊞" },
-    { key:"templates", label:"Templates",      icon:"⊟", count: TEMPLATES.length },
-  ];
+  const handleSave = () => {
+    const act: Activity = { id: editingAct?.id ?? mkId(), type, title };
+    switch (type) {
+      case "accordion": act.items = items; break;
+      case "flashcard": act.cards = items; break;
+      case "fillblank": act.questions = items; break;
+      case "checklist":
+      case "hotspot":   act.checklist = items; break;
+      case "matching":  act.pairs = items; break;
+    }
+    onSave(act, insertAtIdx);
+    handleClose();
+  };
 
-  const filteredTpls = TEMPLATES.filter(t =>
-    !tplSearch || t.name.toLowerCase().includes(tplSearch.toLowerCase()) || t.tags.some(g=>g.toLowerCase().includes(tplSearch.toLowerCase()))
-  );
+  const handleClose = () => { setClosing(true); setTimeout(onClose, 150); };
 
-  const panelStyle: React.CSSProperties = fullscreen
-    ? {top:0,left:0,width:"100%",height:"100%"}
-    : {top:pos.y,left:pos.x,width:size.w,height:size.h};
-
-  return createPortal(
-    <>
-      <style>{CSS}</style>
-
-      {/* Ghost chip */}
-      {isDragging && ghostType && (
-        <div className="abp-ghost-chip" style={{top:ghostPos.y,left:ghostPos.x,background:`${TYPE_META[ghostType].bg}ee`,borderColor:TYPE_META[ghostType].color,color:TYPE_META[ghostType].color}}>
-          <span style={{fontSize:17}}>{TYPE_META[ghostType].icon}</span>
-          <span>{TYPE_META[ghostType].label}</span>
-        </div>
-      )}
-
-      <div style={{position:"fixed",inset:0,zIndex:899,pointerEvents:isDragging?"auto":"none"}} />
-
-      <div className={`abp abp-panel${fullscreen?" fs":""}${exiting?" abp-exit":" abp-enter"}`} style={panelStyle}>
-        {!fullscreen && (["e","s","se","w","n","sw","ne","nw"] as const).map(e=>(
-          <div key={e} className={`abp-rh ${e}`} onMouseDown={ev=>startResize(ev,e)} />
-        ))}
-
-        {/* Titlebar */}
-        <div className="abp-bar" onMouseDown={startPanelDrag}>
-          <div className="abp-bar-logo">🧩</div>
-          <div style={{flex:1,display:"flex",flexDirection:"column",gap:1,position:"relative",zIndex:1}}>
-            <span className="abp-bar-name">Activity Builder</span>
-            {dropTargetLabel && <span className="abp-bar-sub">→ {dropTargetLabel}</span>}
-          </div>
-          <div style={{display:"flex",gap:5,position:"relative",zIndex:1}}>
-            <button className="abp-wbtn" style={{background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.7)"}} onClick={()=>setFullscreen(v=>!v)} title={fullscreen?"Exit fullscreen":"Fullscreen"}>
-              {fullscreen
-                ? <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 5V1h4M9 1h4v4M13 9v4h-4M5 13H1V9"/></svg>
-                : <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 1H1v4M9 1h4v4M9 13h4V9M5 13H1V9"/></svg>
-              }
-            </button>
-            <button className="abp-wbtn" style={{background:"rgba(220,38,38,0.25)",color:"rgba(255,180,180,0.9)"}} onClick={handleClose}>
-              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l8 8M8 1L1 9"/></svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Nav pills */}
-        <div className="abp-nav">
-          {TABS.map((t: TabDef) => (
-            <button key={t.key} className={`abp-navbtn${tab===t.key?" on":""}`} onClick={()=>setTab(t.key)}>
-              <span style={{fontSize:12}}>{t.icon}</span>
-              {t.label}
-              {t.count !== undefined && <span className="abp-navpill">{t.count}</span>}
-            </button>
-          ))}
-          <div style={{marginLeft:"auto",paddingRight:2}}>
-            <span style={{fontSize:10.5,color:"#9585c0",fontWeight:600}}>{acts.length} item{acts.length===1?"":"s"}</span>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="abp-body">
-
-          {/* BUILD */}
-          {tab==="build" && (
-            <>
-              <div data-dz="true" className={`abp-dz${dropping?" over":""}`}
-                onMouseEnter={()=>isDragging&&setDropping(true)}
-                onMouseLeave={()=>setDropping(false)}>
-                {acts.length===0 ? (
-                  <div style={{pointerEvents:"none"}}>
-                    <div style={{fontSize:28,marginBottom:8}}>🎯</div>
-                    <div style={{fontSize:13,fontWeight:700,color:"#a89dc8",marginBottom:4}}>Drop an activity type here</div>
-                    <div style={{fontSize:11.5,color:"#c4bdd8",lineHeight:1.65,marginBottom:14}}>Drag from <strong>Activity Types</strong> tab, or quick-add:</div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}}>
-                      {ALL_TYPES.map(type=>{const m=TYPE_META[type];return(
-                        <button key={type} onClick={()=>addAct(type)} style={{padding:"5px 11px",borderRadius:9,border:`1.5px solid ${m.border}`,background:m.bg,color:m.color,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,transition:"transform .13s"}} onMouseEnter={e=>(e.currentTarget.style.transform="translateY(-2px)")} onMouseLeave={e=>(e.currentTarget.style.transform="none")}><span>{m.icon}</span>{m.label}</button>
-                      );})}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{fontSize:11.5,color:dropping?"#7c3aed":"#c4bdd8",fontWeight:dropping?700:400,pointerEvents:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
-                    {isDragging ? <><span style={{fontSize:17}}>{ghostType?TYPE_META[ghostType].icon:"+"}</span>Drop to add {ghostType?TYPE_META[ghostType].label:"activity"}</> : <><svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M7 1v12M1 7h12"/></svg>Drop or click to add activity</>}
-                  </div>
-                )}
-              </div>
-
-              {acts.map((act,i)=>(
-                <ActivityBlock key={act.id} act={act} idx={i}
-                  open={expanded.has(act.id)}
-                  onToggle={()=>{setExpanded(prev=>{const s=new Set(prev);s.has(act.id)?s.delete(act.id):s.add(act.id);return s;});}}
-                  onChange={u=>setActs(prev=>prev.map(a=>a.id===act.id?u:a))}
-                  onDelete={()=>{setActs(prev=>prev.filter(a=>a.id!==act.id));setExpanded(prev=>{const s=new Set(prev);s.delete(act.id);return s;});}}
-                />
-              ))}
-
-              {acts.length>0 && (
-                <div data-dz="true" className={`abp-dz${dropping?" over":""}`} style={{padding:"14px 18px"}}
-                  onMouseEnter={()=>isDragging&&setDropping(true)}
-                  onMouseLeave={()=>setDropping(false)}>
-                  <div style={{fontSize:11.5,color:dropping?"#7c3aed":"#c4bdd8",pointerEvents:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
-                    {isDragging?<><span>{ghostType?TYPE_META[ghostType].icon:"+"}</span>Drop to add {ghostType?TYPE_META[ghostType].label:""}</>:<><svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M7 1v12M1 7h12"/></svg>Add another activity</>}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ACTIVITY TYPES */}
-          {tab==="types" && (
-            <>
-              <div style={{padding:"4px 2px 8px",fontSize:11.5,color:"#9585c0",lineHeight:1.6}}>
-                <strong style={{color:"#0f0a2a"}}>Drag</strong> any type onto the Build drop zone — or <strong style={{color:"#0f0a2a"}}>click</strong> to add instantly.
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:9}}>
-                {ALL_TYPES.map(type=>{const m=TYPE_META[type];return(
-                  <div key={type} className="abp-tcard" style={{background:m.bg,border:`1.5px solid ${m.border}`}}
-                    onMouseDown={e=>startChipDrag(e,type)} onClick={()=>{addAct(type);setTab("build");}}>
-                    <div style={{position:"absolute",top:9,right:9,display:"grid",gridTemplateColumns:"repeat(2,3px)",gap:2.5,opacity:0.28}}>
-                      {[...Array(6)].map((_,i)=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:m.color}}/>)}
-                    </div>
-                    <span style={{fontSize:26}}>{m.icon}</span>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontSize:12.5,fontWeight:700,color:m.color}}>{m.label}</div>
-                    <div style={{fontSize:11,color:`${m.color}bb`,lineHeight:1.45}}>{m.desc}</div>
-                    <div style={{fontSize:10,color:`${m.color}88`,fontWeight:600,marginTop:1}}>💡 {m.hint}</div>
-                  </div>
-                );})}
-              </div>
-            </>
-          )}
-
-          {/* TEMPLATES */}
-          {tab==="templates" && (
-            <>
-              <input value={tplSearch} onChange={e=>setTplSearch(e.target.value)} placeholder="Search templates…" className="abp-in" style={{marginBottom:4}} />
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:10}}>
-                {filteredTpls.map((tpl,i)=>{const m=TYPE_META[tpl.type];return(
-                  <div key={tpl.id} className="abp-tpl abp-up" style={{animationDelay:`${i*0.04}s`}}>
-                    <div style={{background:`linear-gradient(135deg,${m.bg},${m.bg}cc)`,padding:"13px 14px 10px",borderBottom:"1px solid rgba(0,0,0,0.04)"}}>
-                      <div style={{display:"flex",alignItems:"flex-start",gap:9}}>
-                        <span style={{fontSize:24}}>{m.icon}</span>
-                        <div>
-                          <div style={{fontFamily:"'Syne',sans-serif",fontSize:12.5,fontWeight:700,color:"#0f0a2a",lineHeight:1.2,marginBottom:4}}>{tpl.name}</div>
-                          <span style={{display:"inline-block",padding:"1px 7px",borderRadius:10,background:`${m.color}18`,color:m.color,fontSize:9.5,fontWeight:700}}>{m.label}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{padding:"10px 14px"}}>
-                      <p style={{fontSize:11.5,color:"#7c65a8",margin:"0 0 9px",lineHeight:1.55}}>{tpl.desc}</p>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
-                        {tpl.tags.map(tag=><span key={tag} style={{padding:"2px 7px",borderRadius:20,background:"rgba(109,40,217,0.07)",color:"#6d28d9",fontSize:9.5,fontWeight:600}}>{tag}</span>)}
-                      </div>
-                      <button className="abp-save" style={{width:"100%",padding:"8px",fontSize:12,justifyContent:"center"}}
-                        onClick={()=>{const a={...dc(tpl.activity),id:mkId()};setActs(prev=>[...prev,a]);setExpanded(prev=>new Set([...prev,a.id]));setTab("build");}}>
-                        <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 1v12M1 7h12"/></svg>
-                        Insert into Build
-                      </button>
-                    </div>
-                  </div>
-                );})}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="abp-footer">
-          <div style={{flex:1,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-            {Array.from(new Set(acts.map(a=>a.type))).map(type=>{
-              const m=TYPE_META[type]; const count=acts.filter(a=>a.type===type).length;
-              return <span key={type} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:20,background:m.bg,color:m.color,fontSize:10,fontWeight:700,border:`1px solid ${m.border}`}}>{m.icon} {count}</span>;
-            })}
-          </div>
-          <button className="abp-ghost-btn" onClick={handleClose}>Cancel</button>
-          <button className="abp-save" onClick={handleSave} disabled={acts.length===0}>
-            <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.1"><path d="M2 7l4 4 6-6"/></svg>
-            Save {acts.length>0 ? `${acts.length} activit${acts.length===1?"y":"ies"}` : "to Chapter"}
-          </button>
-        </div>
-      </div>
-    </>,
-    document.body
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TRIGGER BUTTON — compact pill for the chapter editor header
-// ══════════════════════════════════════════════════════════════════════════════
-export function ActivityBuilderTrigger({ activities, onSave, chapterLabel }: {
-  activities: Activity[]; onSave:(a:Activity[])=>void; chapterLabel?:string;
-}) {
-  const [open, setOpen] = useState(false);
-  const count = activities.length;
   return (
     <>
-      <button
-        onClick={()=>setOpen(true)}
-        style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:9,border:`1.5px solid ${count>0?"rgba(109,40,217,0.3)":"rgba(109,40,217,0.16)"}`,background:count>0?"#ede9fe":"#f5f3ff",color:"#6d28d9",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .14s",flexShrink:0}}
-        onMouseEnter={e=>{e.currentTarget.style.background="#e0d9ff";e.currentTarget.style.borderColor="rgba(109,40,217,0.45)";e.currentTarget.style.transform="translateY(-1px)";}}
-        onMouseLeave={e=>{e.currentTarget.style.background=count>0?"#ede9fe":"#f5f3ff";e.currentTarget.style.borderColor=count>0?"rgba(109,40,217,0.3)":"rgba(109,40,217,0.16)";e.currentTarget.style.transform="none";}}
-      >
-        <span style={{fontSize:13}}>🧩</span>
-        Activities
-        {count>0 && <span style={{padding:"1px 6px",borderRadius:20,background:"rgba(109,40,217,0.15)",fontSize:9.5,fontWeight:700}}>{count}</span>}
-      </button>
-      <ActivityBuilderPanel
-        open={open} onClose={()=>setOpen(false)}
-        activities={activities}
-        onSave={a=>{onSave(a);setOpen(false);}}
-        dropTargetLabel={chapterLabel}
-      />
+      <style>{BUILDER_CSS}</style>
+      <div className={`ab-r ab-backdrop${closing?" ab-out":""}`} onClick={handleClose}>
+        <div className={`ab-panel${closing?" ab-out":""}`} onClick={e=>e.stopPropagation()}>
+          <div className="ab-hd">
+            <div className="ab-hd-ico">🧩</div>
+            <div style={{flex:1}}>
+              <div className="ab-hd-title">{editingAct?"Edit Activity":"New Activity"}</div>
+              <div className="ab-hd-sub">{editingAct?"Update existing activity":"Choose a type and build"}</div>
+            </div>
+            <button className="ab-close" onClick={handleClose}>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+            </button>
+          </div>
+
+          <div className="ab-body">
+            {/* Step 1: Type selection */}
+            {step===1 && (
+              <>
+                <div className="ab-stp">
+                  <label className="ab-lbl">Activity Type</label>
+                  <div className="ab-grid">
+                    {ALL_TYPES.map(t => {
+                      const m = ACT_META[t];
+                      return (
+                        <div key={t} className={`ab-type${type===t?" sel":""}`} onClick={()=>setType(t)}>
+                          <div className="ab-type-ico">{m.icon}</div>
+                          <div className="ab-type-lbl">{m.label}</div>
+                          <div className="ab-type-desc">{m.desc}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="ab-tmpl">
+                  <div className="ab-tmpl-title">Or pick a template</div>
+                  <div className="ab-tmpl-grid">
+                    {TEMPLATES.map(tmpl => (
+                      <div key={tmpl.id} className="ab-tmpl-card" onClick={()=>loadTemplate(tmpl)}>
+                        <div className="ab-tmpl-name">{ACT_META[tmpl.type].icon} {tmpl.name}</div>
+                        <div className="ab-tmpl-desc">{tmpl.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: Content editing */}
+            {step===2 && (
+              <>
+                <div className="ab-stp">
+                  <label className="ab-lbl">Activity Title</label>
+                  <input className="ab-in" value={title} onChange={e=>setTitle(e.target.value)} placeholder={`${meta.label} title...`}/>
+                </div>
+
+                <div className="ab-stp">
+                  <label className="ab-lbl">{meta.icon} {meta.label} Items</label>
+                  <div className="ab-items">
+                    {items.map((item, idx) => (
+                      <div key={idx} className="ab-item">
+                        <div className="ab-item-hdr">
+                          <div className="ab-item-n">{idx+1}</div>
+                          <button className="ab-item-del" onClick={()=>delItem(idx)}>×</button>
+                        </div>
+                        {type==="accordion" && (
+                          <>
+                            <input className="ab-in" value={item.q} onChange={e=>updItem(idx,"q",e.target.value)} placeholder="Question..."/>
+                            <textarea className="ab-ta" value={item.a} onChange={e=>updItem(idx,"a",e.target.value)} placeholder="Answer..."/>
+                          </>
+                        )}
+                        {type==="flashcard" && (
+                          <>
+                            <input className="ab-in" value={item.front} onChange={e=>updItem(idx,"front",e.target.value)} placeholder="Front..."/>
+                            <textarea className="ab-ta" value={item.back} onChange={e=>updItem(idx,"back",e.target.value)} placeholder="Back..."/>
+                          </>
+                        )}
+                        {type==="fillblank" && (
+                          <>
+                            <input className="ab-in" value={item.sentence} onChange={e=>updItem(idx,"sentence",e.target.value)} placeholder="Type sentence with __BLANK__..."/>
+                            <input className="ab-in" value={item.blanks[0]??""} onChange={e=>updItem(idx,"blanks",[e.target.value])} placeholder="Correct answer..."/>
+                          </>
+                        )}
+                        {(type==="checklist"||type==="hotspot") && (
+                          <input className="ab-in" value={item.text} onChange={e=>updItem(idx,"text",e.target.value)} placeholder="Task item..."/>
+                        )}
+                        {type==="matching" && (
+                          <>
+                            <input className="ab-in" value={item.left} onChange={e=>updItem(idx,"left",e.target.value)} placeholder="Left side..."/>
+                            <input className="ab-in" value={item.right} onChange={e=>updItem(idx,"right",e.target.value)} placeholder="Right side..."/>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button className="ab-add" onClick={addItem}>+ Add Item</button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="ab-foot">
+            {step===2 && !editingAct && (
+              <button className="ab-btn ab-btn-c" onClick={()=>setStep(1)}>← Back</button>
+            )}
+            <button className="ab-btn ab-btn-c" onClick={handleClose}>Cancel</button>
+            {step===1 ? (
+              <button className="ab-btn ab-btn-p" onClick={()=>selectType(type)}>Continue →</button>
+            ) : (
+              <button className="ab-btn ab-btn-p" onClick={handleSave}>
+                {editingAct?"Save Changes":"Add Activity"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </>
   );
 }
+
+// ── BlockItem (structure-only view) ───────────────────────────────────────────
+function BlockItem({ block, expanded, onToggle, onChange, onDelete, onEdit, isDragging, isDragOver, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
+  block:LessonBlock; expanded:boolean; onToggle:()=>void; onChange:(b:LessonBlock)=>void; onDelete:()=>void; onEdit:()=>void;
+  isDragging:boolean; isDragOver:boolean; onDragStart:(e:React.DragEvent)=>void; onDragEnd:()=>void; onDragOver:(e:React.DragEvent)=>void; onDragLeave:(e:React.DragEvent)=>void; onDrop:(e:React.DragEvent)=>void;
+}) {
+  const isContent = block.kind==="content";
+  const act = block.activity;
+  const m = act ? ACT_META[act.type] : null;
+  const itemCount = act ? (act.items?.length ?? act.cards?.length ?? act.questions?.length ?? act.checklist?.length ?? act.pairs?.length ?? 0) : 0;
+
+  return (
+    <div className={`lb-block${isDragging?" dragging":""}${isDragOver?" over":""}`}
+      draggable onDragStart={onDragStart} onDragEnd={onDragEnd}
+      onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      <div className="lb-hdr" onClick={onToggle}>
+        <div className="lb-hdr-grip">
+          <svg width="12" height="8" viewBox="0 0 12 8" fill="currentColor"><circle cx="2" cy="2" r="1.5"/><circle cx="6" cy="2" r="1.5"/><circle cx="10" cy="2" r="1.5"/><circle cx="2" cy="6" r="1.5"/><circle cx="6" cy="6" r="1.5"/><circle cx="10" cy="6" r="1.5"/></svg>
+        </div>
+        <div className="lb-hdr-ico" style={{background:isContent?"#e0f2fe":"#f0ebff"}}>
+          {isContent ? "📄" : m?.icon}
+        </div>
+        <div className="lb-hdr-title">
+          {isContent ? "Content Block" : (act?.title || <em style={{opacity:.4}}>Untitled Activity</em>)}
+        </div>
+        <div className="lb-hdr-lbl">{isContent ? "Content" : m?.label}</div>
+        <button className="lb-hdr-del" onClick={e=>{e.stopPropagation();onDelete();}}>
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+        </button>
+        <svg width="9" height="6" viewBox="0 0 10 7" fill="none" style={{transform:expanded?"rotate(180deg)":"none",transition:"transform .18s",flexShrink:0,opacity:.4}}><path d="M1 1l4 4 4-4" stroke="#7c3aed" fill="none" strokeWidth="2"/></svg>
+      </div>
+      {expanded&&(
+        <div className="lb-body">
+          {isContent ? (
+            <div style={{padding:"10px 12px",borderRadius:8,background:"#faf9ff",border:"1.5px solid #ede9f6"}}>
+              <div style={{fontSize:11,color:"#8e7ec0",lineHeight:1.5}}>
+                {block.body ? (
+                  <>{block.body.slice(0,120)}{block.body.length>120&&"..."}</>
+                ) : (
+                  <em style={{opacity:.5}}>No content yet — edit in Content tab</em>
+                )}
+              </div>
+            </div>
+          ) : act&&m ? (
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7,paddingBottom:7,borderBottom:"1px solid #f0ebfa"}}>
+                <span style={{fontSize:14}}>{m.icon}</span>
+                <span style={{fontSize:12,fontWeight:700,color:m.color}}>{act.title||<em style={{opacity:.4}}>Untitled</em>}</span>
+                <span style={{fontSize:10,color:"#c5bdd9",marginLeft:"auto"}}>{itemCount} item{itemCount!==1?"s":""}</span>
+              </div>
+              {act.items?.slice(0,2).map((x,i)=><div key={i} className="lb-prev-row">• {x.q||<em style={{opacity:.4}}>empty</em>}</div>)}
+              {act.cards?.slice(0,2).map((x,i)=><div key={i} className="lb-prev-row">• {x.front} <span style={{color:"#c5bdd9"}}>→</span> {x.back||"…"}</div>)}
+              {act.checklist?.slice(0,3).map((x,i)=><div key={i} className="lb-prev-row" style={{display:"flex",alignItems:"center",gap:5}}><svg width="11" height="11" viewBox="0 0 14 14" fill="none" style={{color:"#15803d",flexShrink:0}}><rect x="1" y="1" width="12" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.5"/><path d="M3.5 7l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>{x.text||<em style={{opacity:.4}}>empty</em>}</div>)}
+              {act.pairs?.slice(0,2).map((x,i)=><div key={i} className="lb-prev-row">• {x.left} <span style={{color:"#c5bdd9"}}>↔</span> {x.right}</div>)}
+              {act.questions?.slice(0,2).map((x,i)=><div key={i} className="lb-prev-row">• {x.sentence.replace("__BLANK__","___")}</div>)}
+              {itemCount>3&&<div style={{fontSize:10,color:"#c5bdd9",marginTop:4}}>…and {itemCount-3} more</div>}
+              <button onClick={onEdit} style={{marginTop:10,width:"100%",padding:"7px",borderRadius:8,border:"1.5px solid var(--border,#e8e3f3)",background:"#fff",color:"var(--purple,#6d28d9)",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all .12s"}} onMouseEnter={e=>{e.currentTarget.style.background="#f5f0ff";}} onMouseLeave={e=>{e.currentTarget.style.background="#fff";}}>✏️ Edit Activity</button>
+            </div>
+          ):null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DropZone({ active, onOver, onLeave, onDrop }: {active:boolean;onOver:()=>void;onLeave:()=>void;onDrop:(e:React.DragEvent)=>void}) {
+  return <div className={"ab-r lb-dz"+(active?" on":"")} onDragOver={e=>{e.preventDefault();onOver();}} onDragLeave={onLeave} onDrop={e=>{e.preventDefault();onDrop(e);}}/>;
+}
+
+// ── LessonBlocks (now structure-focused) ──────────────────────────────────────
+export interface LessonBlocksProps { blocks: LessonBlock[]; onChange: (blocks:LessonBlock[]) => void; chapterTitle?: string; }
+
+export function LessonBlocks({ blocks, onChange }: LessonBlocksProps) {
+  const [expanded,    setExpanded]    = useState<Set<string>>(()=>new Set(blocks.slice(0,1).map(b=>b.id)));
+  const [dragSrc,     setDragSrc]     = useState<number|null>(null);
+  const [dragOver,    setDragOver]    = useState<number|null>(null);
+  const [dzOver,      setDzOver]      = useState<number|null>(null);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [editingAct,  setEditingAct]  = useState<Activity|null>(null);
+  const [editingId,   setEditingId]   = useState<string|null>(null);
+  const [insertIdx,   setInsertIdx]   = useState<number|undefined>(undefined);
+  const toggle=(id:string)=>setExpanded(p=>{const s=new Set(p);s.has(id)?s.delete(id):s.add(id);return s;});
+  const openEdit=(blockId:string)=>{const bl=blocks.find(b=>b.id===blockId);if(!bl?.activity)return;setEditingAct(bl.activity);setEditingId(blockId);setInsertIdx(undefined);setBuilderOpen(true);};
+  const handleSave=(act:Activity,atIdx?:number)=>{
+    if(editingId){onChange(blocks.map(b=>b.id===editingId?{...b,activity:act}:b));}
+    else{const nb:LessonBlock={id:mkId(),kind:"activity",activity:act};const u=[...blocks];if(atIdx!==undefined)u.splice(atIdx,0,nb);else u.push(nb);onChange(u);setExpanded(p=>new Set([...p,nb.id]));}
+  };
+  const del=(id:string)=>{onChange(blocks.filter(b=>b.id!==id));setExpanded(p=>{const s=new Set(p);s.delete(id);return s;});};
+  const onDS=(e:React.DragEvent,i:number)=>{setDragSrc(i);e.dataTransfer.effectAllowed="move";};
+  const onDE=()=>{setDragSrc(null);setDragOver(null);setDzOver(null);};
+  const onDO=(e:React.DragEvent,i:number)=>{e.preventDefault();setDragOver(i);setDzOver(null);};
+  const onDL=(e:React.DragEvent)=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDragOver(null);};
+  const onDD=(e:React.DragEvent,to:number)=>{e.preventDefault();if(dragSrc===null||dragSrc===to){setDragSrc(null);setDragOver(null);return;}const u=dc(blocks)as LessonBlock[];const[mv]=u.splice(dragSrc,1);u.splice(to,0,mv);onChange(u);setDragSrc(null);setDragOver(null);};
+  const onZO=(g:number)=>{setDzOver(g);setDragOver(null);};
+  const onZL=()=>setDzOver(null);
+  const onZD=(e:React.DragEvent,g:number)=>{e.preventDefault();if(dragSrc===null)return;const u=dc(blocks)as LessonBlock[];const[mv]=u.splice(dragSrc,1);u.splice(g>dragSrc?g-1:g,0,mv);onChange(u);setDragSrc(null);setDzOver(null);};
+  return (
+    <div className="ab-r" style={{display:"flex",flexDirection:"column"}}>
+      {blocks.length===0&&(<div className="lb-empty"><div style={{fontSize:22,opacity:.28}}>✦</div><div style={{fontSize:12.5,fontWeight:600,color:"#8b7cb4"}}>No content yet</div><div style={{fontSize:11,color:"#c5bdd9",lineHeight:1.6,maxWidth:200}}>Use the top buttons to add content blocks or activities.</div></div>)}
+      {dragSrc!==null&&<DropZone active={dzOver===0} onOver={()=>onZO(0)} onLeave={onZL} onDrop={e=>onZD(e,0)}/>}
+      {blocks.map((block,idx)=>(
+        <div key={block.id}>
+          <BlockItem block={block} expanded={expanded.has(block.id)} onToggle={()=>toggle(block.id)} onChange={b=>onChange(blocks.map((x,i)=>i===idx?b:x))} onDelete={()=>del(block.id)} onEdit={()=>openEdit(block.id)} isDragging={dragSrc===idx} isDragOver={dragOver===idx} onDragStart={e=>onDS(e,idx)} onDragEnd={onDE} onDragOver={e=>onDO(e,idx)} onDragLeave={onDL} onDrop={e=>onDD(e,idx)}/>
+          {dragSrc!==null&&<DropZone active={dzOver===idx+1} onOver={()=>onZO(idx+1)} onLeave={onZL} onDrop={e=>onZD(e,idx+1)}/>}
+        </div>
+      ))}
+      {builderOpen&&<ActivityBuilderPanel open={builderOpen} editingAct={editingAct} insertAtIdx={insertIdx} onSave={handleSave} onClose={()=>setBuilderOpen(false)}/>}
+    </div>
+  );
+}
+
+export function ChapterActivities({ activities, onSave, chapterLabel }: { activities:Activity[]; onSave:(updated:Activity[])=>void; chapterLabel?:string; }) {
+  const blocks:LessonBlock[]=activities.map(a=>({id:a.id,kind:"activity" as LessonBlockKind,activity:a}));
+  return <LessonBlocks blocks={blocks} onChange={bs=>onSave(bs.filter(b=>b.activity).map(b=>b.activity!))} chapterTitle={chapterLabel}/>;
+}
+export function ActivityBuilderTrigger() { return null; }
