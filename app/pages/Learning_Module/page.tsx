@@ -34,7 +34,7 @@ function loadData() {
       return {
         courses: parsed.courses && parsed.courses.length > 0 ? parsed.courses : INITIAL_COURSES,
         categories: parsed.categories && parsed.categories.length > 0 ? parsed.categories : DEFAULT_CATEGORIES,
-        activities: parsed.activities || INITIAL_ACTIVITIES
+        activities: parsed.activities && parsed.activities.length > 0 ? parsed.activities : INITIAL_ACTIVITIES
       };
     }
   } catch (e) {
@@ -222,21 +222,38 @@ export default function LearningCenter() {
               Create New Course
             </button>
 
-            {/* Activity Builder Button */}
+            {/* Activity Builder Button - Subtle style */}
             <button
-              className="btn btn-sm"
+              className="btn btn-s btn-sm"
               onClick={() => handleOpenActivityBuilder()}
-              style={{ 
-                background: "linear-gradient(135deg, #7c3aed, #0d9488)",
-                color: "#fff",
-                border: "none",
+              style={{
+                background: 'var(--surface)',
+                borderColor: 'rgba(124,58,237,0.2)',
               }}
             >
               <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <rect x="2" y="2" width="10" height="10" rx="1.5"/>
+                <rect x="2" y="2" width="10" height="10" rx="2"/>
                 <path d="M4.5 5.5h5M4.5 7.5h5M4.5 9.5h3"/>
               </svg>
-              Activity Builder
+              <span style={{ fontWeight: 600 }}>Activity Builder</span>
+              {activities.length > 0 && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '18px',
+                  height: '18px',
+                  padding: '0 5px',
+                  borderRadius: '9px',
+                  background: 'var(--purple)',
+                  color: '#fff',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  marginLeft: '4px'
+                }}>
+                  {activities.length}
+                </div>
+              )}
             </button>
 
             {/* Stats Display */}
@@ -252,11 +269,27 @@ export default function LearningCenter() {
               alignItems: "center",
               gap: 6
             }}>
-              <span style={{ color: "var(--purple)" }}>{activities.length}</span>
-              Activities
-              <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--border)" }} />
-              <span style={{ color: "var(--teal)" }}>{publishedActivities.length}</span>
-              Published
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: 'var(--purple)'
+                }} />
+                <span style={{ color: "var(--purple)" }}>{activities.length}</span>
+                <span style={{ fontSize: 10, opacity: 0.7 }}>Total</span>
+              </div>
+              <span style={{ width: 1, height: 12, background: "var(--border)" }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: 'var(--teal)'
+                }} />
+                <span style={{ color: "var(--teal)" }}>{publishedActivities.length}</span>
+                <span style={{ fontSize: 10, opacity: 0.7 }}>Published</span>
+              </div>
             </div>
 
             {/* Reset Button */}

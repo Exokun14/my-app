@@ -8,16 +8,32 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type ChapterType = "lesson" | "quiz" | "assessment";
+export type BlockType = "content" | "media" | "activity";
 
 export interface ChapterMedia { type: "none"|"video"|"presentation"; url: string; label?: string; }
 export interface QuizQuestion  { q: string; opts: string[]; ans: number; }
+
+export interface UnifiedBlock {
+  id: string;
+  type: BlockType;
+  // Content block
+  title?: string;
+  body?: string;
+  // Media block
+  mediaType?: "none"|"video"|"presentation";
+  mediaUrl?: string;
+  mediaLabel?: string;
+  // Activity block
+  activity?: Activity;
+}
+
 export interface ChapterContent {
-  title:     string;
-  type:      ChapterType;
-  body?:     string;
-  media:     ChapterMedia;
+  title:      string;
+  type:       ChapterType;
+  body?:      string;
+  media:      ChapterMedia;
   questions?: QuizQuestion[];
-  segments?: LessonBlock[];
+  blocks?:    UnifiedBlock[];  // NEW: unified blocks for lessons
 }
 export interface Chapter { title:string; type:ChapterType; done:boolean; content:ChapterContent; }
 export interface Module  { title:string; done:boolean; chapters:Chapter[]; }
@@ -29,7 +45,7 @@ export interface CourseModuleModalProps {
   onClose:    () => void;
   onSave:     (idx:number, modules:Module[]) => void;
   toast:      (msg:string) => void;
-  publishedActivities: Activity[]; // NEW: Pass published activities
+  publishedActivities: Activity[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -44,15 +60,68 @@ type MediaType = "none"|"video"|"presentation";
 function dc<T>(v:T):T { return JSON.parse(JSON.stringify(v)); }
 function mkId(): string { return Math.random().toString(36).slice(2, 9); }
 
+function blankUnifiedBlock(type: BlockType): UnifiedBlock {
+  const base = { id: mkId(), type };
+  if (type === "content") return { ...base, title: "", body: "" };
+  if (type === "media") return { ...base, mediaType: "video" as const, mediaUrl: "", mediaLabel: "" };
+  return base; // activity
+}
+
 function blankChapter(type:ChapterType="lesson"):Chapter {
   return { title:"", type, done:false, content:{
     title:"", type, body:undefined,
     questions: type!=="lesson" ? [{q:"",opts:["","","",""],ans:0}] : undefined,
     media: {type:"none",url:""},
-    segments: type==="lesson" ? [blankContentBlock()] : [] as any,
+    blocks: type==="lesson" ? [] : undefined,
   } as any };
 }
 function blankModule():Module { return { title:"", done:false, chapters:[blankChapter()] }; }
+
+// Migration: Convert old segments format to new blocks format
+function migrateOldFormat(modules: Module[]): Module[] {
+  return modules.map(mod => ({
+    ...mod,
+    chapters: mod.chapters.map(ch => {
+      if (ch.type !== "lesson") return ch;
+      
+      // Check if already using new format
+      if (ch.content.blocks && Array.isArray(ch.content.blocks)) return ch;
+      
+      // Migrate from old segments format
+      const oldSegments = (ch.content as any).segments as LessonBlock[] | undefined;
+      if (!oldSegments || oldSegments.length === 0) {
+        return { ...ch, content: { ...ch.content, blocks: [] } };
+      }
+      
+      // Convert old LessonBlock format to new UnifiedBlock format
+      const newBlocks: UnifiedBlock[] = oldSegments.map(seg => {
+        if (seg.kind === "content") {
+          return {
+            id: seg.id,
+            type: "content" as const,
+            title: "", // Old format didn't have titles
+            body: seg.body || ""
+          };
+        } else {
+          // activity
+          return {
+            id: seg.id,
+            type: "activity" as const,
+            activity: seg.activity
+          };
+        }
+      });
+      
+      return {
+        ...ch,
+        content: {
+          ...ch.content,
+          blocks: newBlocks
+        }
+      };
+    })
+  }));
+}
 
 function videoEmbed(url:string):string|null {
   if(!url?.trim()) return null;
@@ -79,7 +148,6 @@ const S = `
 @keyframes cmm-up  { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} }
 @keyframes cmm-tab { from{opacity:0;transform:translateX(5px)} to{opacity:1;transform:none} }
 
-/* ── Full-screen container ── */
 .cmm-fs {
   position:fixed; inset:0; z-index:1001;
   display:flex; flex-direction:column;
@@ -87,7 +155,6 @@ const S = `
   animation:cmm-in .24s cubic-bezier(.16,1,.3,1) both;
 }
 
-/* ── Header bar ── */
 .cmm-hdr {
   height:60px; flex-shrink:0;
   display:flex; align-items:center; gap:14px; padding:0 24px;
@@ -98,7 +165,7 @@ const S = `
 .cmm-hdr-ico {
   width:36px; height:36px; border-radius:10px; flex-shrink:0;
   background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
-  display:flex; align-items:center; justify-content:center;
+  display:flex; align-items:center; justifycontent:center;
 }
 .cmm-hdr-text { flex-shrink:0; }
 .cmm-hdr-title { font-size:14px; font-weight:700; color:var(--t1,#18103a); line-height:1.2; }
@@ -109,7 +176,6 @@ const S = `
 .cmm-hdr-prog-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--purple,#7c3aed),var(--teal,#0d9488)); transition:width .5s cubic-bezier(.16,1,.3,1); }
 .cmm-hdr-prog-lbl { font-size:9.5px; font-weight:600; color:var(--t3,#a89dc8); text-align:right; }
 
-/* ── Step wizard ── */
 .cmm-wizard {
   display:flex; align-items:center;
   background:var(--surface2,#f2f0fb);
@@ -135,10 +201,8 @@ const S = `
 .cmm-wstep.on .cmm-wstep-n  { background:var(--purple,#7c3aed); color:#fff; }
 .cmm-wstep.done .cmm-wstep-n { background:var(--teal,#0d9488); color:#fff; }
 
-/* ── Body layout ── */
 .cmm-body { flex:1; display:flex; overflow:hidden; }
 
-/* ── Sidebar (Structure) ── */
 .cmm-sb {
   width:320px; flex-shrink:0;
   display:flex; flex-direction:column;
@@ -149,159 +213,73 @@ const S = `
   padding:16px 18px; border-bottom:1px solid var(--border,rgba(124,58,237,0.08));
   background:linear-gradient(to bottom, rgba(124,58,237,0.02), transparent);
 }
-.cmm-sb-hdr-title { font-size:12px; font-weight:700; color:var(--t1,#18103a); text-transform:uppercase; letter-spacing:.05em; }
-.cmm-sb-hdr-sub { font-size:10px; color:var(--t3,#a89dc8); margin-top:2px; }
+.cmm-sb-title { font-size:13px; font-weight:700; color:var(--t1,#18103a); margin-bottom:4px; letter-spacing:-.01em; }
+.cmm-sb-sub { font-size:10.5px; color:var(--t3,#a89dc8); }
+.cmm-sb-scroll { flex:1; overflow-y:auto; padding:12px; }
 
-.cmm-sb-body { flex:1; overflow-y:auto; padding:12px; }
-
-/* Module card in sidebar */
-.cmm-mod {
-  background:var(--bg,#faf9ff);
-  border:1.5px solid var(--border,rgba(124,58,237,0.1));
-  border-radius:10px; padding:10px 12px; margin-bottom:8px;
-  transition:all .15s; cursor:pointer;
-}
-.cmm-mod:hover { border-color:rgba(124,58,237,0.2); background:#f5f3ff; }
-.cmm-mod.sel { border-color:var(--purple,#7c3aed); background:#f5f3ff; box-shadow:0 2px 8px rgba(124,58,237,0.12); }
-.cmm-mod-hdr { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-.cmm-mod-n {
-  width:24px; height:24px; border-radius:6px; flex-shrink:0;
-  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
-  color:#fff; font-size:10px; font-weight:700;
-  display:flex; align-items:center; justify-content:center;
-}
-.cmm-mod-title {
-  flex:1; font-size:12px; font-weight:700; color:var(--t1,#18103a);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.cmm-mod-title.empty { color:var(--t3,#c4bdd8); font-style:italic; }
-.cmm-mod-del {
-  width:20px; height:20px; border-radius:5px; border:none;
-  background:transparent; cursor:pointer; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  transition:all .15s; color:var(--t3,#a89dc8);
-}
-.cmm-mod-del:hover { background:rgba(239,68,68,0.1); color:#dc2626; }
-
-/* Chapter card in sidebar */
-.cmm-ch {
-  display:flex; align-items:center; gap:7px;
-  padding:6px 8px; border-radius:6px;
-  border:1px solid transparent;
-  transition:all .15s; cursor:pointer;
-  margin-bottom:3px;
-}
-.cmm-ch:hover { background:rgba(124,58,237,0.04); }
-.cmm-ch.sel { background:#f0ebff; border-color:rgba(124,58,237,0.2); }
-.cmm-ch-n {
-  width:18px; height:18px; border-radius:4px; flex-shrink:0;
-  font-size:9px; font-weight:700;
-  display:flex; align-items:center; justify-content:center;
-}
-.cmm-ch-title {
-  flex:1; font-size:11px; font-weight:600; color:var(--t1,#18103a);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.cmm-ch-title.empty { color:var(--t3,#c4bdd8); font-style:italic; }
-.cmm-ch-del {
-  width:18px; height:18px; border-radius:4px; border:none;
-  background:transparent; cursor:pointer; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  opacity:0; transition:all .15s; color:var(--t3,#a89dc8);
-}
-.cmm-ch:hover .cmm-ch-del { opacity:1; }
-.cmm-ch-del:hover { background:rgba(239,68,68,0.1); color:#dc2626; }
-
-.cmm-sb-add {
-  padding:12px 18px; border-top:1px solid var(--border);
-  background:linear-gradient(to top, rgba(124,58,237,0.02), transparent);
-}
-.cmm-sb-add-btn {
-  width:100%; padding:9px 12px; border-radius:8px;
-  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
-  color:#fff; font-size:11.5px; font-weight:700; text-align:center;
-  border:none; cursor:pointer; font-family:inherit;
-  transition:all .2s; box-shadow:0 2px 8px rgba(124,58,237,0.25);
-  display:flex; align-items:center; justify-content:center; gap:6px;
-}
-.cmm-sb-add-btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(124,58,237,0.35); }
-.cmm-sb-add-btn:active { transform:translateY(0); }
-
-/* ── Main content area ── */
-.cmm-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
-
-/* Action bar at top of content */
-.cmm-actions {
-  display:flex; align-items:center; gap:8px;
-  padding:12px 20px;
+.cmm-mod-card {
   background:var(--surface,#fff);
-  border-bottom:1px solid var(--border,rgba(124,58,237,0.08));
+  border:1.5px solid var(--border,rgba(109,40,217,0.1));
+  border-radius:12px; padding:12px; margin-bottom:10px;
+  transition:all .15s; cursor:pointer;
 }
-.cmm-actions-title {
-  font-size:11px; font-weight:700; color:var(--t2,#4a3870);
-  text-transform:uppercase; letter-spacing:.06em; margin-right:auto;
-}
-.cmm-action-btn {
-  padding:7px 14px; border-radius:8px;
-  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
-  color:#fff; font-size:11px; font-weight:700;
-  border:none; cursor:pointer; font-family:inherit;
-  transition:all .2s; box-shadow:0 2px 6px rgba(124,58,237,0.2);
-  display:flex; align-items:center; gap:5px;
-}
-.cmm-action-btn:hover { transform:translateY(-1px); box-shadow:0 3px 10px rgba(124,58,237,0.3); }
-.cmm-action-btn:active { transform:translateY(0); }
-.cmm-action-btn.secondary {
-  background:linear-gradient(135deg,#0284c7,#0d9488);
-  box-shadow:0 2px 6px rgba(2,132,199,0.2);
-}
-.cmm-action-btn.secondary:hover { box-shadow:0 3px 10px rgba(2,132,199,0.3); }
+.cmm-mod-card:hover { border-color:rgba(109,40,217,0.25); background:#faf9ff; transform:translateX(2px); }
+.cmm-mod-card.sel { border-color:var(--purple,#7c3aed); background:#f0ebff; box-shadow:0 2px 10px rgba(124,58,237,0.12); }
 
-.cmm-canvas {
-  flex:1; overflow-y:auto; padding:20px 24px;
+.cmm-ch-item {
+  display:flex; align-items:center; gap:8px;
+  padding:7px 9px; border-radius:8px; background:var(--bg,#faf9ff);
+  border:1.5px solid var(--border,rgba(109,40,217,0.08));
+  margin-bottom:6px; cursor:pointer; transition:all .14s;
 }
+.cmm-ch-item:hover:not(.sel) { background:#f5f3ff; border-color:rgba(109,40,217,0.18); transform:translateX(2px); }
+.cmm-ch-item.sel { border-color:var(--purple,#7c3aed); background:#ede9fe; }
 
-/* ── Tabs (Content/Media/etc) ── */
-.cmm-tabs {
-  display:flex; gap:2px; padding:3px; background:var(--surface2,#f2f0fb);
-  border:1px solid var(--border); border-radius:9px;
-  margin-bottom:16px;
-}
-.cmm-tab {
-  flex:1; padding:7px 12px; border-radius:6px;
-  font-size:11.5px; font-weight:600; color:var(--t3,#8e7ec0);
-  text-align:center; cursor:pointer; border:none;
-  background:transparent; font-family:inherit;
-  transition:all .15s;
-}
-.cmm-tab:hover:not(.on) { color:var(--t2,#4a3870); background:rgba(124,58,237,0.04); }
-.cmm-tab.on { background:var(--surface,#fff); color:var(--purple,#7c3aed); box-shadow:0 1px 4px rgba(124,58,237,0.1); }
+.cmm-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.cmm-canvas { flex:1; overflow-y:auto; padding:24px; }
 
-/* Form inputs */
-.cmm-field { margin-bottom:14px; }
-.cmm-lbl { display:block; font-size:11.5px; font-weight:700; color:var(--t2,#4a3870); margin-bottom:6px; }
-.cmm-input, .cmm-ta, .cmm-sel {
-  width:100%; padding:9px 12px; border-radius:8px;
+.cmm-field { margin-bottom:16px; }
+.cmm-lbl { display:block; font-size:11.5px; font-weight:700; color:var(--t2,#4a3870); margin-bottom:7px; letter-spacing:.02em; text-transform:uppercase; }
+.cmm-input, .cmm-sel, .cmm-ta {
+  width:100%; padding:10px 12px; border-radius:8px;
   border:1.5px solid var(--border,rgba(109,40,217,0.1));
   background:var(--surface,#fff); color:var(--t1,#18103a);
-  font-size:12px; font-family:inherit; transition:all .15s;
+  font-size:13px; font-family:inherit; transition:all .15s;
 }
-.cmm-input:focus, .cmm-ta:focus, .cmm-sel:focus {
+.cmm-input:focus, .cmm-sel:focus, .cmm-ta:focus {
   outline:none; border-color:var(--purple,#7c3aed);
   box-shadow:0 0 0 3px rgba(124,58,237,0.08);
 }
-.cmm-ta { resize:vertical; min-height:80px; line-height:1.5; }
+.cmm-ta { resize:vertical; line-height:1.55; }
 
-/* ── Footer ── */
+.cmm-actions {
+  display:flex; align-items:center; gap:10px; padding:14px 24px;
+  background:linear-gradient(135deg,rgba(124,58,237,0.04),rgba(13,148,136,0.04));
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.1));
+}
+.cmm-actions-title { flex:1; font-size:14px; font-weight:700; color:var(--t1,#18103a); }
+.cmm-action-btn {
+  display:flex; align-items:center; gap:6px;
+  padding:8px 14px; border-radius:8px;
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  color:#fff; font-size:12px; font-weight:600;
+  border:none; cursor:pointer; font-family:inherit;
+  transition:all .2s; box-shadow:0 2px 8px rgba(124,58,237,0.2);
+}
+.cmm-action-btn:hover { transform:translateY(-2px); box-shadow:0 4px 14px rgba(124,58,237,0.3); }
+.cmm-action-btn:active { transform:translateY(0); }
+.cmm-action-btn.secondary {
+  background:linear-gradient(135deg,#0d9488,#0284c7);
+}
+
 .cmm-foot {
-  height:64px; flex-shrink:0;
+  height:56px; flex-shrink:0;
   display:flex; align-items:center; gap:10px; padding:0 24px;
   background:var(--surface,#fff);
   border-top:1px solid var(--border,rgba(124,58,237,0.1));
   box-shadow:0 -1px 6px rgba(124,58,237,0.04);
 }
 
-/* Buttons */
 .btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600; border:none; cursor:pointer; font-family:inherit; transition:all .15s; }
 .btn svg { width:13px; height:13px; }
 .btn-s { background:transparent; color:var(--t2,#4a3870); border:1.5px solid var(--border,rgba(109,40,217,0.12)); }
@@ -312,20 +290,45 @@ const S = `
 .btn-sm { padding:6px 12px; font-size:11px; }
 .btn-sm svg { width:11px; height:11px; }
 
-/* Lesson-only notice */
-.cmm-lesson-only {
-  display:flex; align-items:flex-start; gap:7px;
-  padding:10px 12px; border-radius:8px;
-  background:rgba(124,58,237,0.04);
-  border:1.5px solid rgba(124,58,237,0.1);
-  font-size:11px; color:var(--t2,#4a3870); line-height:1.5;
-}
-
-/* Media embed */
 .cmm-media { margin-top:12px; border-radius:10px; overflow:hidden; border:1.5px solid var(--border); }
 .cmm-media iframe { width:100%; height:360px; border:none; display:block; }
 
-/* Activity Selection Panel */
+/* Unified block styles */
+.ub-block {
+  background:var(--surface,#fff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  border-radius:12px; padding:16px; margin-bottom:14px;
+  transition:all .15s; cursor:move;
+}
+.ub-block:hover { border-color:rgba(124,58,237,0.2); box-shadow:0 2px 10px rgba(124,58,237,0.08); }
+.ub-block.dragging { opacity:0.5; }
+.ub-block.drag-over { border-color:var(--purple); border-style:dashed; }
+
+.ub-header {
+  display:flex; align-items:center; gap:10px; margin-bottom:12px;
+}
+.ub-type-badge {
+  padding:4px 10px; border-radius:7px;
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.ub-handle {
+  width:24px; height:24px; border-radius:6px;
+  background:rgba(124,58,237,0.08); color:var(--t3);
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; cursor:grab; margin-left:auto;
+}
+.ub-handle:active { cursor:grabbing; }
+.ub-del {
+  width:24px; height:24px; border-radius:6px;
+  border:1.5px solid rgba(239,68,68,0.2);
+  background:rgba(239,68,68,0.05); color:#dc2626;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:14px; transition:all .15s;
+}
+.ub-del:hover { background:rgba(239,68,68,0.1); }
+
+/* Activity selection panel */
 .cmm-activity-panel {
   position:fixed; inset:0; z-index:1002;
   background:rgba(24,16,58,0.4); backdrop-filter:blur(4px);
@@ -402,17 +405,19 @@ export default function CourseModuleModal({
   const [step,     setStep]     = useState<0|1|2>(0);
   const [selMod,   setSelMod]   = useState(0);
   const [selCh,    setSelCh]    = useState(0);
-  const [tab,      setTab]      = useState<"content"|"media"|"quiz">("content");
   const [closing,  setClosing]  = useState(false);
   const [activityPanelOpen, setActivityPanelOpen] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   useEffect(()=>{ 
     if(open&&course){ 
-      setModules(course.modules?dc(course.modules):[blankModule()]); 
+      const rawModules = course.modules ? dc(course.modules) : [blankModule()];
+      const migratedModules = migrateOldFormat(rawModules);
+      setModules(migratedModules); 
       setStep(0); 
       setSelMod(0); 
       setSelCh(0); 
-      setTab("content"); 
       setClosing(false); 
     } 
   },[open,course]);
@@ -449,40 +454,87 @@ export default function CourseModuleModal({
   const addCh=(mi:number)=>{ const u=[...modules]; u[mi].chapters.push(blankChapter()); setModules(u); setSelCh(u[mi].chapters.length-1); };
   const delCh=(mi:number,ci:number)=>{ if(modules[mi].chapters.length<=1){toast("Module needs at least one chapter.");return;} const u=[...modules]; u[mi].chapters.splice(ci,1); setModules(u); if(selCh>=u[mi].chapters.length)setSelCh(Math.max(0,u[mi].chapters.length-1)); };
   const updCh=(mi:number,ci:number,k:keyof Chapter,v:any)=>{ const u=[...modules]; u[mi].chapters[ci]={...u[mi].chapters[ci],[k]:v}; setModules(u); };
-  const updChCont=(mi:number,ci:number,k:keyof ChapterContent,v:any)=>{ const u=[...modules]; u[mi].chapters[ci].content={...u[mi].chapters[ci].content,[k]:v}; setModules(u); };
 
-  // Add content block
-  const handleAddContent = () => {
-    if (!c || c.type !== "lesson") return;
+  // Unified blocks handlers
+  const getBlocks = () => (c?.content.blocks || []) as UnifiedBlock[];
+  const setBlocks = (blocks: UnifiedBlock[]) => {
     const u = [...modules];
-    const segs = (u[selMod].chapters[selCh].content.segments || []) as LessonBlock[];
-    u[selMod].chapters[selCh].content.segments = [...segs, blankContentBlock()] as any;
+    u[selMod].chapters[selCh].content.blocks = blocks as any;
     setModules(u);
-    toast("Content block added");
   };
 
-  // Add activity
-  const handleAddActivity = () => {
+  const addBlock = (type: BlockType) => {
     if (!c || c.type !== "lesson") return;
-    if (publishedActivities.length === 0) {
-      toast("No published activities available. Create and publish activities first.");
+    let newBlock: UnifiedBlock;
+    if (type === "activity") {
+      if (publishedActivities.length === 0) {
+        toast("No published activities available. Create and publish activities first.");
+        return;
+      }
+      setActivityPanelOpen(true);
       return;
     }
-    setActivityPanelOpen(true);
+    newBlock = blankUnifiedBlock(type);
+    setBlocks([...getBlocks(), newBlock]);
+    toast(`${type.charAt(0).toUpperCase() + type.slice(1)} block added`);
   };
 
-  // Select activity
   const handleSelectActivity = (activity: Activity) => {
-    const u = [...modules];
-    const segs = (u[selMod].chapters[selCh].content.segments || []) as LessonBlock[];
-    u[selMod].chapters[selCh].content.segments = [
-      ...segs, 
-      { id: mkId(), kind: "activity", activity: dc(activity) }
-    ] as any;
-    setModules(u);
+    const newBlock: UnifiedBlock = {
+      id: mkId(),
+      type: "activity",
+      activity: dc(activity)
+    };
+    setBlocks([...getBlocks(), newBlock]);
     setActivityPanelOpen(false);
     toast(`Activity "${activity.title}" added`);
   };
+
+  const updateBlock = (idx: number, updates: Partial<UnifiedBlock>) => {
+    const blocks = [...getBlocks()];
+    blocks[idx] = { ...blocks[idx], ...updates };
+    setBlocks(blocks);
+  };
+
+  const deleteBlock = (idx: number) => {
+    setBlocks(getBlocks().filter((_, i) => i !== idx));
+    toast("Block deleted");
+  };
+
+  // Drag & drop
+  const handleDragStart = (idx: number) => {
+    setDragIdx(idx);
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === dropIdx) {
+      setDragIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    
+    const blocks = [...getBlocks()];
+    const [removed] = blocks.splice(dragIdx, 1);
+    blocks.splice(dropIdx, 0, removed);
+    setBlocks(blocks);
+    setDragIdx(null);
+    setDragOverIdx(null);
+    toast("Block reordered");
+  };
+
+  const handleDragEnd = () => {
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  // Quiz handlers
+  const updChCont=(mi:number,ci:number,k:keyof ChapterContent,v:any)=>{ const u=[...modules]; u[mi].chapters[ci].content={...u[mi].chapters[ci].content,[k]:v}; setModules(u); };
 
   return (
     <>
@@ -498,104 +550,100 @@ export default function CourseModuleModal({
           </div>
           <div className="cmm-hdr-divider"/>
           <div className="cmm-wizard">
-            {[{n:1,l:"Structure"},{n:2,l:"Content"},{n:3,l:"Review"}].map((s,i)=>(
-              <button key={i} className={`cmm-wstep${step===i?" on":""}${step>i?" done":""}`} onClick={()=>setStep(i as 0|1|2)}>
-                <div className="cmm-wstep-n">{step>i?"✓":s.n}</div>
-                {s.l}
-              </button>
-            ))}
+            <button className={`cmm-wstep${step===0?" on":""}${step>0?" done":""}`} onClick={()=>setStep(0)}>
+              <div className="cmm-wstep-n">{step>0?"✓":"1"}</div>
+              Structure
+            </button>
+            <button className={`cmm-wstep${step===1?" on":""}${step>1?" done":""}`} onClick={()=>{if(!step0done){toast("Complete structure first");return;}setStep(1);}}>
+              <div className="cmm-wstep-n">{step>1?"✓":"2"}</div>
+              Content
+            </button>
+            <button className={`cmm-wstep${step===2?" on":""}`} onClick={()=>{if(!step0done){toast("Complete structure first");return;}setStep(2);}}>
+              <div className="cmm-wstep-n">3</div>
+              Review
+            </button>
           </div>
           <div style={{flex:1}}/>
           <div className="cmm-hdr-prog">
-            <div className="cmm-hdr-prog-bar"><div className="cmm-hdr-prog-fill" style={{width:`${progressPct}%`}}/></div>
-            <div className="cmm-hdr-prog-lbl">{progressPct}% titled</div>
+            <div className="cmm-hdr-prog-bar">
+              <div className="cmm-hdr-prog-fill" style={{width:`${progressPct}%`}}/>
+            </div>
+            <div className="cmm-hdr-prog-lbl">{titledCh} / {totalCh} titled</div>
           </div>
         </div>
 
         {/* ── Body ── */}
         <div className="cmm-body">
 
-          {/* ── Sidebar (Structure) ── */}
-          {step<2 && (
-            <div className="cmm-sb">
-              <div className="cmm-sb-hdr">
-                <div className="cmm-sb-hdr-title">Structure</div>
-                <div className="cmm-sb-hdr-sub">{modules.length} module{modules.length!==1?"s":""} · {totalCh} chapter{totalCh!==1?"s":""}</div>
-              </div>
-              <div className="cmm-sb-body">
-                {modules.map((mod,mi)=>(
-                  <div key={mi} className={`cmm-mod${selMod===mi?" sel":""}`} onClick={()=>{setSelMod(mi);setSelCh(0);}}>
-                    <div className="cmm-mod-hdr">
-                      <div className="cmm-mod-n">{mi+1}</div>
-                      <div className={`cmm-mod-title${mod.title.trim()?"":" empty"}`}>
-                        {mod.title.trim()||"Untitled module"}
-                      </div>
-                      <button className="cmm-mod-del" onClick={e=>{e.stopPropagation();delMod(mi);}}>
-                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
-                      </button>
-                    </div>
-                    {mod.chapters.map((ch,ci)=>{
-                      const meta=TM[ch.type];
-                      return (
-                        <div key={ci} className={`cmm-ch${selMod===mi&&selCh===ci?" sel":""}`} onClick={e=>{e.stopPropagation();setSelMod(mi);setSelCh(ci);}}>
-                          <div className="cmm-ch-n" style={{background:meta.bg,color:meta.c}}>{ci+1}</div>
-                          <div className={`cmm-ch-title${ch.title.trim()?"":" empty"}`}>
-                            {ch.title.trim()||"Untitled chapter"}
-                          </div>
-                          <button className="cmm-ch-del" onClick={e=>{e.stopPropagation();delCh(mi,ci);}}>
-                            <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-              <div className="cmm-sb-add">
-                <button className="cmm-sb-add-btn" onClick={addMod}>
-                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M7 1v12M1 7h12"/></svg>
-                  Add Module
-                </button>
-              </div>
+          {/* Sidebar */}
+          <div className="cmm-sb">
+            <div className="cmm-sb-hdr">
+              <div className="cmm-sb-title">Course Structure</div>
+              <div className="cmm-sb-sub">{modules.length} module{modules.length!==1?"s":""} · {totalCh} chapter{totalCh!==1?"s":""}</div>
             </div>
-          )}
+            <div className="cmm-sb-scroll">
+              {modules.map((mod,mi)=>(
+                <div key={mi} className={`cmm-mod-card${selMod===mi?" sel":""}`} onClick={()=>{setSelMod(mi);setSelCh(0);}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                    <div style={{width:24,height:24,borderRadius:7,background:"var(--purple,#7c3aed)",color:"#fff",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{mi+1}</div>
+                    <div style={{flex:1,fontSize:12.5,fontWeight:700,color:mod.title?"var(--t1,#18103a)":"var(--t3,#c4bdd8)"}}>{mod.title||<em>Untitled module</em>}</div>
+                    <button onClick={(e)=>{e.stopPropagation();delMod(mi);}} style={{width:22,height:22,borderRadius:6,border:"1.5px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.05)",color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,flexShrink:0}}>×</button>
+                  </div>
+                  {mod.chapters.map((ch,ci)=>{
+                    const meta=TM[ch.type];
+                    return(
+                      <div key={ci} className={`cmm-ch-item${selMod===mi&&selCh===ci?" sel":""}`} onClick={(e)=>{e.stopPropagation();setSelMod(mi);setSelCh(ci);}}>
+                        <div style={{width:20,height:20,borderRadius:6,background:meta.bg,color:meta.c,fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{ci+1}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:11.5,fontWeight:600,color:ch.title?"var(--t1,#18103a)":"var(--t3,#c4bdd8)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ch.title||<em>Untitled</em>}</div>
+                          <div style={{fontSize:9,color:meta.c,fontWeight:700,marginTop:1}}>{meta.ico} {meta.lbl}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button onClick={(e)=>{e.stopPropagation();addCh(mi);}} style={{width:"100%",padding:"6px",marginTop:6,borderRadius:7,border:"1.5px dashed var(--border,rgba(109,40,217,0.2))",background:"transparent",color:"var(--purple,#7c3aed)",fontSize:10.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Chapter</button>
+                </div>
+              ))}
+              <button onClick={addMod} style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px dashed var(--border,rgba(109,40,217,0.2))",background:"var(--surface,#fff)",color:"var(--purple,#7c3aed)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>+ Add Module</button>
+            </div>
+          </div>
 
-          {/* ── Main Content Area ── */}
+          {/* Main Content */}
           <div className="cmm-main">
-
-            {/* Step 0: Structure editing */}
-            {step===0 && m && c && (
+            
+            {/* Step 0: Structure */}
+            {step===0 && (
               <>
-                <div className="cmm-actions">
-                  <div className="cmm-actions-title">Module {selMod+1} · Chapter {selCh+1}</div>
-                  <button className="cmm-action-btn secondary" onClick={()=>addCh(selMod)}>
-                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M7 1v12M1 7h12"/></svg>
-                    Add Chapter
-                  </button>
-                </div>
-                <div className="cmm-canvas">
-                  <div className="cmm-field">
-                    <label className="cmm-lbl">Module {selMod+1} Title</label>
-                    <input className="cmm-input" value={m.title} onChange={e=>updMod(selMod,"title",e.target.value)} placeholder="e.g., Introduction to the System"/>
-                  </div>
-                  <div className="cmm-field">
-                    <label className="cmm-lbl">Chapter {selCh+1} Title</label>
-                    <input className="cmm-input" value={c.title} onChange={e=>updCh(selMod,selCh,"title",e.target.value)} placeholder="e.g., Basic Concepts"/>
-                  </div>
-                  <div className="cmm-field">
-                    <label className="cmm-lbl">Chapter Type</label>
-                    <select className="cmm-sel" value={c.type} onChange={e=>{
-                      const t=e.target.value as ChapterType;
-                      const u=[...modules];
-                      u[selMod].chapters[selCh]={...blankChapter(t),title:c.title};
-                      setModules(u);
-                    }}>
-                      <option value="lesson">📖 Lesson</option>
-                      <option value="quiz">❓ Quiz</option>
-                      <option value="assessment">📝 Assessment</option>
-                    </select>
-                  </div>
-                </div>
+                {m&&c&&(
+                  <>
+                    <div className="cmm-actions" style={{background:"linear-gradient(to right,rgba(124,58,237,0.03),rgba(13,148,136,0.03))"}}>
+                      <div className="cmm-actions-title">Module & Chapter Details</div>
+                    </div>
+                    <div className="cmm-canvas">
+                      <div className="cmm-field">
+                        <label className="cmm-lbl">Module {selMod+1} Title</label>
+                        <input className="cmm-input" value={m.title} onChange={e=>updMod(selMod,"title",e.target.value)} placeholder="e.g., Introduction to POS Systems"/>
+                      </div>
+                      <div className="cmm-field">
+                        <label className="cmm-lbl">Chapter {selCh+1} Title</label>
+                        <input className="cmm-input" value={c.title} onChange={e=>updCh(selMod,selCh,"title",e.target.value)} placeholder="e.g., Basic Concepts"/>
+                      </div>
+                      <div className="cmm-field">
+                        <label className="cmm-lbl">Chapter Type</label>
+                        <select className="cmm-sel" value={c.type} onChange={e=>{
+                          const t=e.target.value as ChapterType;
+                          const u=[...modules];
+                          u[selMod].chapters[selCh]={...blankChapter(t),title:c.title};
+                          setModules(u);
+                        }}>
+                          <option value="lesson">📖 Lesson</option>
+                          <option value="quiz">❓ Quiz</option>
+                          <option value="assessment">📝 Assessment</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
 
@@ -603,106 +651,152 @@ export default function CourseModuleModal({
             {step===1 && (
               c ? (
                 <>
-                  {/* Action bar with gradient buttons */}
+                  {/* Action bar */}
                   {c.type==="lesson" && (
                     <div className="cmm-actions">
                       <div className="cmm-actions-title">{c.title||"Untitled Chapter"}</div>
-                      <button className="cmm-action-btn" onClick={handleAddContent}>
+                      <button className="cmm-action-btn" onClick={()=>addBlock("content")}>
                         <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M7 1v12M1 7h12"/></svg>
-                        Add Content
+                        Content
                       </button>
-                      <button className="cmm-action-btn secondary" onClick={handleAddActivity}>
+                      <button className="cmm-action-btn secondary" onClick={()=>addBlock("media")}>
+                        <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1" y="3" width="12" height="8" rx="1"/><path d="M5 6l4 2.5-4 2.5V6z"/></svg>
+                        Media
+                      </button>
+                      <button className="cmm-action-btn" style={{background:"linear-gradient(135deg,#d97706,#7c3aed)"}} onClick={()=>addBlock("activity")}>
                         <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1"/><rect x="8" y="1.5" width="4.5" height="4.5" rx="1"/><rect x="1.5" y="8" width="4.5" height="4.5" rx="1"/><path d="M10.25 8v4.5M8 10.25h4.5"/></svg>
-                        Add Activity
+                        Activity
                       </button>
                     </div>
                   )}
 
                   <div className="cmm-canvas">
-                    <div className="cmm-tabs">
-                      <button className={`cmm-tab${tab==="content"?" on":""}`} onClick={()=>setTab("content")}>Content</button>
-                      <button className={`cmm-tab${tab==="media"?" on":""}`} onClick={()=>setTab("media")}>Media</button>
-                      {c.type!=="lesson"&&<button className={`cmm-tab${tab==="quiz"?" on":""}`} onClick={()=>setTab("quiz")}>Questions</button>}
-                    </div>
+                    {/* Lesson: Unified blocks */}
+                    {c.type==="lesson" ? (
+                      <div>
+                        {getBlocks().length === 0 ? (
+                          <div style={{textAlign:"center",padding:"60px 20px",color:"var(--t3,#a89dc8)",fontSize:13}}>
+                            <div style={{fontSize:42,marginBottom:12}}>📝</div>
+                            <div style={{fontWeight:600,marginBottom:6}}>No content blocks yet</div>
+                            <div style={{fontSize:11.5}}>Use the buttons above to add content, media, or activities</div>
+                          </div>
+                        ) : (
+                          getBlocks().map((block,idx)=>(
+                            <div
+                              key={block.id}
+                              className={`ub-block${dragIdx===idx?" dragging":""}${dragOverIdx===idx?" drag-over":""}`}
+                              draggable
+                              onDragStart={()=>handleDragStart(idx)}
+                              onDragOver={(e)=>handleDragOver(e,idx)}
+                              onDrop={(e)=>handleDrop(e,idx)}
+                              onDragEnd={handleDragEnd}
+                            >
+                              <div className="ub-header">
+                                <div className="ub-type-badge" style={{
+                                  background: block.type==="content" ? "#e0f2fe" : block.type==="media" ? "#fef3c7" : "#ede9fe",
+                                  color: block.type==="content" ? "#0284c7" : block.type==="media" ? "#d97706" : "#7c3aed"
+                                }}>
+                                  {block.type==="content"&&"📝 Content"}
+                                  {block.type==="media"&&"🎥 Media"}
+                                  {block.type==="activity"&&"🧩 Activity"}
+                                </div>
+                                <div style={{flex:1}}/>
+                                <div className="ub-handle">⋮⋮</div>
+                                <button className="ub-del" onClick={()=>deleteBlock(idx)}>×</button>
+                              </div>
 
-                    {/* Content tab */}
-                    {tab==="content"&&(
-                      c.type==="lesson" ? (
-                        <div>
-                          <LessonBlocks
-                            blocks={(c.content.segments||[]) as LessonBlock[]}
-                            onChange={segs=>updChCont(selMod,selCh,"segments",segs)}
-                          />
-                        </div>
-                      ) : (
+                              {/* Content block */}
+                              {block.type==="content"&&(
+                                <div>
+                                  <div className="cmm-field" style={{marginBottom:10}}>
+                                    <input
+                                      value={block.title||""}
+                                      onChange={e=>updateBlock(idx,{title:e.target.value})}
+                                      placeholder="Content block title..."
+                                      className="cmm-input"
+                                      style={{fontWeight:600}}
+                                    />
+                                  </div>
+                                  <textarea
+                                    value={block.body||""}
+                                    onChange={e=>updateBlock(idx,{body:e.target.value})}
+                                    placeholder="Enter content text..."
+                                    className="cmm-ta"
+                                    rows={4}
+                                  />
+                                </div>
+                              )}
+
+                              {/* Media block */}
+                              {block.type==="media"&&(
+                                <div>
+                                  <div className="cmm-field" style={{marginBottom:10}}>
+                                    <select className="cmm-sel" value={block.mediaType||"video"} onChange={e=>updateBlock(idx,{mediaType:e.target.value as any})}>
+                                      <option value="video">🎥 Video</option>
+                                      <option value="presentation">📊 Presentation</option>
+                                    </select>
+                                  </div>
+                                  <div className="cmm-field">
+                                    <input className="cmm-input" value={block.mediaUrl||""} onChange={e=>updateBlock(idx,{mediaUrl:e.target.value})} placeholder="YouTube, Vimeo, Google Drive, etc."/>
+                                  </div>
+                                  {block.mediaUrl&&(
+                                    <div className="cmm-media">
+                                      {block.mediaType==="video"&&videoEmbed(block.mediaUrl)&&<iframe src={videoEmbed(block.mediaUrl)!} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>}
+                                      {block.mediaType==="presentation"&&presentationEmbed(block.mediaUrl)&&<iframe src={presentationEmbed(block.mediaUrl)!}/>}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Activity block */}
+                              {block.type==="activity"&&block.activity&&(
+                                <div style={{padding:"10px 12px",borderRadius:8,background:"rgba(124,58,237,0.04)",border:"1.5px solid rgba(124,58,237,0.12)"}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                                    <div style={{fontSize:20}}>{ACT_META[block.activity.type]?.icon||"🧩"}</div>
+                                    <div style={{flex:1}}>
+                                      <div style={{fontSize:13,fontWeight:700,color:"var(--t1,#18103a)"}}>{block.activity.title}</div>
+                                      <div style={{fontSize:10.5,color:"var(--t3,#a89dc8)",marginTop:2}}>{ACT_META[block.activity.type]?.label||block.activity.type}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    ) : (
+                      /* Quiz/Assessment */
+                      <div>
                         <div className="cmm-field">
                           <label className="cmm-lbl">Chapter Body (optional)</label>
                           <textarea className="cmm-ta" value={c.content.body??""} onChange={e=>updChCont(selMod,selCh,"body",e.target.value)} placeholder="Add introductory text..." rows={6}/>
                         </div>
-                      )
-                    )}
-
-                    {/* Media tab */}
-                    {tab==="media"&&(
-                      <>
-                        <div className="cmm-field">
-                          <label className="cmm-lbl">Media Type</label>
-                          <select className="cmm-sel" value={c.content.media.type} onChange={e=>updChCont(selMod,selCh,"media",{...c.content.media,type:e.target.value as MediaType})}>
-                            <option value="none">None</option>
-                            <option value="video">🎥 Video</option>
-                            <option value="presentation">📊 Presentation</option>
-                          </select>
-                        </div>
-                        {c.content.media.type!=="none"&&(
-                          <>
-                            <div className="cmm-field">
-                              <label className="cmm-lbl">Media URL</label>
-                              <input className="cmm-input" value={c.content.media.url} onChange={e=>updChCont(selMod,selCh,"media",{...c.content.media,url:e.target.value})} placeholder="YouTube, Vimeo, Google Drive, etc."/>
-                            </div>
-                            {c.content.media.url&&(
-                              <div className="cmm-media">
-                                {c.content.media.type==="video"&&videoEmbed(c.content.media.url)&&<iframe src={videoEmbed(c.content.media.url)!} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>}
-                                {c.content.media.type==="presentation"&&presentationEmbed(c.content.media.url)&&<iframe src={presentationEmbed(c.content.media.url)!}/>}
+                        <div style={{marginTop:20}}>
+                          {(c.content.questions??[]).map((q,qi)=>{
+                            const updQ=(k:keyof QuizQuestion,v:any)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi]={...q,[k]:v}; setModules(u); };
+                            const updOpt=(oi:number,v:string)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi].opts[oi]=v; setModules(u); };
+                            return (
+                              <div key={qi} style={{background:"var(--surface,#fff)",border:"1.5px solid var(--border,rgba(109,40,217,0.1))",borderRadius:10,padding:14,marginBottom:12}}>
+                                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                                  <div style={{width:26,height:26,borderRadius:7,background:"linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488))",color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{qi+1}</div>
+                                  <input value={q.q} onChange={e=>updQ("q",e.target.value)} placeholder={`Question ${qi+1}`} className="cmm-input" style={{flex:1}}/>
+                                  <button onClick={()=>{const u=[...modules];u[selMod].chapters[selCh].content.questions!.splice(qi,1);setModules(u);}} style={{width:26,height:26,borderRadius:7,border:"1.5px solid rgba(239,68,68,0.2)",background:"rgba(239,68,68,0.05)",color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>×</button>
+                                </div>
+                                <div style={{display:"flex",flexDirection:"column",gap:7,paddingLeft:33}}>
+                                  {q.opts.map((opt,oi)=>(
+                                    <div key={oi} style={{display:"flex",alignItems:"center",gap:9}}>
+                                      <input type="radio" name={`ans-${qi}`} checked={q.ans===oi} onChange={()=>updQ("ans",oi)} style={{accentColor:"var(--purple,#7c3aed)",width:15,height:15,flexShrink:0,cursor:"pointer"}}/>
+                                      <input value={opt} onChange={e=>updOpt(oi,e.target.value)}
+                                        placeholder={`Option ${oi+1}${q.ans===oi?" ✓ correct":""}`}
+                                        className="cmm-input"
+                                        style={{border:`1.5px solid ${q.ans===oi?"rgba(22,163,74,0.45)":"var(--border,rgba(109,40,217,0.1))"}`,background:q.ans===oi?"#f0fdf4":"#fff"}}/>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            )}
-                          </>
-                        )}
-                      </>
-                    )}
-
-                    {/* Quiz tab */}
-                    {tab==="quiz"&&c.type!=="lesson"&&(
-                      <div>
-                        {(c.content.questions??[]).map((q,qi)=>{
-                          const updQ=(k:keyof QuizQuestion,v:any)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi]={...q,[k]:v}; setModules(u); };
-                          const updOpt=(oi:number,v:string)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi].opts[oi]=v; setModules(u); };
-                          return (
-                            <div key={qi} style={{background:"var(--surface,#fff)",border:"1.5px solid var(--border,rgba(109,40,217,0.1))",borderRadius:10,padding:14,marginBottom:12}}>
-                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                                <div style={{width:26,height:26,borderRadius:7,background:"linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488))",color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{qi+1}</div>
-                                <input value={q.q} onChange={e=>updQ("q",e.target.value)} placeholder={`Question ${qi+1}`} className="cmm-input" style={{flex:1}}/>
-                                <button onClick={()=>{const u=[...modules];u[selMod].chapters[selCh].content.questions!.splice(qi,1);setModules(u);}} style={{width:26,height:26,borderRadius:7,border:"1.5px solid rgba(239,68,68,0.2)",background:"rgba(239,68,68,0.05)",color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>×</button>
-                              </div>
-                              <div style={{display:"flex",flexDirection:"column",gap:7,paddingLeft:33}}>
-                                {q.opts.map((opt,oi)=>(
-                                  <div key={oi} style={{display:"flex",alignItems:"center",gap:9}}>
-                                    <input type="radio" name={`ans-${qi}`} checked={q.ans===oi} onChange={()=>updQ("ans",oi)} style={{accentColor:"var(--purple,#7c3aed)",width:15,height:15,flexShrink:0,cursor:"pointer"}}/>
-                                    <input value={opt} onChange={e=>updOpt(oi,e.target.value)}
-                                      placeholder={`Option ${oi+1}${q.ans===oi?" ✓ correct":""}`}
-                                      className="cmm-input"
-                                      style={{border:`1.5px solid ${q.ans===oi?"rgba(22,163,74,0.45)":"var(--border,rgba(109,40,217,0.1))"}`,background:q.ans===oi?"#f0fdf4":"#fff"}}/>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        <button onClick={()=>{const u=[...modules];u[selMod].chapters[selCh].content.questions!.push({q:"",opts:["","","",""],ans:0});setModules(u);}} style={{width:"100%",padding:"10px",borderRadius:8,border:"1.5px dashed var(--border,rgba(109,40,217,0.2))",background:"var(--surface,#fff)",color:"var(--purple,#7c3aed)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Question</button>
-                        <div className="cmm-lesson-only" style={{marginTop:12}}>
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--t3)" strokeWidth="1.5" style={{flexShrink:0,marginTop:1}}>
-                            <circle cx="8" cy="8" r="6"/><path d="M8 7v4"/><circle cx="8" cy="5.5" r=".6" fill="var(--t3)"/>
-                          </svg>
-                          <span>Interactive activities are available on <strong>Lesson</strong> chapters only.</span>
+                            );
+                          })}
+                          <button onClick={()=>{const u=[...modules];u[selMod].chapters[selCh].content.questions!.push({q:"",opts:["","","",""],ans:0});setModules(u);}} style={{width:"100%",padding:"10px",borderRadius:8,border:"1.5px dashed var(--border,rgba(109,40,217,0.2))",background:"var(--surface,#fff)",color:"var(--purple,#7c3aed)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Question</button>
                         </div>
                       </div>
                     )}
@@ -756,9 +850,10 @@ export default function CourseModuleModal({
                       <div style={{display:"flex",flexDirection:"column",gap:5}}>
                         {mod.chapters.map((ch,ci) => {
                           const meta  = TM[ch.type];
-                          const segs  = (ch.content as any).segments ?? [];
-                          const acts  = segs.filter((s:any)=>s.kind==="activity").length;
-                          const blocks= segs.filter((s:any)=>s.kind==="content").length;
+                          const blocks = (ch.content.blocks||[]) as UnifiedBlock[];
+                          const acts  = blocks.filter(b=>b.type==="activity").length;
+                          const contents= blocks.filter(b=>b.type==="content").length;
+                          const medias= blocks.filter(b=>b.type==="media").length;
                           return (
                             <div key={ci} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,background:"var(--bg,#faf9ff)",border:`1.5px solid ${ch.title?"var(--border,#ede9f6)":"rgba(220,38,38,0.18)"}`}}>
                               <div style={{width:22,height:22,borderRadius:6,background:meta.bg,color:meta.c,fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{ci+1}</div>
@@ -768,8 +863,7 @@ export default function CourseModuleModal({
                                 </div>
                                 <div style={{fontSize:9.5,color:"var(--t3)",marginTop:1,display:"flex",gap:5,alignItems:"center"}}>
                                   <span style={{color:meta.c,fontWeight:700,textTransform:"uppercase",letterSpacing:".04em"}}>{meta.ico} {meta.lbl}</span>
-                                  {ch.type==="lesson"&&blocks>0&&<span>· {blocks} block{blocks!==1?"s":""}</span>}
-                                  {acts>0&&<span style={{color:"var(--purple,#7c3aed)"}}>· {acts} 🧩</span>}
+                                  {ch.type==="lesson"&&blocks.length>0&&<span>· {contents}📝 {medias}🎥 {acts}🧩</span>}
                                   {ch.type!=="lesson"&&<span>· {(ch.content.questions??[]).length} Q</span>}
                                 </div>
                               </div>
@@ -799,77 +893,55 @@ export default function CourseModuleModal({
             </button>
           )}
           {step<2 ? (
-            <button className="btn btn-p btn-sm"
-              style={{padding:"8px 20px",fontSize:12.5,borderRadius:10,boxShadow:"0 3px 12px rgba(124,58,237,0.25)"}}
-              onClick={()=>{
-                if(step===0&&!step0done){toast("Name all modules and chapters first.");return;}
-                setStep((step+1) as 0|1|2);
-              }}>
-              Continue
-              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M3 7h8M8 4l3 3-3 3"/></svg>
+            <button className="btn btn-p btn-sm" onClick={()=>{if(step===0&&!step0done){toast("Complete titles first");return;}setStep((step+1) as 0|1|2);}}>
+              Next
+              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 1l4 4-4 4"/></svg>
             </button>
           ) : (
-            <button className="btn btn-p btn-sm"
-              style={{padding:"8px 22px",fontSize:12.5,borderRadius:10,boxShadow:"0 3px 12px rgba(124,58,237,0.3)"}}
-              onClick={save}>
-              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M2 7.5l3.5 3.5 6.5-7"/></svg>
+            <button className="btn btn-p btn-sm" onClick={save}>
+              <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 7L5.5 12 2 8.7"/></svg>
               Save Modules
             </button>
           )}
         </div>
 
-      </div>{/* /cmm-fs */}
-
-      {/* Activity Selection Panel */}
-      {activityPanelOpen && (
-        <div className="cmm-activity-panel" onClick={e => e.target === e.currentTarget && setActivityPanelOpen(false)}>
-          <div className="cmm-activity-modal">
-            <div className="cmm-activity-modal-hdr">
-              <div className="cmm-activity-modal-title">Select Activity</div>
-              <div className="cmm-activity-modal-sub">
-                Choose from {publishedActivities.length} published activit{publishedActivities.length === 1 ? "y" : "ies"}
+        {/* Activity Selection Panel */}
+        {activityPanelOpen && (
+          <div className="cmm-activity-panel" onClick={()=>setActivityPanelOpen(false)}>
+            <div className="cmm-activity-modal" onClick={e=>e.stopPropagation()}>
+              <div className="cmm-activity-modal-hdr">
+                <div className="cmm-activity-modal-title">Select an Activity</div>
+                <div className="cmm-activity-modal-sub">Choose from your published activities</div>
+              </div>
+              <div className="cmm-activity-modal-body">
+                {publishedActivities.length===0?(
+                  <div style={{textAlign:"center",padding:"40px 20px",color:"var(--t3,#a89dc8)",fontSize:13}}>
+                    <div style={{fontSize:32,marginBottom:8}}>🧩</div>
+                    <div>No published activities available</div>
+                  </div>
+                ):(
+                  <div className="cmm-activity-grid">
+                    {publishedActivities.map(act=>{
+                      const meta=ACT_META[act.type];
+                      return(
+                        <div key={act.id} className="cmm-activity-card" onClick={()=>handleSelectActivity(act)}>
+                          <div className="cmm-activity-card-icon" style={{background:meta.bg,color:meta.color}}>{meta.icon}</div>
+                          <div className="cmm-activity-card-title">{act.title}</div>
+                          <div className="cmm-activity-card-type">{meta.label}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="cmm-activity-modal-foot">
+                <button className="btn btn-s btn-sm" onClick={()=>setActivityPanelOpen(false)}>Close</button>
               </div>
             </div>
-            <div className="cmm-activity-modal-body">
-              {publishedActivities.length === 0 ? (
-                <div style={{textAlign:"center",padding:"40px 20px",color:"var(--t3)"}}>
-                  <div style={{fontSize:40,marginBottom:12}}>🧩</div>
-                  <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>No Published Activities</div>
-                  <div style={{fontSize:11.5}}>Create and publish activities in the Activity Builder first.</div>
-                </div>
-              ) : (
-                <div className="cmm-activity-grid">
-                  {publishedActivities.map(activity => {
-                    const meta = ACT_META[activity.type];
-                    return (
-                      <div
-                        key={activity.id}
-                        className="cmm-activity-card"
-                        onClick={() => handleSelectActivity(activity)}
-                      >
-                        <div className="cmm-activity-card-icon" style={{
-                          background: meta.bg,
-                          border: `1.5px solid ${meta.border}`,
-                          color: meta.color
-                        }}>
-                          {meta.icon}
-                        </div>
-                        <div className="cmm-activity-card-title">{activity.title}</div>
-                        <div className="cmm-activity-card-type">{meta.label}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="cmm-activity-modal-foot">
-              <button className="btn btn-s btn-sm" onClick={() => setActivityPanelOpen(false)}>
-                Cancel
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+
+      </div>{/* /cmm-fs */}
     </>
   );
 }
