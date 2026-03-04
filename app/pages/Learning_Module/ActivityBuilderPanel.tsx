@@ -280,6 +280,7 @@ interface ActivityBuilderPanelProps {
   onSave: (activity: Activity, saveAs: "draft" | "published") => void;
   editActivity: Activity | null;
   toast: (msg: string) => void;
+  allActivities?: Activity[]; // NEW: To show existing activities
 }
 
 export default function ActivityBuilderPanel({
@@ -288,9 +289,11 @@ export default function ActivityBuilderPanel({
   onSave,
   editActivity,
   toast,
+  allActivities = [],
 }: ActivityBuilderPanelProps) {
   const isEdit = !!editActivity;
 
+  const [viewMode, setViewMode] = useState<"create" | "library">("create"); // NEW: Toggle between create and library
   const [step, setStep] = useState<1 | 2>(1);
   const [activity, setActivity] = useState<Activity>(blankActivity("accordion"));
   const [selectedType, setSelectedType] = useState<SegmentType | null>(null);
@@ -302,10 +305,12 @@ export default function ActivityBuilderPanel({
       setActivity(dc(editActivity));
       setSelectedType(editActivity.type);
       setStep(2);
+      setViewMode("create");
     } else {
       setActivity(blankActivity("accordion"));
       setSelectedType(null);
       setStep(1);
+      setViewMode("create");
     }
     setClosing(false);
   }, [open, isEdit, editActivity]);
@@ -395,10 +400,188 @@ export default function ActivityBuilderPanel({
           </div>
         </div>
 
+        {/* View Toggle */}
+        {!isEdit && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "12px 24px",
+            background: "var(--bg,#f8f7ff)",
+            borderBottom: "1px solid var(--border,rgba(124,58,237,0.1))",
+          }}>
+            <button
+              onClick={() => setViewMode("create")}
+              style={{
+                flex: 1,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                background: viewMode === "create" ? "var(--purple,#7c3aed)" : "transparent",
+                color: viewMode === "create" ? "#fff" : "var(--t2,#4a3870)",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              Create New
+            </button>
+            <button
+              onClick={() => setViewMode("library")}
+              style={{
+                flex: 1,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                background: viewMode === "library" ? "var(--purple,#7c3aed)" : "transparent",
+                color: viewMode === "library" ? "#fff" : "var(--t2,#4a3870)",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              Library
+              {allActivities.length > 0 && (
+                <span style={{
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: viewMode === "library" ? "rgba(255,255,255,0.2)" : "rgba(124,58,237,0.1)",
+                  fontSize: 10,
+                  fontWeight: 700,
+                }}>
+                  {allActivities.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Body */}
         <div className="abp-body">
-          <div className="abp-main">
-            {step === 1 ? (
+          {viewMode === "library" ? (
+            /* Library View */
+            <div className="abp-main" style={{ padding: 24 }}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1,#18103a)", marginBottom: 4 }}>
+                  Activity Library
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--t3,#a89dc8)" }}>
+                  {allActivities.length} activit{allActivities.length === 1 ? "y" : "ies"} · 
+                  {' '}{allActivities.filter(a => a.status === "published").length} published
+                </div>
+              </div>
+
+              {allActivities.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--t3,#a89dc8)" }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🧩</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No activities yet</div>
+                  <div style={{ fontSize: 12 }}>Switch to "Create New" to build your first activity</div>
+                </div>
+              ) : (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                  gap: 12,
+                  overflowY: "auto",
+                  flex: 1,
+                }}>
+                  {allActivities.map(act => {
+                    const meta = ACT_META[act.type];
+                    const itemCount = getActivityItemCount(act);
+                    return (
+                      <div
+                        key={act.id}
+                        style={{
+                          padding: 14,
+                          borderRadius: 10,
+                          border: "1.5px solid var(--border,rgba(124,58,237,0.1))",
+                          background: "var(--bg,#faf9ff)",
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "rgba(124,58,237,0.3)";
+                          e.currentTarget.style.transform = "translateY(-2px)";
+                          e.currentTarget.style.boxShadow = "0 4px 12px rgba(124,58,237,0.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = "rgba(124,58,237,0.1)";
+                          e.currentTarget.style.transform = "translateY(0)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                        onClick={() => {
+                          setActivity(dc(act));
+                          setSelectedType(act.type);
+                          setStep(2);
+                          setViewMode("create");
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+                          <div style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 9,
+                            background: meta.bg,
+                            color: meta.color,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 18,
+                            flexShrink: 0,
+                          }}>
+                            {meta.icon}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              color: "var(--t1,#18103a)",
+                              marginBottom: 3,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}>
+                              {act.title || "Untitled"}
+                            </div>
+                            <div style={{
+                              fontSize: 10,
+                              color: "var(--t3,#a89dc8)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              fontWeight: 600,
+                            }}>
+                              {meta.label} · {itemCount} items
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{
+                          padding: "4px 8px",
+                          borderRadius: 5,
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          background: act.status === "published" ? "#d1fae5" : "#fef3c7",
+                          color: act.status === "published" ? "#065f46" : "#92400e",
+                          textAlign: "center",
+                        }}>
+                          {act.status}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Create View */
+          <div className="abp-main">{step === 1 ? (
               <>
                 {/* Step 1: Type Selection */}
                 <div className="abp-section">
@@ -528,6 +711,7 @@ export default function ActivityBuilderPanel({
               </>
             )}
           </div>
+          )}
         </div>
 
         {/* Footer */}

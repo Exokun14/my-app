@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Course, Module } from "../../Data/types";
+import type { Activity } from "./ActivityBuilderPanel";
 
 export interface CourseCatalogProps {
   courses:       Course[];
@@ -8,6 +9,7 @@ export interface CourseCatalogProps {
   setCategories: React.Dispatch<React.SetStateAction<string[]>>;
   toast:         (msg: string) => void;
   onOpenCourse:  (idx: number) => void;
+  publishedActivities: Activity[];
 }
 
 export const THUMB_GRADIENTS = [

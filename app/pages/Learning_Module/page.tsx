@@ -5,6 +5,7 @@ import { useToast } from "../../Hooks/useToast";
 import Toast from "../../Components/Toast";
 import ActivityBuilderPanel, { type Activity } from "./ActivityBuilderPanel";
 import ActivityManager from "./ActivityManager";
+import ActivitiesPanel from "./ActivitiesPanel";
 import CourseCatalog from "./CourseCatalog";
 import ClientProgress from "./ClientProgress";
 import CourseViewer from "./CourseViewer";
@@ -13,7 +14,7 @@ import type { Course } from "../../Data/types";
 import constants from "../../Data/test_data.json";
 import "../../globals.css";
 
-const PANELS = ["Course Catalog", "Client Progress"];
+const PANELS = ["Course Catalog", "Activities", "Client Progress"];
 const INITIAL_COURSES = constants.COURSES as Course[];
 const INITIAL_ACTIVITIES = constants.ACTIVITIES as Activity[];
 const DEFAULT_CATEGORIES = constants.DEFAULT_CATEGORIES;
@@ -88,6 +89,8 @@ export default function LearningCenter() {
     setCourses(data.courses);
     setCategories(data.categories);
     setActivities(data.activities);
+    console.log('Loaded activities:', data.activities);
+    console.log('Published activities:', data.activities.filter(a => a.status === "published"));
   }, []);
 
   useEffect(() => {
@@ -126,6 +129,10 @@ export default function LearningCenter() {
   const handleOpenActivityBuilder = (activity?: Activity) => {
     setEditingActivity(activity || null);
     setActivityBuilderOpen(true);
+  };
+
+  const handleDeleteActivity = (id: string) => {
+    setActivities(prev => prev.filter(a => a.id !== id));
   };
 
   const openViewer = (idx: number) => {
@@ -325,10 +332,21 @@ export default function LearningCenter() {
                 setCategories={setCategories}
                 toast={toast}
                 onOpenCourse={openViewer}
+                publishedActivities={publishedActivities}
               />
             </div>
 
-            {/* Panel 1 — Client Progress */}
+            {/* Panel 1 — Activities */}
+            <div className="swipe-panel" style={{ width: "100%" }}>
+              <ActivitiesPanel
+                activities={activities}
+                onEdit={handleOpenActivityBuilder}
+                onDelete={handleDeleteActivity}
+                toast={toast}
+              />
+            </div>
+
+            {/* Panel 2 — Client Progress */}
             <div className="swipe-panel" style={{ width: "100%" }}>
               <ClientProgress toast={toast} />
             </div>
@@ -347,6 +365,7 @@ export default function LearningCenter() {
         onSave={handleActivitySave}
         editActivity={editingActivity}
         toast={toast}
+        allActivities={activities}
       />
 
       <Toast msg={msg} visible={visible} />

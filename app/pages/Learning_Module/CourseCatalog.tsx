@@ -9,7 +9,7 @@ import { useCourseCatalog, THUMB_GRADIENTS, THUMB_PATTERNS, CAT_ICONS, CARD_STYL
 import "../../globals.css";
 
 export default function CourseCatalog({
-  courses, setCourses, categories, setCategories, toast, onOpenCourse,
+  courses, setCourses, categories, setCategories, toast, onOpenCourse, publishedActivities,
 }: CourseCatalogProps) {
   const {
     search, setSearch,
@@ -196,6 +196,7 @@ export default function CourseCatalog({
         onClose={closeMod}
         onSave={handleModSave}
         toast={toast}
+        publishedActivities={publishedActivities}
       />
     </>
   );

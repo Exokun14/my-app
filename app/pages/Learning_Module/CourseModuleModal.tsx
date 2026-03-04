@@ -418,9 +418,11 @@ export default function CourseModuleModal({
       setStep(0); 
       setSelMod(0); 
       setSelCh(0); 
-      setClosing(false); 
+      setClosing(false);
+      console.log('CourseModuleModal opened - modules:', migratedModules);
+      console.log('CourseModuleModal - publishedActivities:', publishedActivities);
     } 
-  },[open,course]);
+  },[open,course]); // Removed publishedActivities from dependencies
 
   if(!open||!course||courseIdx===null) return null;
 
@@ -456,10 +458,16 @@ export default function CourseModuleModal({
   const updCh=(mi:number,ci:number,k:keyof Chapter,v:any)=>{ const u=[...modules]; u[mi].chapters[ci]={...u[mi].chapters[ci],[k]:v}; setModules(u); };
 
   // Unified blocks handlers
-  const getBlocks = () => (c?.content.blocks || []) as UnifiedBlock[];
+  const getBlocks = () => {
+    const blocks = (c?.content.blocks || []) as UnifiedBlock[];
+    console.log('getBlocks called - current chapter:', c?.title, 'blocks:', blocks);
+    return blocks;
+  };
   const setBlocks = (blocks: UnifiedBlock[]) => {
+    console.log('setBlocks called - selMod:', selMod, 'selCh:', selCh, 'blocks:', blocks);
     const u = [...modules];
     u[selMod].chapters[selCh].content.blocks = blocks as any;
+    console.log('Updated modules:', u);
     setModules(u);
   };
 
@@ -475,7 +483,12 @@ export default function CourseModuleModal({
       return;
     }
     newBlock = blankUnifiedBlock(type);
-    setBlocks([...getBlocks(), newBlock]);
+    const currentBlocks = getBlocks();
+    console.log('Current blocks:', currentBlocks);
+    console.log('Adding new block:', newBlock);
+    const updatedBlocks = [...currentBlocks, newBlock];
+    console.log('Updated blocks:', updatedBlocks);
+    setBlocks(updatedBlocks);
     toast(`${type.charAt(0).toUpperCase() + type.slice(1)} block added`);
   };
 
@@ -485,7 +498,12 @@ export default function CourseModuleModal({
       type: "activity",
       activity: dc(activity)
     };
-    setBlocks([...getBlocks(), newBlock]);
+    const currentBlocks = getBlocks();
+    console.log('Adding activity block:', newBlock);
+    console.log('Current blocks before activity:', currentBlocks);
+    const updatedBlocks = [...currentBlocks, newBlock];
+    console.log('Updated blocks after activity:', updatedBlocks);
+    setBlocks(updatedBlocks);
     setActivityPanelOpen(false);
     toast(`Activity "${activity.title}" added`);
   };
@@ -674,14 +692,17 @@ export default function CourseModuleModal({
                     {/* Lesson: Unified blocks */}
                     {c.type==="lesson" ? (
                       <div>
-                        {getBlocks().length === 0 ? (
+                        {(() => {
+                          const blocks = getBlocks();
+                          console.log('Rendering blocks for chapter:', c.title, 'blocks:', blocks);
+                          return blocks.length === 0 ? (
                           <div style={{textAlign:"center",padding:"60px 20px",color:"var(--t3,#a89dc8)",fontSize:13}}>
                             <div style={{fontSize:42,marginBottom:12}}>📝</div>
                             <div style={{fontWeight:600,marginBottom:6}}>No content blocks yet</div>
                             <div style={{fontSize:11.5}}>Use the buttons above to add content, media, or activities</div>
                           </div>
                         ) : (
-                          getBlocks().map((block,idx)=>(
+                          blocks.map((block,idx)=>(
                             <div
                               key={block.id}
                               className={`ub-block${dragIdx===idx?" dragging":""}${dragOverIdx===idx?" drag-over":""}`}
@@ -762,7 +783,8 @@ export default function CourseModuleModal({
                               )}
                             </div>
                           ))
-                        )}
+                        );
+                        })()}
                       </div>
                     ) : (
                       /* Quiz/Assessment */
