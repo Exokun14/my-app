@@ -8,7 +8,8 @@ import { ACT_META, type Activity } from "./ActivityBuilderPanel";
 interface CourseViewerProps {
   course: Course;
   onClose: () => void;
-  onProgress: (progress: number, timeSpent?: number) => void;
+  onProgress: (progress: number, timeSpent?: number, assessmentScore?: number) => void;
+  toast: (msg: string) => void;
 }
 
 interface UnifiedBlock {
@@ -593,7 +594,7 @@ const STYLES = `
 `;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function CourseViewer({ course, onClose, onProgress }: CourseViewerProps) {
+export default function CourseViewer({ course, onClose, onProgress, toast }: CourseViewerProps) {
   const modules = (course.modules || []) as Module[];
   const [selMod, setSelMod] = useState(0);
   const [selCh, setSelCh] = useState(0);
@@ -668,12 +669,46 @@ export default function CourseViewer({ course, onClose, onProgress }: CourseView
 
   const markComplete = () => {
     if (!currentChapter) return;
+    
+    // Quiz validation - must get ALL correct
+    if (currentChapter.type === 'quiz') {
+      const allCorrect = questions.every((q, idx) => answers[`q${idx}`] === q.ans);
+      if (!allCorrect) {
+        toast("❌ You must answer all questions correctly to complete this quiz.");
+        return;
+      }
+    }
+    
+    // Assessment validation - must meet passing score
+    if (currentChapter.type === 'assessment') {
+      const passingScore = (currentChapter.content as any).passingScore || 70;
+      const correctAnswers = questions.filter((q, idx) => answers[`q${idx}`] === q.ans).length;
+      const scorePercent = Math.round((correctAnswers / questions.length) * 100);
+      
+      if (scorePercent < passingScore) {
+        toast(`❌ You scored ${scorePercent}%. You need ${passingScore}% to pass this assessment.`);
+        return;
+      }
+      
+      // Store assessment score for stats
+      onProgress(progressPercent, 0, scorePercent);
+    }
+    
     currentChapter.done = true;
     
     // Calculate time spent (in minutes)
     const timeSpent = Math.floor((Date.now() - startTime) / 60000);
     
     onProgress(progressPercent, timeSpent);
+    
+    // Check if this is the last chapter
+    const isLastChapter = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
+    
+    if (isLastChapter) {
+      // Course complete - trigger stats popup
+      toast("🎉 Course completed! Calculating your results...");
+      return;
+    }
     
     // Move to next chapter
     if (selCh < currentModule.chapters.length - 1) {
@@ -691,6 +726,8 @@ export default function CourseViewer({ course, onClose, onProgress }: CourseView
   const handleVideoComplete = (blockId: string) => {
     setVideoWatched(prev => ({ ...prev, [blockId]: true }));
   };
+
+  const isLastChapter = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
 
   const goToChapter = (modIdx: number, chIdx: number) => {
     setSelMod(modIdx);
@@ -954,6 +991,21 @@ export default function CourseViewer({ course, onClose, onProgress }: CourseView
                     </div>
                   )}
                   
+                  {currentChapter.type === 'assessment' && (currentChapter.content as any).passingScore && (
+                    <div style={{
+                      padding: 12,
+                      borderRadius: 10,
+                      background: 'rgba(217,119,6,0.08)',
+                      border: '1.5px solid rgba(217,119,6,0.2)',
+                      marginBottom: 20,
+                      fontSize: 12,
+                      color: '#92400e',
+                      fontWeight: 600
+                    }}>
+                      ⚠️ Passing Score: {(currentChapter.content as any).passingScore}% • You must score at least this to pass
+                    </div>
+                  )}
+                  
                   {questions.map((q, qIdx) => (
                     <div key={qIdx} className="cv-quiz-question">
                       <div className="cv-quiz-number">{qIdx + 1}</div>
@@ -1033,7 +1085,7 @@ export default function CourseViewer({ course, onClose, onProgress }: CourseView
             </button>
           ) : (
             <button className="cv-btn cv-btn-primary" onClick={markComplete}>
-              {currentChapter.done ? 'Next Chapter' : 'Mark Complete'}
+              {currentChapter.done ? 'Next Chapter' : isLastChapter ? 'Complete Course' : 'Mark Complete'}
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 1l4 4-4 4"/>
               </svg>

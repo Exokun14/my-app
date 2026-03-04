@@ -10,6 +10,7 @@ import CourseCatalog from "./CourseCatalog";
 import ClientProgress from "./ClientProgress";
 import CourseViewer from "./CourseViewer";
 import CourseOverview from "./CourseOverview";
+import CourseCompletionStats from "./CourseCompletionStats";
 import CourseCreationWizard from "../../Components/CourseCreationWizard";
 import type { Course } from "../../Data/types";
 import constants from "../../Data/test_data.json";
@@ -57,7 +58,16 @@ function saveData(
   courses: Course[], 
   categories: string[], 
   activities: Activity[], 
-  courseProgress: Record<number, { progress: number; timeSpent: number; lastAccessed: string; enrolled: boolean; completed: boolean; completedDate?: string }>
+  courseProgress: Record<number, { 
+    progress: number; 
+    timeSpent: number; 
+    lastAccessed: string; 
+    enrolled: boolean; 
+    completed: boolean; 
+    completedDate?: string;
+    quizScores: number[];
+    assessmentScores: Array<{ score: number; passed: boolean; passingScore: number }>;
+  }>
 ) {
   if (typeof window === 'undefined') return;
   
@@ -94,6 +104,7 @@ export default function LearningCenter() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerExiting, setViewerExiting] = useState(false);
   const [showOverview, setShowOverview] = useState(false);
+  const [showCompletionStats, setShowCompletionStats] = useState(false);
   const [courseProgress, setCourseProgress] = useState<Record<number, {
     progress: number;
     timeSpent: number;
@@ -101,6 +112,8 @@ export default function LearningCenter() {
     enrolled: boolean;
     completed: boolean;
     completedDate?: string;
+    quizScores: number[];
+    assessmentScores: Array<{ score: number; passed: boolean; passingScore: number }>;
   }>>({});
 
   useEffect(() => {
@@ -141,31 +154,59 @@ export default function LearningCenter() {
     setCourses(prev => [...prev, data]);
   };
 
-  const handleProgress = (idx: number, progress: number, timeSpent?: number) => {
+  const handleProgress = (idx: number, progress: number, timeSpent?: number, assessmentScore?: number) => {
     const isCompleted = progress >= 100;
-    const currentProgress = courseProgress[idx];
+    const currentProgress = courseProgress[idx] || { quizScores: [], assessmentScores: [] };
+    
+    // If assessment score provided, add it
+    let updatedAssessmentScores = currentProgress.assessmentScores || [];
+    if (assessmentScore !== undefined) {
+      const course = courses[idx];
+      const modules = course.modules || [];
+      // Find current assessment's passing score
+      let passingScore = 70; // default
+      modules.forEach(mod => {
+        mod.chapters.forEach(ch => {
+          if (ch.type === 'assessment' && (ch.content as any).passingScore) {
+            passingScore = (ch.content as any).passingScore;
+          }
+        });
+      });
+      
+      updatedAssessmentScores = [
+        ...updatedAssessmentScores,
+        { score: assessmentScore, passed: assessmentScore >= passingScore, passingScore }
+      ];
+    }
     
     setCourses(prev =>
       prev.map((c, i) => i === idx ? { ...c, progress, enrolled: true } : c)
     );
     
+    const newProgressData = {
+      progress,
+      timeSpent: (currentProgress?.timeSpent || 0) + (timeSpent || 0),
+      lastAccessed: new Date().toISOString(),
+      enrolled: true,
+      completed: isCompleted,
+      completedDate: isCompleted && !currentProgress?.completed 
+        ? new Date().toISOString() 
+        : currentProgress?.completedDate,
+      quizScores: currentProgress.quizScores || [],
+      assessmentScores: updatedAssessmentScores
+    };
+    
     setCourseProgress(prev => ({
       ...prev,
-      [idx]: {
-        progress,
-        timeSpent: (currentProgress?.timeSpent || 0) + (timeSpent || 0),
-        lastAccessed: new Date().toISOString(),
-        enrolled: true,
-        completed: isCompleted,
-        completedDate: isCompleted && !currentProgress?.completed 
-          ? new Date().toISOString() 
-          : currentProgress?.completedDate
-      }
+      [idx]: newProgressData
     }));
     
-    // Show completion toast
+    // Show completion stats popup only on new completion
     if (isCompleted && !currentProgress?.completed) {
-      toast("🎉 Congratulations! You've completed this course!");
+      // Wait a moment then show stats
+      setTimeout(() => {
+        setShowCompletionStats(true);
+      }, 500);
     }
   };
 
@@ -201,7 +242,9 @@ export default function LearningCenter() {
           lastAccessed: new Date().toISOString(),
           enrolled: true,
           completed: currentProgress?.completed || false,
-          completedDate: currentProgress?.completedDate
+          completedDate: currentProgress?.completedDate,
+          quizScores: currentProgress?.quizScores || [],
+          assessmentScores: currentProgress?.assessmentScores || []
         }
       }));
       
@@ -221,6 +264,12 @@ export default function LearningCenter() {
       setViewerOpen(false);
       setViewerIdx(null);
     }, 320);
+  };
+
+  const handleCloseCompletionStats = () => {
+    setShowCompletionStats(false);
+    setViewerOpen(false);
+    setViewerIdx(null);
   };
 
   const closeOverview = () => {
@@ -262,7 +311,7 @@ export default function LearningCenter() {
       <>
         <style>{`
           @keyframes cv-pageIn  { from{opacity:0;transform:translateY(18px) scale(0.98)} to{opacity:1;transform:translateY(0) scale(1)} }
-          @keyframes cv-pageOut { from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(18px) scale(0.98)} }
+          @keyframes cv-pageOut { from{opacity:1;transform:translateY(0) scale(0.98)} to{opacity:0;transform:translateY(18px) scale(0.98)} }
           .cv-page-enter { animation: cv-pageIn 0.45s cubic-bezier(0.16,1,0.3,1) both; }
           .cv-page-exit  { animation: cv-pageOut 0.32s ease forwards; }
         `}</style>
@@ -274,11 +323,31 @@ export default function LearningCenter() {
             <CourseViewer
               course={courses[viewerIdx]}
               onClose={closeViewer}
-              onProgress={(p, t) => handleProgress(viewerIdx, p, t)}
+              onProgress={(p, t, a) => handleProgress(viewerIdx, p, t, a)}
+              toast={toast}
             />
           )}
         </div>
         <Toast msg={msg} visible={visible} />
+        
+        {/* Completion Stats Popup */}
+        {showCompletionStats && viewerIdx !== null && courseProgress[viewerIdx]?.completed && (
+          <CourseCompletionStats
+            open={showCompletionStats}
+            onClose={handleCloseCompletionStats}
+            courseName={courses[viewerIdx].title}
+            stats={{
+              totalChapters: courses[viewerIdx].modules?.reduce((sum, m) => sum + m.chapters.length, 0) || 0,
+              completedChapters: courses[viewerIdx].modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.done).length, 0) || 0,
+              totalQuizzes: courses[viewerIdx].modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'quiz').length, 0) || 0,
+              quizScores: courseProgress[viewerIdx]?.quizScores || [],
+              totalAssessments: courses[viewerIdx].modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'assessment').length, 0) || 0,
+              assessmentScores: courseProgress[viewerIdx]?.assessmentScores || [],
+              timeSpent: courseProgress[viewerIdx]?.timeSpent || 0,
+              completionDate: courseProgress[viewerIdx]?.completedDate || new Date().toISOString()
+            }}
+          />
+        )}
       </>
     );
   }

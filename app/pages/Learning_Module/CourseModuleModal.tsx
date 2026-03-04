@@ -1056,6 +1056,25 @@ export default function CourseModuleModal({
                           <label className="cmm-lbl">Chapter Body (optional)</label>
                           <textarea className="cmm-ta" value={c.content.body??""} onChange={e=>updChCont(selMod,selCh,"body",e.target.value)} placeholder="Add introductory text..." rows={6}/>
                         </div>
+                        
+                        {c.type==="assessment"&&(
+                          <div className="cmm-field">
+                            <label className="cmm-lbl">Passing Score (%)</label>
+                            <input 
+                              className="cmm-input" 
+                              type="number" 
+                              min="60" 
+                              max="100" 
+                              value={(c.content as any).passingScore||70} 
+                              onChange={e=>updChCont(selMod,selCh,"passingScore",Math.min(100,Math.max(60,parseInt(e.target.value)||70)))}
+                              placeholder="e.g., 80"
+                            />
+                            <div style={{fontSize:11,color:"var(--t3,#a89dc8)",marginTop:4}}>
+                              Students must score at least this percentage to pass the assessment
+                            </div>
+                          </div>
+                        )}
+                        
                         <div style={{marginTop:20}}>
                           {(c.content.questions??[]).map((q,qi)=>{
                             const updQ=(k:keyof QuizQuestion,v:any)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi]={...q,[k]:v}; setModules(u); };

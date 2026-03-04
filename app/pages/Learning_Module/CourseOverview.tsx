@@ -20,6 +20,10 @@ const STYLES = `
 @keyframes coSlideIn { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
 @keyframes coPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
 @keyframes coShimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+@keyframes tabProgress { 
+  0% { width: 0% } 
+  100% { width: 100% } 
+}
 
 .co-page {
   position:fixed; inset:0; z-index:1000;
@@ -28,13 +32,15 @@ const STYLES = `
   animation:coFadeIn 0.4s ease both;
 }
 
-/* Header */
+/* Header - Integrated with hero info */
 .co-header {
-  height:64px; flex-shrink:0;
+  height:auto; flex-shrink:0;
   background:var(--surface,#fff);
   border-bottom:1px solid var(--border,rgba(124,58,237,0.1));
-  display:flex; align-items:center; padding:0 24px; gap:16px;
   box-shadow:0 1px 6px rgba(124,58,237,0.04);
+}
+.co-header-top {
+  display:flex; align-items:center; padding:12px 24px; gap:12px;
 }
 .co-back {
   width:36px; height:36px; border-radius:10px;
@@ -43,73 +49,66 @@ const STYLES = `
   color:var(--t2,#4a3870);
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; transition:all 0.15s; font-size:16px;
+  flex-shrink:0;
 }
 .co-back:hover {
   background:rgba(124,58,237,0.06);
   border-color:rgba(124,58,237,0.25);
   transform:translateX(-2px);
 }
-.co-header-title {
-  font-size:14px; font-weight:700;
-  color:var(--t2,#4a3870);
-}
-
-/* Hero Section */
-.co-hero {
+.co-header-icon {
+  width:44px; height:44px; border-radius:11px;
   background:linear-gradient(135deg,#7c3aed,#0d9488);
-  padding:32px;
-  border-bottom:1px solid rgba(255,255,255,0.1);
-  animation:coFadeIn 0.5s ease both;
-}
-.co-hero-content {
-  max-width:1200px; margin:0 auto;
-  display:flex; align-items:center; gap:24px;
-}
-.co-hero-icon {
-  width:100px; height:100px; border-radius:20px;
-  background:rgba(255,255,255,0.15);
-  backdrop-filter:blur(20px);
   display:flex; align-items:center; justify-content:center;
-  font-size:48px; flex-shrink:0;
-  box-shadow:0 8px 32px rgba(0,0,0,0.2);
-  border:2px solid rgba(255,255,255,0.2);
+  font-size:22px; flex-shrink:0;
+  box-shadow:0 2px 10px rgba(124,58,237,0.25);
 }
-.co-hero-details {
-  flex:1; color:#fff;
+.co-header-info {
+  flex:1; min-width:0;
 }
-.co-hero-category {
-  display:inline-flex; align-items:center; gap:6px;
-  padding:6px 12px; border-radius:8px;
-  background:rgba(255,255,255,0.2);
-  font-size:11px; font-weight:700;
+.co-header-meta {
+  display:flex; align-items:center; gap:8px; margin-bottom:4px;
+}
+.co-header-category {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 8px; border-radius:6px;
+  background:linear-gradient(135deg,rgba(124,58,237,0.1),rgba(13,148,136,0.1));
+  border:1px solid rgba(124,58,237,0.2);
+  font-size:10px; font-weight:700;
+  color:var(--purple,#7c3aed);
   text-transform:uppercase; letter-spacing:0.05em;
-  margin-bottom:12px;
 }
-.co-hero-title {
-  font-size:28px; font-weight:900;
-  letter-spacing:-0.03em; margin-bottom:8px;
+.co-header-title {
+  font-size:18px; font-weight:900;
+  color:var(--t1,#18103a);
+  letter-spacing:-0.02em;
   line-height:1.2;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-.co-hero-desc {
-  font-size:14px; line-height:1.5;
-  opacity:0.95; margin-bottom:16px;
+.co-header-stats {
+  display:flex; align-items:center; gap:16px;
+  padding:10px 24px 12px;
+  border-top:1px solid var(--border,rgba(124,58,237,0.06));
+  background:var(--bg,#faf9ff);
 }
-.co-hero-meta {
-  display:flex; align-items:center; gap:20px;
-  font-size:13px; opacity:0.9;
-}
-.co-hero-meta-item {
+.co-header-stat {
   display:flex; align-items:center; gap:6px;
+  font-size:12px; color:var(--t2,#4a3870);
+}
+.co-header-stat svg {
+  width:14px; height:14px;
+  color:var(--t3,#a89dc8);
 }
 
+/* Remove old hero section */
 /* Body */
 .co-body {
-  flex:1; display:flex; overflow:hidden; padding:24px;
+  flex:1; display:flex; overflow:hidden; padding:20px 24px;
 }
 .co-container {
   max-width:1200px; margin:0 auto; width:100%;
-  display:grid; grid-template-columns:1fr 360px;
-  gap:24px; align-items:start;
+  display:grid; grid-template-columns:1fr 340px;
+  gap:20px; align-items:start;
 }
 
 /* Main Content */
@@ -121,22 +120,22 @@ const STYLES = `
 .co-progress-card {
   background:var(--surface,#fff);
   border:1.5px solid var(--border,rgba(124,58,237,0.1));
-  border-radius:16px; padding:20px;
+  border-radius:16px; padding:16px;
   animation:coSlideIn 0.4s ease both;
   animation-delay:0.1s;
 }
 .co-progress-header {
-  display:flex; align-items:center; gap:12px;
-  margin-bottom:16px;
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:12px;
 }
 .co-progress-icon {
-  width:44px; height:44px; border-radius:12px;
+  width:38px; height:38px; border-radius:10px;
   background:linear-gradient(135deg,rgba(124,58,237,0.1),rgba(13,148,136,0.1));
   display:flex; align-items:center; justify-content:center;
-  font-size:20px;
+  font-size:18px;
 }
 .co-progress-title {
-  font-size:18px; font-weight:800;
+  font-size:16px; font-weight:800;
   color:var(--t1,#18103a);
 }
 .co-progress-bar-wrapper {
@@ -173,28 +172,28 @@ const STYLES = `
 }
 .co-progress-details {
   display:grid; grid-template-columns:1fr 1fr;
-  gap:12px; margin-top:16px;
-  padding-top:16px;
+  gap:10px; margin-top:12px;
+  padding-top:12px;
   border-top:1px solid var(--border,rgba(124,58,237,0.08));
 }
 .co-progress-detail {
-  display:flex; align-items:center; gap:10px;
+  display:flex; align-items:center; gap:8px;
 }
 .co-progress-detail-icon {
-  width:36px; height:36px; border-radius:9px;
+  width:32px; height:32px; border-radius:8px;
   display:flex; align-items:center; justify-content:center;
-  font-size:16px; flex-shrink:0;
+  font-size:14px; flex-shrink:0;
 }
 .co-progress-detail-content {
   flex:1;
 }
 .co-progress-detail-label {
-  font-size:10.5px; font-weight:600;
+  font-size:10px; font-weight:600;
   color:var(--t3,#a89dc8);
   text-transform:uppercase; letter-spacing:0.05em;
 }
 .co-progress-detail-value {
-  font-size:15px; font-weight:800;
+  font-size:14px; font-weight:800;
   color:var(--t1,#18103a);
 }
 
@@ -212,9 +211,36 @@ const STYLES = `
   display:flex; align-items:center; gap:12px;
   margin-bottom:16px; flex-shrink:0;
 }
+.co-content-tabs {
+  display:flex; gap:6px; margin-bottom:10px;
+  flex-shrink:0;
+}
+.co-content-tab {
+  flex:1; padding:8px 14px; border-radius:8px;
+  background:transparent; border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  color:var(--t2,#4a3870); font-size:11.5px; font-weight:600;
+  cursor:pointer; transition:all 0.2s;
+  text-align:center;
+}
+.co-content-tab:hover {
+  background:rgba(124,58,237,0.04);
+  border-color:rgba(124,58,237,0.2);
+}
+.co-content-tab.active {
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  border-color:transparent;
+  color:#fff;
+}
 .co-content-scroll {
-  flex:1; overflow-y:auto; overflow-x:hidden;
-  margin:0 -20px; padding:0 20px;
+  flex:1; overflow:hidden; position:relative;
+}
+.co-content-swiper {
+  display:flex; transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  height:100%;
+}
+.co-content-panel {
+  flex:0 0 100%; overflow-y:auto; overflow-x:hidden;
+  padding-right:10px;
 }
 .co-content-icon {
   width:44px; height:44px; border-radius:12px;
@@ -293,22 +319,22 @@ const STYLES = `
 /* CTA Card */
 .co-cta-card {
   background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
-  border-radius:16px; padding:24px;
+  border-radius:16px; padding:20px;
   color:#fff;
   animation:coSlideIn 0.4s ease both;
   animation-delay:0.3s;
   box-shadow:0 8px 24px rgba(124,58,237,0.25);
 }
 .co-cta-title {
-  font-size:18px; font-weight:800;
+  font-size:17px; font-weight:800;
   margin-bottom:6px; line-height:1.3;
 }
 .co-cta-desc {
   font-size:12px; opacity:0.95;
-  line-height:1.5; margin-bottom:18px;
+  line-height:1.5; margin-bottom:16px;
 }
 .co-cta-button {
-  width:100%; padding:12px 18px;
+  width:100%; padding:11px 16px;
   border-radius:10px; border:none;
   background:rgba(255,255,255,0.95);
   color:var(--purple,#7c3aed);
@@ -330,17 +356,17 @@ const STYLES = `
 .co-info-card {
   background:var(--surface,#fff);
   border:1.5px solid var(--border,rgba(124,58,237,0.1));
-  border-radius:16px; padding:18px;
+  border-radius:16px; padding:16px;
   animation:coSlideIn 0.4s ease both;
   animation-delay:0.4s;
 }
 .co-info-title {
-  font-size:13px; font-weight:700;
-  color:var(--t1,#18103a); margin-bottom:12px;
+  font-size:12.5px; font-weight:700;
+  color:var(--t1,#18103a); margin-bottom:10px;
 }
 .co-info-item {
-  display:flex; align-items:flex-start; gap:10px;
-  padding:8px 0;
+  display:flex; align-items:flex-start; gap:8px;
+  padding:7px 0;
   border-bottom:1px solid var(--border,rgba(124,58,237,0.06));
 }
 .co-info-item:last-child {
@@ -391,6 +417,31 @@ export default function CourseOverview({
   completedDate
 }: CourseOverviewProps) {
   const modules = course.modules || [];
+  const [activeTab, setActiveTab] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  
+  // Auto-scroll through tabs every 6 seconds unless paused
+  useEffect(() => {
+    if (isPaused) return;
+    
+    const interval = setInterval(() => {
+      setActiveTab(prev => (prev + 1) % 3);
+    }, 6000);
+    
+    return () => clearInterval(interval);
+  }, [isPaused]);
+  
+  // Pause auto-scroll when user clicks a tab
+  const handleTabClick = (index: number) => {
+    setActiveTab(index);
+    setIsPaused(true);
+    
+    // Resume auto-scroll after 10 seconds of inactivity
+    setTimeout(() => {
+      setIsPaused(false);
+    }, 10000);
+  };
+  
   const totalChapters = modules.reduce((sum, m) => sum + m.chapters.length, 0);
   const completedChapters = modules.reduce(
     (sum, m) => sum + m.chapters.filter(c => c.done).length,
@@ -440,51 +491,47 @@ export default function CourseOverview({
       <style>{STYLES}</style>
       <div className="co-page">
         
-        {/* Header */}
+        {/* Compact Header with Course Info */}
         <div className="co-header">
-          <button className="co-back" onClick={onClose}>
-            ←
-          </button>
-          <div className="co-header-title">Course Overview</div>
-        </div>
-
-        {/* Hero Section */}
-        <div className="co-hero">
-          <div className="co-hero-content">
-            <div className="co-hero-icon">
+          <div className="co-header-top">
+            <button className="co-back" onClick={onClose}>
+              ←
+            </button>
+            <div className="co-header-icon">
               {course.thumbEmoji || "📚"}
             </div>
-            <div className="co-hero-details">
-              <div className="co-hero-category">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                  <rect x="1" y="1" width="10" height="10" rx="2"/>
-                </svg>
-                {course.cat || "General"}
-              </div>
-              <h1 className="co-hero-title">{course.title}</h1>
-              <p className="co-hero-desc">{course.desc}</p>
-              <div className="co-hero-meta">
-                <div className="co-hero-meta-item">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <circle cx="7" cy="7" r="5.5"/>
-                    <path d="M7 3.5v3.5l2 2"/>
+            <div className="co-header-info">
+              <div className="co-header-meta">
+                <div className="co-header-category">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                    <rect x="1" y="1" width="8" height="8" rx="1.5"/>
                   </svg>
-                  {course.time}
-                </div>
-                <div className="co-hero-meta-item">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="2" y="3" width="10" height="9" rx="1"/>
-                    <path d="M2 6h10"/>
-                  </svg>
-                  {modules.length} Module{modules.length !== 1 ? 's' : ''}
-                </div>
-                <div className="co-hero-meta-item">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M7 2v10M2 7h10"/>
-                  </svg>
-                  {totalChapters} Chapter{totalChapters !== 1 ? 's' : ''}
+                  {course.cat || "General"}
                 </div>
               </div>
+              <h1 className="co-header-title">{course.title}</h1>
+            </div>
+          </div>
+          <div className="co-header-stats">
+            <div className="co-header-stat">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="7" cy="7" r="5.5"/>
+                <path d="M7 3.5v3.5l2 2"/>
+              </svg>
+              {course.time}
+            </div>
+            <div className="co-header-stat">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="2" y="3" width="10" height="9" rx="1"/>
+                <path d="M2 6h10"/>
+              </svg>
+              {modules.length} Module{modules.length !== 1 ? 's' : ''}
+            </div>
+            <div className="co-header-stat">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M7 2v10M2 7h10"/>
+              </svg>
+              {totalChapters} Chapter{totalChapters !== 1 ? 's' : ''}
             </div>
           </div>
         </div>
@@ -596,36 +643,262 @@ export default function CourseOverview({
               <div className="co-content-card">
                 <div className="co-content-header">
                   <div className="co-content-icon">📚</div>
-                  <div className="co-content-title">Course Content</div>
+                  <div className="co-content-title">Course Information</div>
                 </div>
 
+                {/* Tabs */}
+                <div className="co-content-tabs">
+                  <button 
+                    className={`co-content-tab${activeTab === 0 ? ' active' : ''}`}
+                    onClick={() => handleTabClick(0)}
+                  >
+                    Overview
+                  </button>
+                  <button 
+                    className={`co-content-tab${activeTab === 1 ? ' active' : ''}`}
+                    onClick={() => handleTabClick(1)}
+                  >
+                    Curriculum
+                  </button>
+                  <button 
+                    className={`co-content-tab${activeTab === 2 ? ' active' : ''}`}
+                    onClick={() => handleTabClick(2)}
+                  >
+                    Details
+                  </button>
+                </div>
+                
+                {/* Auto-scroll indicator */}
+                {!isPaused && (
+                  <div style={{
+                    height: 3,
+                    background: 'var(--border,rgba(124,58,237,0.1))',
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                    marginBottom: 12
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: '33.33%',
+                      background: 'linear-gradient(90deg,var(--purple,#7c3aed),var(--teal,#0d9488))',
+                      borderRadius: 3,
+                      animation: 'tabProgress 6s linear infinite',
+                      transform: `translateX(${activeTab * 100}%)`
+                    }} />
+                  </div>
+                )}
+
+                {/* Swiper */}
                 <div className="co-content-scroll">
-                  {modules.map((mod, modIdx) => (
-                    <div key={modIdx} className="co-module">
-                      <div className="co-module-header">
-                        <div className="co-module-num">{modIdx + 1}</div>
-                        <div className="co-module-title">{mod.title}</div>
-                        <div className="co-module-count">
-                          {mod.chapters.length} chapter{mod.chapters.length !== 1 ? 's' : ''}
+                  <div className="co-content-swiper" style={{ transform: `translateX(-${activeTab * 100}%)` }}>
+                    
+                    {/* Panel 0: What You'll Learn */}
+                    <div className="co-content-panel">
+                      <div style={{ 
+                        padding: 14,
+                        borderRadius: 12,
+                        background: 'linear-gradient(135deg,rgba(124,58,237,0.08),rgba(13,148,136,0.08))',
+                        border: '1.5px solid rgba(124,58,237,0.15)',
+                        marginBottom: 14
+                      }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t1,#18103a)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 16 }}>📚</span>
+                          Course Overview
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--t2,#4a3870)', lineHeight: 1.6 }}>
+                          {course.desc}
                         </div>
                       </div>
                       
-                      {mod.chapters.map((ch, chIdx) => {
-                        const meta = TM[ch.type];
-                        return (
-                          <div key={chIdx} className={`co-chapter${ch.done ? ' done' : ''}`}>
-                            <div className="co-chapter-icon" style={{ background: meta.bg, color: meta.color }}>
-                              {meta.icon}
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--t1,#18103a)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        What You'll Learn
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {modules.slice(0, 3).map((mod, idx) => (
+                          <div key={idx} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: 10,
+                            borderRadius: 10,
+                            background: 'var(--bg,#faf9ff)',
+                            border: '1.5px solid var(--border,rgba(124,58,237,0.08))'
+                          }}>
+                            <div style={{
+                              width: 26,
+                              height: 26,
+                              borderRadius: 7,
+                              background: 'var(--purple,#7c3aed)',
+                              color: '#fff',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              {idx + 1}
                             </div>
-                            <div className="co-chapter-title">{ch.title}</div>
-                            <div className="co-chapter-check">
-                              {ch.done && '✓'}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1,#18103a)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {mod.title}
+                              </div>
+                              <div style={{ fontSize: 10.5, color: 'var(--t3,#a89dc8)' }}>
+                                {mod.chapters.length} chapter{mod.chapters.length !== 1 ? 's' : ''}
+                              </div>
                             </div>
                           </div>
-                        );
-                      })}
+                        ))}
+                        {modules.length > 3 && (
+                          <div style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            background: 'rgba(124,58,237,0.04)',
+                            border: '1.5px dashed rgba(124,58,237,0.2)',
+                            textAlign: 'center',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: 'var(--purple,#7c3aed)'
+                          }}>
+                            + {modules.length - 3} more module{modules.length - 3 !== 1 ? 's' : ''} • Click "Curriculum" to view all
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ))}
+
+                    {/* Panel 1: All Modules & Chapters */}
+                    <div className="co-content-panel">
+                      {modules.map((mod, modIdx) => (
+                        <div key={modIdx} className="co-module">
+                          <div className="co-module-header">
+                            <div className="co-module-num">{modIdx + 1}</div>
+                            <div className="co-module-title">{mod.title}</div>
+                            <div className="co-module-count">
+                              {mod.chapters.length}
+                            </div>
+                          </div>
+                          
+                          {mod.chapters.map((ch, chIdx) => {
+                            const meta = TM[ch.type];
+                            return (
+                              <div key={chIdx} className={`co-chapter${ch.done ? ' done' : ''}`}>
+                                <div className="co-chapter-icon" style={{ background: meta.bg, color: meta.color }}>
+                                  {meta.icon}
+                                </div>
+                                <div className="co-chapter-title">{ch.title}</div>
+                                <div className="co-chapter-check">
+                                  {ch.done && '✓'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Panel 2: Stats & Requirements */}
+                    <div className="co-content-panel">
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 10,
+                        marginBottom: 14
+                      }}>
+                        <div style={{
+                          padding: 12,
+                          borderRadius: 10,
+                          background: '#e0f2fe',
+                          border: '1.5px solid rgba(2,132,199,0.2)'
+                        }}>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: '#0284c7', marginBottom: 2 }}>
+                            {modules.length}
+                          </div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#0c4a6e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Modules
+                          </div>
+                        </div>
+                        <div style={{
+                          padding: 12,
+                          borderRadius: 10,
+                          background: '#ede9fe',
+                          border: '1.5px solid rgba(124,58,237,0.2)'
+                        }}>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: '#7c3aed', marginBottom: 2 }}>
+                            {totalChapters}
+                          </div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#5b21b6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Chapters
+                          </div>
+                        </div>
+                        <div style={{
+                          padding: 12,
+                          borderRadius: 10,
+                          background: '#fef3c7',
+                          border: '1.5px solid rgba(217,119,6,0.2)'
+                        }}>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: '#d97706', marginBottom: 2 }}>
+                            {modules.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'quiz' || c.type === 'assessment').length, 0)}
+                          </div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Tests
+                          </div>
+                        </div>
+                        <div style={{
+                          padding: 12,
+                          borderRadius: 10,
+                          background: '#d1fae5',
+                          border: '1.5px solid rgba(13,148,136,0.2)'
+                        }}>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: '#0d9488', marginBottom: 2 }}>
+                            {course.time}
+                          </div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Duration
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div style={{
+                        padding: 12,
+                        borderRadius: 10,
+                        background: 'var(--bg,#faf9ff)',
+                        border: '1.5px solid var(--border,rgba(124,58,237,0.1))',
+                        marginBottom: 10
+                      }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--t1,#18103a)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 14 }}>📋</span>
+                          Requirements
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--t2,#4a3870)', lineHeight: 1.6 }}>
+                          • Basic computer literacy<br/>
+                          • Stable internet connection<br/>
+                          • Complete all modules<br/>
+                          • Pass quizzes and assessments
+                        </div>
+                      </div>
+                      
+                      <div style={{
+                        padding: 12,
+                        borderRadius: 10,
+                        background: 'var(--bg,#faf9ff)',
+                        border: '1.5px solid var(--border,rgba(124,58,237,0.1))'
+                      }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--t1,#18103a)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 14 }}>🎯</span>
+                          Learning Path
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--t2,#4a3870)', lineHeight: 1.6 }}>
+                          1. Study lessons & watch videos<br/>
+                          2. Complete activities<br/>
+                          3. Pass quizzes (100% required)<br/>
+                          4. Pass assessments (70%+ required)<br/>
+                          5. Earn completion certificate
+                        </div>
+                      </div>
+                    </div>
+                    
+                  </div>
                 </div>
               </div>
             </div>
