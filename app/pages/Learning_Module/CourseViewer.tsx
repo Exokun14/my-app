@@ -1,616 +1,1043 @@
 'use client'
 
-import type { Course, Chapter, ChapterType, CourseViewerProps, CourseViewerLandingProps, ContentProps } from "../../Data/types";
-import type { Activity as Segment } from "./ActivityManager";
-import {
-  TM, STYLES,
-  videoEmbed, presentationEmbed,
-  calcQuizScore, isAllAnswered, checkFillBlank,
-  useInjectStyles, useAccordion, useFlashcards, useFillBlank,
-  useChecklist, useMatchingGame, useParticleCanvas, useCourseViewer,
-} from "../Logic/CourseViewerLogic";
+import { useState, useEffect, useRef } from "react";
+import type { Course } from "../../Data/types";
+import { ACT_META, type Activity } from "./ActivityBuilderPanel";
 
-// ─── Particle canvas ──────────────────────────────────────────────────────────
-function ParticleCanvas({ trigger, originEl }: { trigger: number; originEl: React.RefObject<HTMLElement | null> }) {
-  const canvasRef = useParticleCanvas(trigger, originEl);
-  return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9999 }} />;
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface CourseViewerProps {
+  course: Course;
+  onClose: () => void;
+  onProgress: (progress: number, timeSpent?: number) => void;
 }
 
-// ─── Interactive Segment Renderers ────────────────────────────────────────────
-
-function SegAccordion({ seg }: { seg: Segment }) {
-  const { open, toggle } = useAccordion();
-  const items = seg.items ?? [];
-  return (
-    <div style={{ background: "#fff", border: "1px solid rgba(2,132,199,0.14)", borderRadius: 14, overflow: "hidden", animation: "cv2-segIn .3s ease" }}>
-      <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(2,132,199,0.1)", display: "flex", alignItems: "center", gap: 8, background: "#f0f9ff" }}>
-        <span style={{ fontSize: 14 }}>🗂️</span>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#0284c7" }}>{seg.title || "Accordion"}</span>
-        <span style={{ marginLeft: "auto", fontSize: 9.5, color: "#a89dc8" }}>{items.length} items</span>
-      </div>
-      {items.map((item, i) => (
-        <div key={i} className="cv2-acc-item" style={{ borderBottom: i < items.length - 1 ? "1px solid rgba(2,132,199,0.08)" : "none" }}>
-          <div onClick={() => toggle(i)} style={{ padding: "11px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: open === i ? "#e0f2fe" : "transparent" }}>
-            <span style={{ fontSize: 12 }}>❓</span>
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#0c4a6e" }}>{item.q}</span>
-            <svg width="10" height="7" viewBox="0 0 10 7" fill="#0284c7" style={{ flexShrink: 0, transform: open === i ? "rotate(180deg)" : "none", transition: "transform .2s" }}><path d="M1 1l4 4 4-4"/></svg>
-          </div>
-          {open === i && (
-            <div style={{ padding: "0 16px 14px 38px", fontSize: 13, color: "#2d4a6a", lineHeight: 1.7, animation: "cv2-fadeIn .2s ease" }}>{item.a}</div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+interface UnifiedBlock {
+  id: string;
+  type: "content" | "media" | "activity";
+  title?: string;
+  body?: string;
+  mediaType?: "video" | "presentation";
+  mediaUrl?: string;
+  activity?: Activity;
 }
 
-function SegFlashcards({ seg }: { seg: Segment }) {
-  const cards = seg.cards ?? [];
-  const { cur, flipped, flip, next, prev } = useFlashcards(cards.length);
-  if (!cards.length) return null;
-  const card = cards[cur];
-  return (
-    <div style={{ background: "#fff", border: "1px solid rgba(124,58,237,0.14)", borderRadius: 14, overflow: "hidden", animation: "cv2-segIn .3s ease" }}>
-      <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(124,58,237,0.1)", display: "flex", alignItems: "center", gap: 8, background: "#f5f3ff" }}>
-        <span style={{ fontSize: 14 }}>🃏</span>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#7c3aed" }}>{seg.title || "Flashcards"}</span>
-        <span style={{ marginLeft: "auto", fontSize: 9.5, color: "#a89dc8" }}>{cur + 1} / {cards.length}</span>
-      </div>
-      <div style={{ padding: "20px" }}>
-        <div className="cv2-card-scene" style={{ height: 140, marginBottom: 14 }} onClick={flip}>
-          <div className={`cv2-card-inner${flipped ? " flipped" : ""}`} style={{ height: "100%", cursor: "pointer" }}>
-            <div className="cv2-card-face" style={{ background: "linear-gradient(135deg,#7c3aed,#5b21b6)", boxShadow: "0 4px 18px rgba(124,58,237,0.3)" }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.6)", letterSpacing: ".1em", textTransform: "uppercase" as const, marginBottom: 8 }}>Front — tap to flip</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", lineHeight: 1.4 }}>{card.front}</div>
-              </div>
-            </div>
-            <div className="cv2-card-face cv2-card-back" style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", boxShadow: "0 4px 18px rgba(13,148,136,0.3)" }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.6)", letterSpacing: ".1em", textTransform: "uppercase" as const, marginBottom: 8 }}>Back</div>
-                <div style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.55 }}>{card.back}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={prev} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(124,58,237,0.2)", background: "#fff", color: "#7c3aed", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>← Prev</button>
-          <div style={{ flex: 1, height: 3, background: "#e9e6f8", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${((cur + 1) / cards.length) * 100}%`, background: "linear-gradient(90deg,#7c3aed,#0d9488)", borderRadius: 3, transition: "width .3s ease" }} />
-          </div>
-          <button onClick={next} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c3aed,#0d9488)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Next →</button>
-        </div>
-      </div>
-    </div>
-  );
+interface Chapter {
+  title: string;
+  type: "lesson" | "quiz" | "assessment";
+  done: boolean;
+  content: {
+    title: string;
+    type: string;
+    body?: string;
+    blocks?: UnifiedBlock[];
+    questions?: Array<{ q: string; opts: string[]; ans: number }>;
+    media: { type: string; url: string };
+  };
 }
 
-function SegFillBlank({ seg }: { seg: Segment }) {
-  const qs = seg.questions ?? [];
-  const { inputs, submitted, allFilled, updateInput, submit, reset } = useFillBlank(qs.length);
-  return (
-    <div style={{ background: "#fff", border: "1px solid rgba(15,118,110,0.14)", borderRadius: 14, overflow: "hidden", animation: "cv2-segIn .3s ease" }}>
-      <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(15,118,110,0.1)", display: "flex", alignItems: "center", gap: 8, background: "#f0fdf9" }}>
-        <span style={{ fontSize: 14 }}>✏️</span>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#0f766e" }}>{seg.title || "Fill in the Blanks"}</span>
-      </div>
-      <div style={{ padding: "16px" }}>
-        {qs.map((q, qi) => {
-          const parts   = q.sentence.split("__BLANK__");
-          const correct = submitted ? checkFillBlank(inputs, qs, qi) : null;
-          return (
-            <div key={qi} style={{ marginBottom: qi < qs.length - 1 ? 14 : 0 }}>
-              <div style={{ fontSize: 13.5, color: "#0c4a6e", lineHeight: 1.7, display: "flex", flexWrap: "wrap" as const, alignItems: "center", gap: 4 }}>
-                {parts.map((part, pi) => (
-                  <span key={pi} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    {part}
-                    {pi < parts.length - 1 && (
-                      <input
-                        value={inputs[qi] ?? ""}
-                        onChange={e => updateInput(qi, e.target.value)}
-                        disabled={submitted}
-                        placeholder="___"
-                        style={{ width: 120, border: `2px solid ${submitted ? (correct ? "rgba(22,163,74,0.6)" : "rgba(220,38,38,0.6)") : "rgba(15,118,110,0.3)"}`, borderRadius: 8, padding: "3px 10px", fontSize: 13, background: submitted ? (correct ? "#f0fdf4" : "#fff5f5") : "#fff", outline: "none", color: "#0c4a6e", fontFamily: "inherit", textAlign: "center" as const, transition: "all .2s" }}
-                      />
-                    )}
-                  </span>
-                ))}
-                {submitted && (
-                  <span style={{ fontSize: 12, fontWeight: 700, color: correct ? "#15803d" : "#dc2626", animation: "cv2-popIn .3s ease" }}>
-                    {correct ? " ✓ Correct!" : ` ✗ Answer: ${q.blanks[0]}`}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        {!submitted
-          ? <button onClick={submit} disabled={!allFilled} style={{ marginTop: 14, padding: "8px 22px", borderRadius: 10, border: "none", background: allFilled ? "linear-gradient(135deg,#0f766e,#0284c7)" : "#e2dff5", color: allFilled ? "#fff" : "#a89dc8", fontSize: 12, fontWeight: 700, cursor: allFilled ? "pointer" : "not-allowed", transition: "all .15s" }}>Check Answers →</button>
-          : <button onClick={reset} style={{ marginTop: 14, padding: "8px 22px", borderRadius: 10, border: "1px solid rgba(15,118,110,0.25)", background: "#f0fdf9", color: "#0f766e", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Try Again</button>
+interface Module {
+  title: string;
+  done: boolean;
+  chapters: Chapter[];
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function videoEmbed(url: string): string | null {
+  if (!url?.trim()) return null;
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}?rel=0&modestbranding=1`;
+  const vi = url.match(/vimeo\.com\/(\d+)/);
+  if (vi) return `https://player.vimeo.com/video/${vi[1]}`;
+  return url;
+}
+
+function presentationEmbed(url: string): string | null {
+  if (!url?.trim()) return null;
+  const gs = url.match(/docs\.google\.com\/presentation\/d\/([^/?]+)/);
+  if (gs) return `https://docs.google.com/presentation/d/${gs[1]}/embed?start=false&loop=false`;
+  return url;
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const STYLES = `
+@keyframes cvSlideIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+@keyframes cvFadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes cvPulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+.cv-page {
+  position:fixed; inset:0; z-index:1000;
+  background:var(--bg,#f8f7ff);
+  display:flex; flex-direction:column;
+  animation:cvFadeIn 0.3s ease both;
+}
+
+/* Header */
+.cv-header {
+  height:64px; flex-shrink:0;
+  background:var(--surface,#fff);
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.1));
+  display:flex; align-items:center; padding:0 24px; gap:16px;
+  box-shadow:0 1px 6px rgba(124,58,237,0.04);
+}
+.cv-header-back {
+  width:36px; height:36px; border-radius:10px;
+  background:transparent;
+  border:1.5px solid var(--border,rgba(124,58,237,0.15));
+  color:var(--t2,#4a3870);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:all 0.15s;
+  font-size:16px;
+}
+.cv-header-back:hover {
+  background:rgba(124,58,237,0.06);
+  border-color:rgba(124,58,237,0.25);
+  transform:translateX(-2px);
+}
+.cv-header-title {
+  font-size:16px; font-weight:800;
+  color:var(--t1,#18103a); letter-spacing:-0.02em;
+}
+.cv-header-progress {
+  margin-left:auto;
+  display:flex; flex-direction:column; gap:4px; width:160px;
+}
+.cv-progress-bar {
+  height:5px; border-radius:5px;
+  background:var(--border,rgba(124,58,237,0.1));
+  overflow:hidden;
+}
+.cv-progress-fill {
+  height:100%; border-radius:5px;
+  background:linear-gradient(90deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  transition:width 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+.cv-progress-text {
+  font-size:10px; font-weight:600;
+  color:var(--t3,#a89dc8); text-align:right;
+}
+
+/* Body */
+.cv-body {
+  flex:1; display:flex; overflow:hidden;
+}
+
+/* Sidebar */
+.cv-sidebar {
+  width:320px; flex-shrink:0;
+  background:var(--surface,#fff);
+  border-right:1px solid var(--border,rgba(124,58,237,0.1));
+  display:flex; flex-direction:column;
+}
+.cv-sidebar-header {
+  padding:18px 20px;
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.08));
+  background:linear-gradient(to bottom,rgba(124,58,237,0.02),transparent);
+}
+.cv-sidebar-title {
+  font-size:13px; font-weight:700;
+  color:var(--t1,#18103a); margin-bottom:4px;
+}
+.cv-sidebar-subtitle {
+  font-size:11px; color:var(--t3,#a89dc8);
+}
+.cv-sidebar-scroll {
+  flex:1; overflow-y:auto; padding:16px;
+}
+
+/* Module Card */
+.cv-module {
+  background:var(--surface,#fff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  border-radius:12px; padding:14px; margin-bottom:12px;
+  transition:all 0.15s;
+}
+.cv-module:hover {
+  border-color:rgba(124,58,237,0.2);
+  transform:translateX(2px);
+}
+.cv-module-header {
+  display:flex; align-items:center; gap:10px; margin-bottom:10px;
+}
+.cv-module-num {
+  width:28px; height:28px; border-radius:8px;
+  background:var(--purple,#7c3aed); color:#fff;
+  font-size:12px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.cv-module-title {
+  flex:1; font-size:13.5px; font-weight:700;
+  color:var(--t1,#18103a);
+}
+
+/* Chapter Item */
+.cv-chapter {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:9px;
+  background:var(--bg,#faf9ff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.08));
+  margin-bottom:6px; cursor:pointer;
+  transition:all 0.14s;
+}
+.cv-chapter:hover {
+  background:#f5f3ff;
+  border-color:rgba(124,58,237,0.18);
+  transform:translateX(3px);
+}
+.cv-chapter.active {
+  background:linear-gradient(135deg,rgba(124,58,237,0.08),rgba(13,148,136,0.08));
+  border-color:var(--purple,#7c3aed);
+  box-shadow:0 2px 8px rgba(124,58,237,0.12);
+}
+.cv-chapter-icon {
+  width:24px; height:24px; border-radius:7px;
+  font-size:12px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.cv-chapter-content {
+  flex:1; min-width:0;
+}
+.cv-chapter-title {
+  font-size:12.5px; font-weight:600;
+  color:var(--t1,#18103a);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.cv-chapter-meta {
+  font-size:10px; color:var(--t3,#a89dc8);
+  margin-top:2px;
+}
+.cv-chapter-check {
+  width:20px; height:20px; border-radius:50%;
+  border:2px solid var(--border,rgba(124,58,237,0.2));
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; transition:all 0.2s;
+}
+.cv-chapter.done .cv-chapter-check {
+  background:var(--teal,#0d9488);
+  border-color:var(--teal,#0d9488);
+  color:#fff;
+}
+
+/* Main Content */
+.cv-main {
+  flex:1; overflow-y:auto; padding:32px;
+}
+.cv-content-wrapper {
+  max-width:800px; margin:0 auto;
+  animation:cvSlideIn 0.35s ease both;
+}
+
+/* Chapter Header */
+.cv-chapter-header {
+  display:flex; align-items:flex-start; gap:16px;
+  margin-bottom:28px; padding-bottom:20px;
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.1));
+}
+.cv-chapter-header-icon {
+  width:52px; height:52px; border-radius:14px;
+  font-size:26px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+  box-shadow:0 4px 14px rgba(124,58,237,0.15);
+}
+.cv-chapter-header-content {
+  flex:1;
+}
+.cv-chapter-header-title {
+  font-size:24px; font-weight:800;
+  color:var(--t1,#18103a);
+  letter-spacing:-0.03em; margin-bottom:6px;
+  line-height:1.2;
+}
+.cv-chapter-header-type {
+  font-size:11.5px; font-weight:600;
+  color:var(--t3,#a89dc8);
+  text-transform:uppercase; letter-spacing:0.05em;
+}
+
+/* Content Block */
+.cv-block {
+  background:var(--surface,#fff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  border-radius:14px; padding:20px; margin-bottom:20px;
+  animation:cvFadeIn 0.4s ease both;
+}
+.cv-block-title {
+  font-size:16px; font-weight:700;
+  color:var(--t1,#18103a); margin-bottom:12px;
+  display:flex; align-items:center; gap:8px;
+}
+.cv-block-body {
+  font-size:14px; color:var(--t2,#4a3870);
+  line-height:1.7;
+}
+
+/* Media Block */
+.cv-media {
+  background:var(--surface,#fff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  border-radius:14px; overflow:hidden;
+  margin-bottom:20px;
+  animation:cvFadeIn 0.4s ease both;
+}
+.cv-media iframe {
+  width:100%; height:450px; border:none; display:block;
+}
+
+/* Activity Block */
+.cv-activity {
+  background:var(--surface,#fff);
+  border:1.5px solid rgba(124,58,237,0.15);
+  border-radius:14px; padding:20px; margin-bottom:20px;
+  animation:cvFadeIn 0.4s ease both;
+}
+.cv-activity-header {
+  display:flex; align-items:center; gap:12px;
+  padding-bottom:16px; margin-bottom:16px;
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.08));
+}
+.cv-activity-icon {
+  width:44px; height:44px; border-radius:11px;
+  font-size:22px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.cv-activity-title {
+  flex:1;
+  font-size:15px; font-weight:700;
+  color:var(--t1,#18103a);
+}
+.cv-activity-type {
+  font-size:10.5px; font-weight:600;
+  color:var(--t3,#a89dc8);
+  text-transform:uppercase; letter-spacing:0.05em;
+}
+
+/* Activity: Accordion */
+.cv-accordion-item {
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  border-radius:10px; margin-bottom:10px;
+  overflow:hidden; transition:all 0.15s;
+}
+.cv-accordion-item:hover {
+  border-color:rgba(124,58,237,0.2);
+}
+.cv-accordion-question {
+  padding:14px 16px;
+  display:flex; align-items:center; gap:10px;
+  cursor:pointer; background:var(--bg,#faf9ff);
+  transition:all 0.15s;
+}
+.cv-accordion-question:hover {
+  background:#f5f3ff;
+}
+.cv-accordion-question.open {
+  background:rgba(124,58,237,0.06);
+}
+.cv-accordion-icon {
+  font-size:16px; flex-shrink:0;
+}
+.cv-accordion-text {
+  flex:1; font-size:13.5px; font-weight:600;
+  color:var(--t1,#18103a);
+}
+.cv-accordion-chevron {
+  width:16px; height:16px; flex-shrink:0;
+  transition:transform 0.2s;
+}
+.cv-accordion-chevron.open {
+  transform:rotate(180deg);
+}
+.cv-accordion-answer {
+  padding:0 16px 16px 48px;
+  font-size:13px; color:var(--t2,#4a3870);
+  line-height:1.65;
+  animation:cvFadeIn 0.2s ease;
+}
+
+/* Activity: Flashcards */
+.cv-flashcard-container {
+  padding:20px;
+  background:var(--bg,#faf9ff);
+  border-radius:12px;
+}
+.cv-flashcard {
+  height:200px; margin-bottom:20px;
+  perspective:1000px; cursor:pointer;
+}
+.cv-flashcard-inner {
+  position:relative; width:100%; height:100%;
+  transition:transform 0.6s;
+  transform-style:preserve-3d;
+}
+.cv-flashcard-inner.flipped {
+  transform:rotateY(180deg);
+}
+.cv-flashcard-face {
+  position:absolute; width:100%; height:100%;
+  backface-visibility:hidden;
+  border-radius:12px; padding:24px;
+  display:flex; align-items:center; justify-content:center;
+  text-align:center;
+  box-shadow:0 4px 20px rgba(124,58,237,0.15);
+}
+.cv-flashcard-front {
+  background:linear-gradient(135deg,#7c3aed,#5b21b6);
+  color:#fff;
+}
+.cv-flashcard-back {
+  background:linear-gradient(135deg,#0d9488,#0f766e);
+  color:#fff;
+  transform:rotateY(180deg);
+}
+.cv-flashcard-label {
+  font-size:10px; font-weight:600;
+  text-transform:uppercase; letter-spacing:0.1em;
+  opacity:0.7; margin-bottom:12px;
+}
+.cv-flashcard-text {
+  font-size:17px; font-weight:700; line-height:1.4;
+}
+.cv-flashcard-controls {
+  display:flex; align-items:center; gap:12px;
+}
+.cv-flashcard-btn {
+  padding:9px 16px; border-radius:9px;
+  font-size:12px; font-weight:600;
+  cursor:pointer; border:none;
+  transition:all 0.15s;
+}
+.cv-flashcard-btn-prev {
+  background:var(--surface,#fff);
+  border:1.5px solid rgba(124,58,237,0.2);
+  color:var(--purple,#7c3aed);
+}
+.cv-flashcard-btn-prev:hover {
+  background:rgba(124,58,237,0.06);
+}
+.cv-flashcard-btn-next {
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  color:#fff;
+}
+.cv-flashcard-btn-next:hover {
+  transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(124,58,237,0.3);
+}
+.cv-flashcard-progress {
+  flex:1; height:4px; border-radius:4px;
+  background:rgba(124,58,237,0.1);
+  overflow:hidden;
+}
+.cv-flashcard-progress-bar {
+  height:100%; border-radius:4px;
+  background:linear-gradient(90deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  transition:width 0.3s ease;
+}
+
+/* Activity: Checklist */
+.cv-checklist-item {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 14px; border-radius:9px;
+  background:var(--bg,#faf9ff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.08));
+  margin-bottom:8px; cursor:pointer;
+  transition:all 0.15s;
+}
+.cv-checklist-item:hover {
+  background:#f5f3ff;
+  border-color:rgba(124,58,237,0.15);
+}
+.cv-checklist-item.checked {
+  background:rgba(13,148,136,0.06);
+  border-color:rgba(13,148,136,0.2);
+}
+.cv-checklist-checkbox {
+  width:22px; height:22px; border-radius:6px;
+  border:2px solid var(--border,rgba(124,58,237,0.25));
+  flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  transition:all 0.2s;
+}
+.cv-checklist-item.checked .cv-checklist-checkbox {
+  background:var(--teal,#0d9488);
+  border-color:var(--teal,#0d9488);
+}
+.cv-checklist-text {
+  flex:1; font-size:13px;
+  color:var(--t1,#18103a);
+  transition:all 0.2s;
+}
+.cv-checklist-item.checked .cv-checklist-text {
+  color:var(--t3,#a89dc8);
+  text-decoration:line-through;
+}
+
+/* Quiz */
+.cv-quiz {
+  background:var(--surface,#fff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  border-radius:14px; padding:24px;
+  margin-bottom:20px;
+  animation:cvFadeIn 0.4s ease both;
+}
+.cv-quiz-question {
+  margin-bottom:28px;
+}
+.cv-quiz-number {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:28px; height:28px; border-radius:8px;
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  color:#fff; font-size:12px; font-weight:700;
+  margin-bottom:12px;
+}
+.cv-quiz-text {
+  font-size:15px; font-weight:600;
+  color:var(--t1,#18103a); line-height:1.6;
+  margin-bottom:16px;
+}
+.cv-quiz-option {
+  display:flex; align-items:center; gap:12px;
+  padding:14px 16px; border-radius:10px;
+  background:var(--bg,#faf9ff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  margin-bottom:10px; cursor:pointer;
+  transition:all 0.15s;
+}
+.cv-quiz-option:hover {
+  background:#f5f3ff;
+  border-color:rgba(124,58,237,0.2);
+  transform:translateX(2px);
+}
+.cv-quiz-option.selected {
+  background:rgba(124,58,237,0.06);
+  border-color:var(--purple,#7c3aed);
+}
+.cv-quiz-option.correct {
+  background:rgba(13,148,136,0.08);
+  border-color:var(--teal,#0d9488);
+}
+.cv-quiz-option.incorrect {
+  background:rgba(220,38,38,0.06);
+  border-color:#dc2626;
+}
+.cv-quiz-radio {
+  width:20px; height:20px; border-radius:50%;
+  border:2px solid var(--border,rgba(124,58,237,0.3));
+  flex-shrink:0; transition:all 0.2s;
+  position:relative;
+}
+.cv-quiz-option.selected .cv-quiz-radio {
+  border-color:var(--purple,#7c3aed);
+  background:var(--purple,#7c3aed);
+}
+.cv-quiz-option.selected .cv-quiz-radio::after {
+  content:'';
+  position:absolute;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:8px; height:8px; border-radius:50%;
+  background:#fff;
+}
+.cv-quiz-option-text {
+  flex:1; font-size:13px;
+  color:var(--t1,#18103a);
+}
+
+/* Footer Actions */
+.cv-footer {
+  padding:20px 32px;
+  background:var(--surface,#fff);
+  border-top:1px solid var(--border,rgba(124,58,237,0.1));
+  display:flex; align-items:center; gap:12px;
+  box-shadow:0 -1px 6px rgba(124,58,237,0.04);
+}
+.cv-footer-info {
+  flex:1; font-size:11px;
+  color:var(--t3,#a89dc8); font-weight:500;
+}
+.cv-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 18px; border-radius:9px;
+  font-size:13px; font-weight:600;
+  cursor:pointer; border:none;
+  transition:all 0.15s;
+}
+.cv-btn-secondary {
+  background:transparent;
+  border:1.5px solid var(--border,rgba(124,58,237,0.15));
+  color:var(--t2,#4a3870);
+}
+.cv-btn-secondary:hover {
+  background:rgba(124,58,237,0.06);
+  border-color:rgba(124,58,237,0.25);
+}
+.cv-btn-primary {
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  color:#fff; border:none;
+  box-shadow:0 2px 8px rgba(124,58,237,0.25);
+}
+.cv-btn-primary:hover {
+  transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(124,58,237,0.35);
+}
+.cv-btn-primary:active {
+  transform:translateY(0);
+}
+.cv-btn:disabled {
+  opacity:0.5; cursor:not-allowed;
+}
+.cv-btn:disabled:hover {
+  transform:none;
+}
+`;
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function CourseViewer({ course, onClose, onProgress }: CourseViewerProps) {
+  const modules = (course.modules || []) as Module[];
+  const [selMod, setSelMod] = useState(0);
+  const [selCh, setSelCh] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [submitted, setSubmitted] = useState(false);
+  const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({});
+  const [flashcardIndex, setFlashcardIndex] = useState(0);
+  const [flashcardFlipped, setFlashcardFlipped] = useState(false);
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [videoWatched, setVideoWatched] = useState<Record<string, boolean>>({});
+  const [startTime] = useState(Date.now());
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  const currentModule = modules[selMod];
+  const currentChapter = currentModule?.chapters[selCh];
+
+  // Track scroll progress
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!mainRef.current) return;
+      const element = mainRef.current;
+      const scrollTop = element.scrollTop;
+      const scrollHeight = element.scrollHeight - element.clientHeight;
+      const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+      setScrollProgress(progress);
+
+      // Auto-complete when scrolled to bottom (95% threshold)
+      if (progress >= 95 && currentChapter && !currentChapter.done) {
+        const blocks = (currentChapter.content.blocks || []) as UnifiedBlock[];
+        const hasVideo = blocks.some(b => b.type === 'media');
+        
+        // If has video, check if video is watched
+        if (hasVideo) {
+          const allVideosWatched = blocks
+            .filter(b => b.type === 'media')
+            .every(b => videoWatched[b.id]);
+          
+          if (allVideosWatched) {
+            currentChapter.done = true;
+            onProgress(progressPercent);
+          }
+        } else {
+          // No video, just mark complete on scroll
+          currentChapter.done = true;
+          onProgress(progressPercent);
         }
-      </div>
-    </div>
+      }
+    };
+
+    const element = mainRef.current;
+    if (element) {
+      element.addEventListener('scroll', handleScroll);
+      return () => element.removeEventListener('scroll', handleScroll);
+    }
+  }, [currentChapter, videoWatched, onProgress]);
+
+  // Reset scroll when chapter changes
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+      setScrollProgress(0);
+    }
+  }, [selMod, selCh]);
+
+  const totalChapters = modules.reduce((sum, m) => sum + m.chapters.length, 0);
+  const completedChapters = modules.reduce(
+    (sum, m) => sum + m.chapters.filter(c => c.done).length,
+    0
   );
-}
+  const progressPercent = totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
 
-function SegChecklist({ seg }: { seg: Segment }) {
-  const items = seg.checklist ?? [];
-  const { checked, doneCount, toggle } = useChecklist(items.length);
-  return (
-    <div style={{ background: "#fff", border: "1px solid rgba(21,128,61,0.14)", borderRadius: 14, overflow: "hidden", animation: "cv2-segIn .3s ease" }}>
-      <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(21,128,61,0.1)", display: "flex", alignItems: "center", gap: 8, background: "#f0fdf4" }}>
-        <span style={{ fontSize: 14 }}>☑️</span>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#15803d" }}>{seg.title || "Checklist"}</span>
-        <span style={{ marginLeft: "auto", fontSize: 9.5, color: doneCount === items.length ? "#15803d" : "#a89dc8", fontWeight: doneCount === items.length ? 700 : 400 }}>
-          {doneCount === items.length ? "✅ All done!" : `${doneCount}/${items.length}`}
-        </span>
-      </div>
-      <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-        {items.map((item, i) => (
-          <div key={i} className="cv2-check-item" onClick={() => toggle(i)}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: checked[i] ? "#f0fdf4" : "#faf9ff", border: `1px solid ${checked[i] ? "rgba(21,128,61,0.2)" : "rgba(109,40,217,0.08)"}`, cursor: "pointer", transition: "all .15s" }}>
-            <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${checked[i] ? "#15803d" : "rgba(109,40,217,0.25)"}`, background: checked[i] ? "#15803d" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .18s" }}>
-              {checked[i] && <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="white" strokeWidth="2"><path d="M1 4l3 3 5-6"/></svg>}
-            </div>
-            <span style={{ fontSize: 13, color: checked[i] ? "#15803d" : "#18103a", textDecoration: checked[i] ? "line-through" : "none", opacity: checked[i] ? 0.7 : 1, transition: "all .15s" }}>{item.text}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SegMatching({ seg }: { seg: Segment }) {
-  const pairs = seg.pairs ?? [];
-  const { rightOrder, isMatchedLeft, isMatchedRight, allDone, handleLeft, handleRight, reset, btnStyle } = useMatchingGame(pairs.length);
-  return (
-    <div style={{ background: "#fff", border: "1px solid rgba(147,51,234,0.14)", borderRadius: 14, overflow: "hidden", animation: "cv2-segIn .3s ease" }}>
-      <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(147,51,234,0.1)", display: "flex", alignItems: "center", gap: 8, background: "#faf5ff" }}>
-        <span style={{ fontSize: 14 }}>🔗</span>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#9333ea" }}>{seg.title || "Matching"}</span>
-        <span style={{ marginLeft: "auto", fontSize: 9.5, color: allDone ? "#15803d" : "#a89dc8", fontWeight: allDone ? 700 : 400 }}>
-          {allDone ? "🎉 All matched!" : `0/${pairs.length} matched`}
-        </span>
-      </div>
-      <div style={{ padding: "14px 16px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {pairs.map((p, i) => (
-              <button key={i} className="cv2-match-btn" onClick={() => handleLeft(i)} disabled={isMatchedLeft(i)} style={btnStyle("left", i)}>{p.left}</button>
-            ))}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {rightOrder.map((origIdx, ri) => (
-              <button key={ri} className="cv2-match-btn" onClick={() => handleRight(ri)} disabled={isMatchedRight(ri)} style={btnStyle("right", ri)}>{pairs[origIdx].right}</button>
-            ))}
-          </div>
-        </div>
-        {allDone && (
-          <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#15803d", animation: "cv2-popIn .4s ease" }}>✅ Perfect! All pairs matched.</span>
-            <button onClick={reset} style={{ marginLeft: "auto", padding: "5px 14px", borderRadius: 8, border: "1px solid rgba(147,51,234,0.2)", background: "#faf5ff", color: "#9333ea", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Reset</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SegmentRenderer({ seg }: { seg: Segment }) {
-  switch (seg.type) {
-    case "accordion": return <SegAccordion seg={seg} />;
-    case "flashcard": return <SegFlashcards seg={seg} />;
-    case "fillblank": return <SegFillBlank seg={seg} />;
-    case "checklist":
-    case "hotspot":   return <SegChecklist seg={seg} />;
-    case "matching":  return <SegMatching seg={seg} />;
-    default:          return null;
-  }
-}
-
-// ─── Landing screen ───────────────────────────────────────────────────────────
-function LandingScreen({ course, modules, completedCount, totalChapters, onEnter, onClose }: CourseViewerLandingProps) {
-  const progressPct = totalChapters > 0 ? Math.round((completedCount / totalChapters) * 100) : 0;
-  const totalChs    = modules.reduce((a, m) => a + m.chapters.length, 0);
-  const moduleIcons = ["🚀","💳","📊","🎯","📋","🔧"];
-  const typeIcons: Record<ChapterType, string> = { lesson: "📖", quiz: "❓", assessment: "📝" };
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", fontFamily:"'Plus Jakarta Sans',sans-serif", background:"#faf9ff" }}>
-      <div style={{ height:52, display:"flex", alignItems:"center", padding:"0 24px", gap:10, borderBottom:"1px solid rgba(109,40,217,0.08)", background:"rgba(255,255,255,0.97)", backdropFilter:"blur(16px)", flexShrink:0 }}>
-        <button className="cv2-back-btn" onClick={onClose} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:9, border:"1px solid rgba(109,40,217,0.15)", background:"transparent", color:"#6d28d9", fontSize:11.5, fontWeight:600, cursor:"pointer" }}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 1L3 6l5 5"/></svg>
-          Back to Catalog
-        </button>
-        <div style={{ width:1, height:18, background:"rgba(109,40,217,0.1)" }} />
-        <span style={{ fontSize:11, color:"#7c65a8" }}>Learning Center</span>
-        <svg width="5" height="9" viewBox="0 0 5 9" fill="none"><path d="M1 1l3 3.5L1 8" stroke="#c4bdd8" strokeWidth="1.4"/></svg>
-        <span style={{ fontSize:11, fontWeight:600, color:"#0f0a2a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{course.title}</span>
-        <div style={{ flex:1 }} />
-        {completedCount > 0 && (
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:100, height:4, background:"#e9e6f8", borderRadius:4, overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${progressPct}%`, background:"linear-gradient(90deg,#7c3aed,#0d9488)", borderRadius:4, transition:"width .5s ease" }} />
-            </div>
-            <span style={{ fontSize:10, color:"#7c65a8", fontWeight:600 }}>{progressPct}%</span>
-          </div>
-        )}
-      </div>
-      <div style={{ background:"linear-gradient(135deg,#0f0c29 0%,#1e1b4b 45%,#064e3b 100%)", padding:"44px 40px 40px", position:"relative", overflow:"hidden", flexShrink:0, animation:"cv2-heroIn .5s cubic-bezier(0.16,1,0.3,1) 0.05s both" }}>
-        <div style={{ position:"absolute", top:-80, right:-60, width:300, height:300, borderRadius:"50%", background:"radial-gradient(circle,rgba(124,58,237,0.28),transparent 70%)", pointerEvents:"none" }} />
-        <div style={{ position:"absolute", bottom:-50, left:100, width:240, height:240, borderRadius:"50%", background:"radial-gradient(circle,rgba(13,148,136,0.22),transparent 70%)", pointerEvents:"none" }} />
-        <div style={{ position:"absolute", inset:0, background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.02),transparent)", backgroundSize:"200% 100%", animation:"cv2-shimmer 4s linear infinite", pointerEvents:"none" }} />
-        <div style={{ position:"relative", zIndex:1 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-            <span style={{ fontSize:46, animation:"cv2-bounce 3s ease-in-out infinite" }}>{course.thumbEmoji||"📚"}</span>
-            <div style={{ padding:"4px 12px", borderRadius:20, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.15)", fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,0.75)", letterSpacing:".08em", textTransform:"uppercase" as const }}>{course.cat}</div>
-          </div>
-          <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:36, fontWeight:700, color:"#fff", lineHeight:1.15, marginBottom:10, letterSpacing:"-0.02em" }}>{course.title}</h1>
-          <p style={{ fontSize:13.5, color:"rgba(255,255,255,0.6)", lineHeight:1.7, marginBottom:24, maxWidth:520 }}>{course.desc}</p>
-          <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:28, flexWrap:"wrap" as const }}>
-            {[{ico:"⏱️",val:course.time},{ico:"📦",val:`${modules.length} Module${modules.length!==1?"s":""}`},{ico:"📄",val:`${totalChs} Chapter${totalChs!==1?"s":""}`},{ico:"🎓",val:"Certificate"}].map((s,i)=>(
-              <div key={i} style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"rgba(255,255,255,0.7)", fontWeight:500 }}><span>{s.ico}</span><span>{s.val}</span></div>
-            ))}
-          </div>
-          <button onClick={onEnter}
-            style={{ padding:"13px 34px", borderRadius:12, border:"none", background:"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:13.5, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:10, fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 8px 32px rgba(124,58,237,0.5)", transition:"transform .15s,box-shadow .15s" }}
-            onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform="translateY(-2px)";(e.currentTarget as HTMLElement).style.boxShadow="0 12px 40px rgba(124,58,237,0.6)";}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform="none";(e.currentTarget as HTMLElement).style.boxShadow="0 8px 32px rgba(124,58,237,0.5)";}}>
-            {completedCount > 0 ? "▶ Continue Learning" : "▶ Start Learning"}
-          </button>
-        </div>
-      </div>
-      <div className="cv2-scroll" style={{ flex:1, overflowY:"auto", padding:"24px 40px 32px" }}>
-        <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase" as const, color:"#7c65a8", marginBottom:14 }}>Course Modules</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {modules.map((m, mi) => (
-            <div key={mi} className="cv2-mod-card" onClick={onEnter}
-              style={{ background:"#fff", border:"1px solid rgba(109,40,217,0.09)", borderRadius:14, padding:"15px 18px", display:"flex", alignItems:"center", gap:14, boxShadow:"0 2px 10px rgba(109,40,217,0.05)", animation:`cv2-fadeIn .3s ease ${mi*0.08}s both` }}>
-              <div style={{ width:40, height:40, borderRadius:11, background:"linear-gradient(135deg,rgba(124,58,237,0.12),rgba(13,148,136,0.12))", border:"1px solid rgba(109,40,217,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{moduleIcons[mi % moduleIcons.length]}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:"#0f0a2a", marginBottom:3 }}>{m.title}</div>
-                <div style={{ fontSize:10.5, color:"#7c65a8" }}>{m.chapters.length} chapter{m.chapters.length!==1?"s":""} · {m.chapters.map(c => typeIcons[c.type]).join(" ")}</div>
-              </div>
-              <svg width="7" height="13" viewBox="0 0 7 13" fill="none" stroke="#c4bdd8" strokeWidth="1.8"><path d="M1 1l5 5.5L1 12"/></svg>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Chapter content ──────────────────────────────────────────────────────────
-function ChapterContent({ ch, chKey, quizAnswers, setQuizAnswers, quizSubmitted, setQuizSubmitted, onPass, isComplete, isLast, onComplete, onNext }: ContentProps) {
-  const isQuizOrAssessment = ch.type === "quiz" || ch.type === "assessment";
-  const submitted  = quizSubmitted.has(chKey);
-  const questions  = ch.content.questions ?? [];
-  const qKey       = (qi: number) => `${chKey}:${qi}`;
-  const segments: Segment[] = (ch.content as any).segments ?? [];
-  const media      = ch.content.media;
-  const vidSrc     = media?.type === "video" ? videoEmbed(media.url) : null;
-  const pptSrc     = media?.type === "presentation" ? presentationEmbed(media.url) : null;
-  const isDirectVid = media?.type === "video" && /\.(mp4|webm|ogg)(\?|$)/i.test(media.url ?? "");
-  const score      = calcQuizScore(questions, quizAnswers, qKey);
-  const allAnswered = isAllAnswered(questions, quizAnswers, qKey);
-
-  const submitQuiz = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!allAnswered) return;
-    setQuizSubmitted(prev => { const n = new Set(prev); n.add(chKey); return n; });
-    onPass(e.currentTarget);
+  const markComplete = () => {
+    if (!currentChapter) return;
+    currentChapter.done = true;
+    
+    // Calculate time spent (in minutes)
+    const timeSpent = Math.floor((Date.now() - startTime) / 60000);
+    
+    onProgress(progressPercent, timeSpent);
+    
+    // Move to next chapter
+    if (selCh < currentModule.chapters.length - 1) {
+      setSelCh(selCh + 1);
+    } else if (selMod < modules.length - 1) {
+      setSelMod(selMod + 1);
+      setSelCh(0);
+    }
+    
+    // Reset state
+    setAnswers({});
+    setSubmitted(false);
   };
 
+  const handleVideoComplete = (blockId: string) => {
+    setVideoWatched(prev => ({ ...prev, [blockId]: true }));
+  };
+
+  const goToChapter = (modIdx: number, chIdx: number) => {
+    setSelMod(modIdx);
+    setSelCh(chIdx);
+    setAnswers({});
+    setSubmitted(false);
+  };
+
+  const TM = {
+    lesson: { bg: "#e0f2fe", color: "#0284c7", icon: "📖", label: "Lesson" },
+    quiz: { bg: "#ede9fe", color: "#7c3aed", icon: "❓", label: "Quiz" },
+    assessment: { bg: "#fef3c7", color: "#d97706", icon: "📝", label: "Assessment" }
+  };
+
+  if (!currentChapter) return null;
+
+  const meta = TM[currentChapter.type];
+  const blocks = (currentChapter.content.blocks || []) as UnifiedBlock[];
+  const questions = currentChapter.content.questions || [];
+
   return (
-    <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-      {/* Media */}
-      {media && media.type !== "none" && media.url?.trim() && (
-        <div style={{ marginBottom:24, borderRadius:14, overflow:"hidden", background:"#111", aspectRatio:"16/9", boxShadow:"0 6px 28px rgba(0,0,0,0.18)", animation:"cv2-fadeIn .3s ease" }}>
-          {media.type === "video" && isDirectVid
-            ? <video src={media.url} controls style={{ width:"100%", height:"100%", display:"block" }} />
-            : media.type === "video" && vidSrc
-            ? <iframe src={vidSrc} style={{ width:"100%", height:"100%", border:"none", display:"block" }} allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowFullScreen title="Video" />
-            : media.type === "presentation" && pptSrc
-            ? <iframe src={pptSrc} style={{ width:"100%", height:"100%", border:"none", display:"block" }} allowFullScreen title="Presentation" />
-            : <div style={{ width:"100%", height:"100%", minHeight:140, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10, color:"#8e7ec0", background:"#f5f3ff" }}>
-                <span style={{ fontSize:36 }}>{media.type === "video" ? "🎬" : "📊"}</span>
-                <a href={media.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#7c3aed", textDecoration:"none", fontWeight:600 }}>Open in new tab ↗</a>
-              </div>
-          }
-        </div>
-      )}
-
-      {/* Lesson body */}
-      {ch.type === "lesson" && ch.content.body && (
-        <div className="cv2-lesson-body" style={{ animation:"cv2-fadeIn .25s ease" }} dangerouslySetInnerHTML={{ __html: ch.content.body }} />
-      )}
-      {ch.type === "lesson" && !ch.content.body && !media?.url?.trim() && (
-        <div style={{ padding:"40px 0", textAlign:"center", color:"#c4bdd8", fontSize:13 }}>No content yet for this lesson.</div>
-      )}
-
-      {/* Quiz / Assessment */}
-      {isQuizOrAssessment && (
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ background:"linear-gradient(135deg,#1e1b4b,#4c1d95)", borderRadius:14, padding:"18px 22px", color:"#fff", animation:"cv2-fadeIn .2s ease" }}>
-            <div style={{ fontSize:9.5, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase" as const, color:"rgba(255,255,255,0.55)", marginBottom:5 }}>{ch.type === "assessment" ? "Graded Assessment" : "Knowledge Check"}</div>
-            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:700, marginBottom:6 }}>{ch.title}</div>
-            <p style={{ fontSize:12, opacity:0.7, margin:0, lineHeight:1.65 }}>{ch.type === "assessment" ? "Score 70% or higher to pass." : "Answer all questions to complete this chapter."}</p>
+    <>
+      <style>{STYLES}</style>
+      <div className="cv-page">
+        
+        {/* Header */}
+        <div className="cv-header">
+          <button className="cv-header-back" onClick={onClose}>
+            ←
+          </button>
+          <div className="cv-header-title">{course.title}</div>
+          <div className="cv-header-progress">
+            <div className="cv-progress-bar">
+              <div className="cv-progress-fill" style={{ width: `${progressPercent}%` }} />
+            </div>
+            <div className="cv-progress-text">{completedChapters} / {totalChapters} completed</div>
           </div>
-          {submitted && (
-            <div style={{ background: score / questions.length >= 0.7 ? "linear-gradient(135deg,#064e3b,#0f766e)" : "linear-gradient(135deg,#1e1b4b,#4c1d95)", borderRadius:14, padding:"14px 18px", display:"flex", alignItems:"center", gap:14, animation:"cv2-slideDown .4s ease" }}>
-              <span style={{ fontSize:34, animation:"cv2-bounce 1s ease-in-out infinite" }}>{score === questions.length ? "🏆" : score / questions.length >= 0.7 ? "⭐" : "📚"}</span>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{score / questions.length >= 0.7 ? "Passed! Well done." : "Keep studying and try again."}</div>
-                <div style={{ fontSize:11, color:"rgba(255,255,255,0.65)", marginTop:2 }}>{score}/{questions.length} correct · {Math.round(score / questions.length * 100)}%</div>
+        </div>
+
+        {/* Body */}
+        <div className="cv-body">
+          
+          {/* Sidebar */}
+          <div className="cv-sidebar">
+            <div className="cv-sidebar-header">
+              <div className="cv-sidebar-title">Course Content</div>
+              <div className="cv-sidebar-subtitle">
+                {modules.length} module{modules.length !== 1 ? 's' : ''} · {totalChapters} chapters
               </div>
             </div>
-          )}
-          {questions.map((q, qi) => {
-            const chosen = quizAnswers[qKey(qi)], correct = q.ans;
-            return (
-              <div key={qi} style={{ background:"#fff", border:"1px solid rgba(109,40,217,0.09)", borderRadius:14, padding:"15px 17px", boxShadow:"0 2px 10px rgba(109,40,217,0.05)", animation:`cv2-fadeIn .22s ease ${qi * .06}s both` }}>
-                <div style={{ display:"flex", gap:10, marginBottom:13 }}>
-                  <div style={{ width:27, height:27, borderRadius:8, background: ch.type === "assessment" ? "#fef3c7" : "#ede9fe", color: ch.type === "assessment" ? "#b45309" : "#7c3aed", fontSize:10.5, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{qi + 1}</div>
-                  <p style={{ margin:0, fontSize:13.5, fontWeight:600, color:"#0f0a2a", lineHeight:1.45 }}>{q.q}</p>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:7, paddingLeft:37 }}>
-                  {q.opts.map((opt, oi) => {
-                    let bg="#f8f7ff", border="rgba(109,40,217,0.1)", color="#18103a", dot=false, rb="transparent", tag: string|null = null;
-                    if (submitted) {
-                      if (oi === correct)                      { bg="#d1fae5"; border="rgba(5,150,105,0.5)";   color="#065f46"; rb="#059669"; dot=true; tag="✓"; }
-                      else if (oi===chosen && chosen!==correct) { bg="#fee2e2"; border="rgba(220,38,38,0.4)";   color="#991b1b"; rb="#dc2626"; dot=true; tag="✗"; }
-                    } else if (chosen === oi)                  { bg="#ede9fe"; border="rgba(109,40,217,0.5)";  color="#5b21b6"; rb="#7c3aed"; dot=true; }
+            <div className="cv-sidebar-scroll">
+              {modules.map((mod, modIdx) => (
+                <div key={modIdx} className="cv-module">
+                  <div className="cv-module-header">
+                    <div className="cv-module-num">{modIdx + 1}</div>
+                    <div className="cv-module-title">{mod.title}</div>
+                  </div>
+                  {mod.chapters.map((ch, chIdx) => {
+                    const chMeta = TM[ch.type];
+                    const isActive = modIdx === selMod && chIdx === selCh;
                     return (
-                      <div key={oi} className={`cv2-quiz-opt${submitted ? " cv2-submitted" : ""}`}
-                        onClick={() => !submitted && setQuizAnswers(prev => ({ ...prev, [qKey(qi)]: oi }))}
-                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 13px", borderRadius:10, background:bg, border:`1.5px solid ${border}`, cursor:submitted?"default":"pointer", userSelect:"none" as const }}>
-                        <div style={{ width:17, height:17, borderRadius:"50%", border:`2px solid ${border}`, background:rb, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", transition:"all .14s" }}>
-                          {dot && <div style={{ width:7, height:7, borderRadius:"50%", background:"#fff" }} />}
+                      <div
+                        key={chIdx}
+                        className={`cv-chapter${isActive ? ' active' : ''}${ch.done ? ' done' : ''}`}
+                        onClick={() => goToChapter(modIdx, chIdx)}
+                      >
+                        <div className="cv-chapter-icon" style={{ background: chMeta.bg, color: chMeta.color }}>
+                          {chMeta.icon}
                         </div>
-                        <span style={{ fontSize:13, color, fontWeight:dot?600:400, flex:1 }}>{opt}</span>
-                        {submitted && tag && <span style={{ fontSize:11, fontWeight:800, color, marginLeft:"auto", animation:"cv2-popIn .3s ease" }}>{tag}</span>}
+                        <div className="cv-chapter-content">
+                          <div className="cv-chapter-title">{ch.title}</div>
+                          <div className="cv-chapter-meta">{chMeta.label}</div>
+                        </div>
+                        <div className="cv-chapter-check">
+                          {ch.done && '✓'}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
-            );
-          })}
-          {!submitted && (
-            <button className="cv2-submit-btn" onClick={submitQuiz} disabled={!allAnswered}
-              style={{ padding:"12px 28px", borderRadius:11, border:"none", background: allAnswered ? "linear-gradient(135deg,#7c3aed,#0d9488)" : "#e2dff5", color: allAnswered ? "#fff" : "#a89dc8", fontSize:13, fontWeight:700, cursor: allAnswered ? "pointer" : "not-allowed", alignSelf:"flex-start" as const, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-              Submit {ch.type === "assessment" ? "Assessment" : "Quiz"} →
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Interactive Segments */}
-      {segments.length > 0 && (
-        <div style={{ marginTop:28, display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ height:1, flex:1, background:"linear-gradient(90deg,rgba(124,58,237,0.15),transparent)" }} />
-            <span style={{ fontSize:10, fontWeight:700, color:"#a89dc8", letterSpacing:".1em", textTransform:"uppercase" as const, padding:"0 10px" }}>Interactive Activities</span>
-            <div style={{ height:1, flex:1, background:"linear-gradient(90deg,transparent,rgba(124,58,237,0.15))" }} />
-          </div>
-          {segments.map((seg, si) => (
-            <div key={seg.id || si} style={{ animation:`cv2-segIn .35s ease ${si * 0.08}s both` }}>
-              <SegmentRenderer seg={seg} />
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
 
-      {/* Mark complete */}
-      {ch.type === "lesson" && !isComplete && (
-        <div style={{ marginTop:28 }}>
-          <button className="cv2-complete-btn" onClick={e => onComplete(e.currentTarget)}
-            style={{ padding:"12px 28px", borderRadius:11, border:"none", background:"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M2 7.5l3 3 7-7"/></svg>
-            Mark as Complete
-          </button>
-        </div>
-      )}
-      {ch.type === "lesson" && isComplete && (
-        <div style={{ marginTop:24, display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:"#d1fae5", border:"1px solid rgba(5,150,105,0.2)", animation:"cv2-fadeIn .3s ease" }}>
-          <span style={{ fontSize:18 }}>✅</span>
-          <span style={{ fontSize:12.5, fontWeight:600, color:"#065f46" }}>Chapter completed!</span>
-          {!isLast && (
-            <button className="cv2-nav-btn" onClick={onNext}
-              style={{ marginLeft:"auto", padding:"7px 16px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:11.5, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-              Next Chapter →
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Main CourseViewer ────────────────────────────────────────────────────────
-export default function CourseViewer({ course, onClose, onProgress }: CourseViewerProps) {
-  useInjectStyles("cv2-styles", STYLES);
-
-  const {
-    modules, totalChapters,
-    view, viewExiting,
-    selMod, selCh, expandedMods,
-    completed, quizAnswers, setQuizAnswers, quizSubmitted, setQuizSubmitted,
-    sparkTrigger, completeBanner, allDoneBanner,
-    sidebarOpen, setSidebarOpen,
-    contentRef, originElRef,
-    mod, ch, chKey, isComplete,
-    flatIdx, isFirst, isLast, progressPct,
-    enterCourse, backToLanding, markComplete, navigate, toggleModule, selectChapter,
-  } = useCourseViewer(course, onClose, onProgress);
-
-  const chMeta = ch ? TM[ch.type] : TM.lesson;
-
-  return (
-    <>
-      <ParticleCanvas trigger={sparkTrigger} originEl={originElRef} />
-      <div style={{ position:"fixed", inset:0, zIndex:500, display:"flex", flexDirection:"column", background:"#faf9ff" }}>
-        <div className={viewExiting ? "cv2-view-exit" : "cv2-view-enter"} style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-
-          {view === "landing" && (
-            <LandingScreen course={course} modules={modules} completedCount={completed.size} totalChapters={totalChapters} onEnter={enterCourse} onClose={onClose} />
-          )}
-
-          {view === "course" && (
-            <>
-              {/* Header */}
-              <div style={{ background:"linear-gradient(135deg,#1e1b4b 0%,#4c1d95 50%,#065f46 100%)", padding:"11px 18px", display:"flex", alignItems:"center", gap:10, flexShrink:0, position:"relative", overflow:"hidden" }}>
-                <div style={{ position:"absolute", inset:0, background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.03),transparent)", backgroundSize:"200% 100%", animation:"cv2-shimmer 4s linear infinite", pointerEvents:"none" }} />
-                <button className="cv2-back-btn" onClick={backToLanding} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8, border:"1px solid rgba(255,255,255,0.18)", background:"rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.85)", fontSize:11, fontWeight:600, cursor:"pointer", zIndex:1, flexShrink:0 }}>
-                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 1L1 4.5L6 8"/></svg>
-                  Overview
-                </button>
-                <button className="cv2-sidebar-toggle" onClick={() => setSidebarOpen(v => !v)} style={{ width:30, height:30, borderRadius:8, background:"rgba(255,255,255,0.12)", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1, flexShrink:0 }}>
-                  <svg width="13" height="11" viewBox="0 0 13 11" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 1h11M1 5.5h11M1 10h11"/></svg>
-                </button>
-                <div style={{ width:30, height:30, borderRadius:8, background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, animation:"cv2-bounce 3s ease-in-out infinite", zIndex:1, flexShrink:0 }}>{course.thumbEmoji || "📚"}</div>
-                <div style={{ flex:1, minWidth:0, zIndex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{course.title}</div>
-                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.5)", marginTop:1 }}>{completed.size}/{totalChapters} chapters · {progressPct}%</div>
+          {/* Main Content */}
+          <div className="cv-main" ref={mainRef}>
+            <div className="cv-content-wrapper">
+              
+              {/* Chapter Header */}
+              <div className="cv-chapter-header">
+                <div className="cv-chapter-header-icon" style={{ background: meta.bg, color: meta.color }}>
+                  {meta.icon}
                 </div>
-                <div style={{ flexShrink:0, zIndex:1 }}>
-                  <div style={{ width:120, height:5, background:"rgba(255,255,255,0.15)", borderRadius:5, overflow:"hidden" }}>
-                    <div style={{ height:"100%", width:`${progressPct}%`, background:"linear-gradient(90deg,#a78bfa,#34d399)", borderRadius:5, transition:"width .6s ease" }} />
-                  </div>
-                  <div style={{ fontSize:8.5, color:"rgba(255,255,255,0.4)", textAlign:"right" as const, marginTop:2 }}>{progressPct}%</div>
+                <div className="cv-chapter-header-content">
+                  <div className="cv-chapter-header-title">{currentChapter.title}</div>
+                  <div className="cv-chapter-header-type">{meta.label}</div>
                 </div>
-                <button onClick={onClose}
-                  style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8, border:"1px solid rgba(255,255,255,0.18)", background:"rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.85)", fontSize:11, fontWeight:600, cursor:"pointer", zIndex:1, flexShrink:0, transition:"all .14s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.2)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.1)"; }}>
-                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 1L3 6l5 5"/></svg>
-                  Catalog
-                </button>
               </div>
 
-              {allDoneBanner && (
-                <div style={{ background:"linear-gradient(135deg,#064e3b,#065f46,#047857)", padding:"10px 22px", display:"flex", alignItems:"center", gap:12, animation:"cv2-slideDown .4s ease", flexShrink:0 }}>
-                  <span style={{ fontSize:24, animation:"cv2-spin 2s linear infinite" }}>🏆</span>
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#6ee7b7" }}>Course Complete!</div>
-                    <div style={{ fontSize:10, color:"#a7f3d0" }}>You've finished all {totalChapters} chapters. Outstanding work!</div>
-                  </div>
-                  <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
-                    {["🎉","⭐","✨","🌟"].map((e, i) => <span key={i} style={{ fontSize:17, animation:`cv2-bounce ${.5 + i * .15}s ease-in-out infinite` }}>{e}</span>)}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
-                {/* Sidebar */}
-                {sidebarOpen && (
-                  <div className="cv2-scroll" style={{ width:238, flexShrink:0, borderRight:"1px solid rgba(124,58,237,0.08)", background:"#f8f7ff", display:"flex", flexDirection:"column", overflow:"hidden", animation:"cv2-slideIn .2s ease" }}>
-                    <div style={{ background:"linear-gradient(135deg,#3b0764,#6d28d9 55%,#0f766e)", padding:"12px 14px", flexShrink:0 }}>
-                      <div style={{ fontSize:9.5, color:"rgba(255,255,255,.5)", marginBottom:3 }}>{course.cat} · {course.time}</div>
-                      <div style={{ fontFamily:"'Playfair Display',serif", fontSize:13.5, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{course.title}</div>
-                      <div style={{ background:"rgba(255,255,255,.18)", height:3, borderRadius:3, overflow:"hidden", marginTop:8 }}>
-                        <div style={{ height:"100%", width:`${progressPct}%`, background:"#fff", borderRadius:3, transition:"width .6s ease" }} />
-                      </div>
-                      <div style={{ fontSize:8.5, color:"rgba(255,255,255,.45)", marginTop:2 }}>{progressPct}% · {completed.size}/{totalChapters}</div>
+              {/* Lesson Content */}
+              {currentChapter.type === 'lesson' && blocks.map((block, idx) => {
+                
+                // Content Block
+                if (block.type === 'content') {
+                  return (
+                    <div key={block.id} className="cv-block" style={{ animationDelay: `${idx * 0.05}s` }}>
+                      {block.title && (
+                        <div className="cv-block-title">
+                          <span>📝</span>
+                          {block.title}
+                        </div>
+                      )}
+                      <div className="cv-block-body">{block.body}</div>
                     </div>
-                    <div style={{ flex:1, overflowY:"auto", padding:"8px 6px" }}>
-                      {modules.map((m, mi) => {
-                        const modDone   = m.chapters.every((_, ci) => completed.has(`${mi}:${ci}`));
-                        const modActive = selMod === mi;
-                        const expanded  = expandedMods.has(mi);
-                        const modChDone = m.chapters.filter((_, ci) => completed.has(`${mi}:${ci}`)).length;
-                        const modPct    = m.chapters.length > 0 ? Math.round(modChDone / m.chapters.length * 100) : 0;
+                  );
+                }
+
+                // Media Block
+                if (block.type === 'media' && block.mediaUrl) {
+                  const embedUrl = block.mediaType === 'video' 
+                    ? videoEmbed(block.mediaUrl)
+                    : presentationEmbed(block.mediaUrl);
+                  
+                  return embedUrl ? (
+                    <div key={block.id} className="cv-media" style={{ animationDelay: `${idx * 0.05}s` }}>
+                      <iframe 
+                        src={embedUrl}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        onLoad={() => {
+                          // Mark video as "loaded" - assume watched after 10 seconds
+                          setTimeout(() => handleVideoComplete(block.id), 10000);
+                        }}
+                      />
+                    </div>
+                  ) : null;
+                }
+
+                // Activity Block
+                if (block.type === 'activity' && block.activity) {
+                  const act = block.activity;
+                  const actMeta = ACT_META[act.type];
+
+                  return (
+                    <div key={block.id} className="cv-activity" style={{ animationDelay: `${idx * 0.05}s` }}>
+                      <div className="cv-activity-header">
+                        <div className="cv-activity-icon" style={{ background: actMeta.bg, color: actMeta.color }}>
+                          {actMeta.icon}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div className="cv-activity-title">{act.title}</div>
+                          <div className="cv-activity-type">{actMeta.label}</div>
+                        </div>
+                      </div>
+
+                      {/* Accordion */}
+                      {act.type === 'accordion' && act.items && act.items.map((item, itemIdx) => {
+                        const key = `${block.id}-${itemIdx}`;
+                        const isOpen = openAccordions[key];
+                        
                         return (
-                          <div key={mi} style={{ marginBottom:3 }}>
-                            <div className="cv2-mod-head" onClick={() => toggleModule(mi)}
-                              style={{ padding:"8px 9px", borderRadius:10, cursor:"pointer", background: modActive ? "#ede9fe" : modDone ? "#d1fae5" : "transparent", display:"flex", alignItems:"center", gap:7, userSelect:"none" as const, position:"relative", overflow:"hidden" }}>
-                              {modPct > 0 && !modDone && <div style={{ position:"absolute", left:0, top:0, bottom:0, width:`${modPct}%`, background:"rgba(124,58,237,0.06)", borderRadius:10 }} />}
-                              <div style={{ width:21, height:21, borderRadius:6, background: modDone ? "#059669" : modActive ? "#7c3aed" : "#e2dff5", color:"#fff", fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, zIndex:1, transition:"all .2s" }}>{modDone ? "✓" : mi + 1}</div>
-                              <span style={{ flex:1, fontSize:11, fontWeight:600, color: modDone ? "#065f46" : modActive ? "#5b21b6" : "#18103a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", zIndex:1 }}>{m.title || `Module ${mi + 1}`}</span>
-                              <span style={{ fontSize:9, color: modDone ? "#059669" : "#a89dc8", zIndex:1, flexShrink:0 }}>{modChDone}/{m.chapters.length}</span>
-                              <svg width="7" height="5" viewBox="0 0 8 6" fill="none" stroke={modActive ? "#7c3aed" : "#a89dc8"} strokeWidth="1.8" style={{ flexShrink:0, transform: expanded ? "rotate(180deg)" : "none", transition:"transform .2s", zIndex:1 }}><path d="M1 1l3 4 3-4"/></svg>
+                          <div key={itemIdx} className="cv-accordion-item">
+                            <div 
+                              className={`cv-accordion-question${isOpen ? ' open' : ''}`}
+                              onClick={() => setOpenAccordions(prev => ({ ...prev, [key]: !prev[key] }))}
+                            >
+                              <span className="cv-accordion-icon">💭</span>
+                              <span className="cv-accordion-text">{item.q}</span>
+                              <svg className={`cv-accordion-chevron${isOpen ? ' open' : ''}`} viewBox="0 0 16 16" fill="var(--purple)">
+                                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                              </svg>
                             </div>
-                            {expanded && (
-                              <div style={{ paddingLeft:8, marginTop:2 }}>
-                                {m.chapters.map((c, ci) => {
-                                  const key    = `${mi}:${ci}`;
-                                  const done   = completed.has(key);
-                                  const active = selMod === mi && selCh === ci;
-                                  const meta   = TM[c.type];
-                                  const segCount = ((c.content as any).segments?.length ?? 0);
-                                  return (
-                                    <div key={ci} className={`cv2-ch-item${active ? " cv2-active" : ""}`}
-                                      onClick={() => selectChapter(mi, ci)}
-                                      style={{ padding:"6px 8px", borderRadius:8, marginBottom:2, cursor:"pointer", background: active ? "#fff" : "transparent", border:`1px solid ${active ? "rgba(124,58,237,0.16)" : "transparent"}`, boxShadow: active ? "0 1px 8px rgba(124,58,237,0.09)" : "none", display:"flex", alignItems:"center", gap:7 }}>
-                                      <div style={{ width:17, height:17, borderRadius:5, background: done ? "#059669" : meta.bg, color: done ? "#fff" : meta.c, fontSize:8, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all .2s" }}>{done ? "✓" : ci + 1}</div>
-                                      <span style={{ flex:1, fontSize:10.5, fontWeight: active ? 600 : 400, color: active ? "#5b21b6" : done ? "#6b7280" : "#18103a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textDecoration: done ? "line-through" : "none", opacity: done ? 0.65 : 1, transition:"all .2s" }}>{c.title || `Chapter ${ci + 1}`}</span>
-                                      {segCount > 0 && <span style={{ fontSize:8, background:"#ede9fe", color:"#7c3aed", borderRadius:4, padding:"1px 4px", fontWeight:700 }}>+{segCount}</span>}
-                                      <span style={{ fontSize:10, opacity:.55, flexShrink:0 }}>{meta.ico}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                            {isOpen && (
+                              <div className="cv-accordion-answer">{item.a}</div>
                             )}
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-                )}
 
-                {/* Content area */}
-                <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-                  <div style={{ height:3, background:"#e9e6f8", flexShrink:0 }}>
-                    <div style={{ height:"100%", width:`${totalChapters > 0 ? ((flatIdx + (isComplete ? 1 : .5)) / totalChapters * 100) : 0}%`, background:"linear-gradient(90deg,#7c3aed,#0d9488)", transition:"width .5s cubic-bezier(.4,0,.2,1)", boxShadow:"0 0 5px rgba(124,58,237,0.4)" }} />
-                  </div>
-                  {completeBanner && (
-                    <div style={{ background:"linear-gradient(90deg,#7c3aed,#0d9488)", padding:"8px 20px", display:"flex", alignItems:"center", gap:10, animation:"cv2-slideDown .35s ease", flexShrink:0 }}>
-                      <span style={{ fontSize:16, animation:"cv2-checkPop .4s ease" }}>✅</span>
-                      <span style={{ fontSize:11.5, fontWeight:700, color:"#fff" }}>Chapter complete! Keep going 🎯</span>
-                    </div>
-                  )}
-                  {ch && (
-                    <div style={{ borderBottom:"1px solid rgba(124,58,237,0.07)", padding:"0 26px", height:46, display:"flex", alignItems:"center", gap:10, flexShrink:0, background:"#fff" }}>
-                      <span style={{ padding:"3px 9px", borderRadius:6, background:chMeta.bg, color:chMeta.c, fontSize:9.5, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase" as const }}>{chMeta.ico} {chMeta.lbl}</span>
-                      <div style={{ width:1, height:15, background:"rgba(124,58,237,0.1)" }} />
-                      <span style={{ fontSize:12.5, fontWeight:600, color:"#0f0a2a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ch.title}</span>
-                      {isComplete && <span style={{ padding:"3px 8px", borderRadius:6, background:"#d1fae5", color:"#059669", fontSize:9.5, fontWeight:700, animation:"cv2-popIn .3s ease", flexShrink:0 }}>✓ Done</span>}
-                      <div style={{ flex:1 }} />
-                      <span style={{ fontSize:9.5, color:"#a89dc8", whiteSpace:"nowrap" }}>{mod.title} · {selCh + 1}/{mod.chapters.length}</span>
-                      <div style={{ width:1, height:15, background:"rgba(124,58,237,0.1)" }} />
-                      <span style={{ fontSize:9.5, color:"#a89dc8", whiteSpace:"nowrap" }}>{flatIdx + 1}/{totalChapters}</span>
-                    </div>
-                  )}
-                  <div ref={contentRef} className="cv2-scroll" style={{ flex:1, overflowY:"auto", padding:"24px 30px 20px" }}>
-                    {ch ? (
-                      <>
-                        <div style={{ marginBottom:22, animation:"cv2-fadeIn .2s ease" }}>
-                          <h2 style={{ fontFamily:"'Playfair Display',serif", margin:0, fontSize:24, fontWeight:800, color:"#0f0a2a", lineHeight:1.2, letterSpacing:"-0.02em" }}>{ch.title || `Chapter ${selCh + 1}`}</h2>
+                      {/* Flashcards */}
+                      {act.type === 'flashcard' && act.cards && act.cards.length > 0 && (
+                        <div className="cv-flashcard-container">
+                          <div className="cv-flashcard" onClick={() => setFlashcardFlipped(!flashcardFlipped)}>
+                            <div className={`cv-flashcard-inner${flashcardFlipped ? ' flipped' : ''}`}>
+                              <div className="cv-flashcard-face cv-flashcard-front">
+                                <div>
+                                  <div className="cv-flashcard-label">Front • Tap to flip</div>
+                                  <div className="cv-flashcard-text">{act.cards[flashcardIndex].front}</div>
+                                </div>
+                              </div>
+                              <div className="cv-flashcard-face cv-flashcard-back">
+                                <div>
+                                  <div className="cv-flashcard-label">Back</div>
+                                  <div className="cv-flashcard-text">{act.cards[flashcardIndex].back}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="cv-flashcard-controls">
+                            <button 
+                              className="cv-flashcard-btn cv-flashcard-btn-prev"
+                              onClick={() => {
+                                setFlashcardIndex(Math.max(0, flashcardIndex - 1));
+                                setFlashcardFlipped(false);
+                              }}
+                              disabled={flashcardIndex === 0}
+                            >
+                              ← Prev
+                            </button>
+                            <div className="cv-flashcard-progress">
+                              <div 
+                                className="cv-flashcard-progress-bar"
+                                style={{ width: `${((flashcardIndex + 1) / act.cards.length) * 100}%` }}
+                              />
+                            </div>
+                            <button 
+                              className="cv-flashcard-btn cv-flashcard-btn-next"
+                              onClick={() => {
+                                setFlashcardIndex(Math.min(act.cards.length - 1, flashcardIndex + 1));
+                                setFlashcardFlipped(false);
+                              }}
+                              disabled={flashcardIndex === act.cards.length - 1}
+                            >
+                              Next →
+                            </button>
+                          </div>
                         </div>
-                        <ChapterContent ch={ch} chKey={chKey} quizAnswers={quizAnswers} setQuizAnswers={setQuizAnswers} quizSubmitted={quizSubmitted} setQuizSubmitted={setQuizSubmitted} onPass={el => markComplete(el)} isComplete={isComplete} isLast={isLast} onComplete={markComplete} onNext={() => navigate(1)} />
-                        <div style={{ height:40 }} />
-                      </>
-                    ) : (
-                      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#a89dc8", fontSize:13 }}>Select a chapter to begin</div>
-                    )}
-                  </div>
-                  <div style={{ padding:"10px 26px", borderTop:"1px solid rgba(124,58,237,0.07)", display:"flex", alignItems:"center", gap:10, flexShrink:0, background:"#fff" }}>
-                    <button className="cv2-nav-btn" onClick={() => navigate(-1)} disabled={isFirst}
-                      style={{ padding:"8px 18px", borderRadius:10, border:"1px solid rgba(124,58,237,0.18)", background:"#fff", color: isFirst ? "#d4d0e8" : "#7c3aed", fontSize:12, fontWeight:600, cursor: isFirst ? "default" : "pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                      ← Previous
-                    </button>
-                    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-                      <div style={{ fontSize:10, color:"#a89dc8" }}>{flatIdx + 1} of {totalChapters}</div>
-                      <div style={{ width:"58%", height:3, background:"#e9e6f8", borderRadius:3, overflow:"hidden" }}>
-                        <div style={{ height:"100%", width:`${((flatIdx + 1) / totalChapters) * 100}%`, background:"linear-gradient(90deg,#7c3aed,#0d9488)", borderRadius:3, transition:"width .4s ease" }} />
+                      )}
+
+                      {/* Checklist */}
+                      {(act.type === 'checklist' || act.type === 'hotspot') && act.checklist && act.checklist.map((item, itemIdx) => {
+                        const key = `${block.id}-${itemIdx}`;
+                        const isChecked = checkedItems[key];
+                        
+                        return (
+                          <div 
+                            key={itemIdx}
+                            className={`cv-checklist-item${isChecked ? ' checked' : ''}`}
+                            onClick={() => setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }))}
+                          >
+                            <div className="cv-checklist-checkbox">
+                              {isChecked && <span style={{ color: '#fff', fontSize: 14 }}>✓</span>}
+                            </div>
+                            <div className="cv-checklist-text">{item.text}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+
+                return null;
+              })}
+
+              {/* Quiz/Assessment Content */}
+              {(currentChapter.type === 'quiz' || currentChapter.type === 'assessment') && (
+                <div className="cv-quiz">
+                  {currentChapter.content.body && (
+                    <div style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 24, lineHeight: 1.7 }}>
+                      {currentChapter.content.body}
+                    </div>
+                  )}
+                  
+                  {questions.map((q, qIdx) => (
+                    <div key={qIdx} className="cv-quiz-question">
+                      <div className="cv-quiz-number">{qIdx + 1}</div>
+                      <div className="cv-quiz-text">{q.q}</div>
+                      {q.opts.map((opt, optIdx) => {
+                        const isSelected = answers[`q${qIdx}`] === optIdx;
+                        const isCorrect = q.ans === optIdx;
+                        const showResult = submitted;
+                        
+                        let optClass = 'cv-quiz-option';
+                        if (isSelected) optClass += ' selected';
+                        if (showResult && isSelected && !isCorrect) optClass += ' incorrect';
+                        if (showResult && isCorrect) optClass += ' correct';
+                        
+                        return (
+                          <div
+                            key={optIdx}
+                            className={optClass}
+                            onClick={() => !submitted && setAnswers(prev => ({ ...prev, [`q${qIdx}`]: optIdx }))}
+                          >
+                            <div className="cv-quiz-radio" />
+                            <div className="cv-quiz-option-text">{opt}</div>
+                            {showResult && isCorrect && <span style={{ marginLeft: 'auto', color: 'var(--teal)' }}>✓</span>}
+                            {showResult && isSelected && !isCorrect && <span style={{ marginLeft: 'auto', color: '#dc2626' }}>✗</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                  
+                  {submitted && (
+                    <div style={{
+                      padding: 16,
+                      borderRadius: 10,
+                      background: 'rgba(13,148,136,0.08)',
+                      border: '1.5px solid rgba(13,148,136,0.2)',
+                      marginTop: 20,
+                    }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--teal)', marginBottom: 4 }}>
+                        Score: {Object.values(answers).filter((ans, idx) => ans === questions[idx]?.ans).length} / {questions.length}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--t2)' }}>
+                        {Object.values(answers).filter((ans, idx) => ans === questions[idx]?.ans).length === questions.length
+                          ? "Perfect! You've mastered this material."
+                          : "Review the incorrect answers and try again."}
                       </div>
                     </div>
-                    <button className="cv2-nav-btn" onClick={() => { if (!isComplete && ch?.type === "lesson") markComplete(); navigate(1); }} disabled={isLast}
-                      style={{ padding:"8px 18px", borderRadius:10, border:"none", background: isLast ? "#e2dff5" : "linear-gradient(135deg,#7c3aed,#0d9488)", color: isLast ? "#a89dc8" : "#fff", fontSize:12, fontWeight:700, cursor: isLast ? "default" : "pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                      Next →
-                    </button>
-                  </div>
+                  )}
                 </div>
-              </div>
-            </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="cv-footer">
+          <div className="cv-footer-info">
+            {currentChapter.done ? '✓ Completed' : `Chapter ${selCh + 1} of ${currentModule.chapters.length}`}
+          </div>
+          
+          {selCh > 0 && (
+            <button className="cv-btn cv-btn-secondary" onClick={() => setSelCh(selCh - 1)}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M7 1L3 5l4 4"/>
+              </svg>
+              Previous
+            </button>
+          )}
+          
+          {(currentChapter.type === 'quiz' || currentChapter.type === 'assessment') && !submitted ? (
+            <button 
+              className="cv-btn cv-btn-primary"
+              onClick={() => setSubmitted(true)}
+              disabled={Object.keys(answers).length !== questions.length}
+            >
+              Submit Answers
+            </button>
+          ) : (
+            <button className="cv-btn cv-btn-primary" onClick={markComplete}>
+              {currentChapter.done ? 'Next Chapter' : 'Mark Complete'}
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 1l4 4-4 4"/>
+              </svg>
+            </button>
           )}
         </div>
       </div>

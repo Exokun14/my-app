@@ -9,6 +9,7 @@ import ActivitiesPanel from "./ActivitiesPanel";
 import CourseCatalog from "./CourseCatalog";
 import ClientProgress from "./ClientProgress";
 import CourseViewer from "./CourseViewer";
+import CourseOverview from "./CourseOverview";
 import CourseCreationWizard from "../../Components/CourseCreationWizard";
 import type { Course } from "../../Data/types";
 import constants from "../../Data/test_data.json";
@@ -24,7 +25,8 @@ function loadData() {
     return { 
       courses: INITIAL_COURSES, 
       categories: DEFAULT_CATEGORIES, 
-      activities: INITIAL_ACTIVITIES 
+      activities: INITIAL_ACTIVITIES,
+      courseProgress: {}
     };
   }
   
@@ -35,7 +37,8 @@ function loadData() {
       return {
         courses: parsed.courses && parsed.courses.length > 0 ? parsed.courses : INITIAL_COURSES,
         categories: parsed.categories && parsed.categories.length > 0 ? parsed.categories : DEFAULT_CATEGORIES,
-        activities: parsed.activities && parsed.activities.length > 0 ? parsed.activities : INITIAL_ACTIVITIES
+        activities: parsed.activities && parsed.activities.length > 0 ? parsed.activities : INITIAL_ACTIVITIES,
+        courseProgress: parsed.courseProgress || {}
       };
     }
   } catch (e) {
@@ -45,11 +48,17 @@ function loadData() {
   return {
     courses: INITIAL_COURSES,
     categories: DEFAULT_CATEGORIES,
-    activities: INITIAL_ACTIVITIES
+    activities: INITIAL_ACTIVITIES,
+    courseProgress: {}
   };
 }
 
-function saveData(courses: Course[], categories: string[], activities: Activity[]) {
+function saveData(
+  courses: Course[], 
+  categories: string[], 
+  activities: Activity[], 
+  courseProgress: Record<number, { progress: number; timeSpent: number; lastAccessed: string; enrolled: boolean; completed: boolean; completedDate?: string }>
+) {
   if (typeof window === 'undefined') return;
   
   try {
@@ -57,6 +66,7 @@ function saveData(courses: Course[], categories: string[], activities: Activity[
       courses,
       categories,
       activities,
+      courseProgress,
       lastUpdated: new Date().toISOString()
     }));
   } catch (e) {
@@ -83,21 +93,32 @@ export default function LearningCenter() {
   const [viewerIdx, setViewerIdx] = useState<number | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerExiting, setViewerExiting] = useState(false);
+  const [showOverview, setShowOverview] = useState(false);
+  const [courseProgress, setCourseProgress] = useState<Record<number, {
+    progress: number;
+    timeSpent: number;
+    lastAccessed: string;
+    enrolled: boolean;
+    completed: boolean;
+    completedDate?: string;
+  }>>({});
 
   useEffect(() => {
     const data = loadData();
     setCourses(data.courses);
     setCategories(data.categories);
     setActivities(data.activities);
+    setCourseProgress(data.courseProgress);
     console.log('Loaded activities:', data.activities);
+    console.log('Loaded course progress:', data.courseProgress);
     console.log('Published activities:', data.activities.filter(a => a.status === "published"));
   }, []);
 
   useEffect(() => {
-    if (courses.length > 0 || activities.length > 0) {
-      saveData(courses, categories, activities);
+    if (courses.length > 0 || activities.length > 0 || Object.keys(courseProgress).length > 0) {
+      saveData(courses, categories, activities, courseProgress);
     }
-  }, [courses, categories, activities]);
+  }, [courses, categories, activities, courseProgress]);
 
   const publishedActivities = activities.filter(a => a.status === "published");
 
@@ -120,10 +141,32 @@ export default function LearningCenter() {
     setCourses(prev => [...prev, data]);
   };
 
-  const handleProgress = (idx: number, progress: number) => {
+  const handleProgress = (idx: number, progress: number, timeSpent?: number) => {
+    const isCompleted = progress >= 100;
+    const currentProgress = courseProgress[idx];
+    
     setCourses(prev =>
       prev.map((c, i) => i === idx ? { ...c, progress, enrolled: true } : c)
     );
+    
+    setCourseProgress(prev => ({
+      ...prev,
+      [idx]: {
+        progress,
+        timeSpent: (currentProgress?.timeSpent || 0) + (timeSpent || 0),
+        lastAccessed: new Date().toISOString(),
+        enrolled: true,
+        completed: isCompleted,
+        completedDate: isCompleted && !currentProgress?.completed 
+          ? new Date().toISOString() 
+          : currentProgress?.completedDate
+      }
+    }));
+    
+    // Show completion toast
+    if (isCompleted && !currentProgress?.completed) {
+      toast("🎉 Congratulations! You've completed this course!");
+    }
   };
 
   const handleOpenActivityBuilder = (activity?: Activity) => {
@@ -137,7 +180,38 @@ export default function LearningCenter() {
 
   const openViewer = (idx: number) => {
     setViewerIdx(idx);
+    setShowOverview(true);
+    setViewerOpen(false);
+  };
+
+  const startCourse = () => {
+    setShowOverview(false);
     setViewerOpen(true);
+    
+    // Enroll user and update last accessed time
+    if (viewerIdx !== null) {
+      const currentProgress = courseProgress[viewerIdx];
+      const courseData = courses[viewerIdx];
+      
+      setCourseProgress(prev => ({
+        ...prev,
+        [viewerIdx]: {
+          progress: currentProgress?.progress || courseData.progress || 0,
+          timeSpent: currentProgress?.timeSpent || 0,
+          lastAccessed: new Date().toISOString(),
+          enrolled: true,
+          completed: currentProgress?.completed || false,
+          completedDate: currentProgress?.completedDate
+        }
+      }));
+      
+      // Update course enrolled status
+      setCourses(prev => prev.map((c, i) => 
+        i === viewerIdx ? { ...c, enrolled: true } : c
+      ));
+      
+      toast("Course started! Good luck with your learning.");
+    }
   };
 
   const closeViewer = () => {
@@ -148,6 +222,39 @@ export default function LearningCenter() {
       setViewerIdx(null);
     }, 320);
   };
+
+  const closeOverview = () => {
+    setShowOverview(false);
+    setViewerIdx(null);
+  };
+
+  // ── Full-page Course Overview ───────────────────────────────────────
+  if (showOverview && viewerIdx !== null) {
+    const courseData = courseProgress[viewerIdx] || {
+      progress: courses[viewerIdx].progress || 0,
+      timeSpent: 0,
+      lastAccessed: undefined,
+      enrolled: courses[viewerIdx].enrolled || false,
+      completed: false
+    };
+
+    return (
+      <>
+        <CourseOverview
+          course={courses[viewerIdx]}
+          onStart={startCourse}
+          onClose={closeOverview}
+          progress={courseData.progress}
+          timeSpent={courseData.timeSpent}
+          lastAccessed={courseData.lastAccessed}
+          enrolled={courseData.enrolled}
+          completed={courseData.completed}
+          completedDate={courseData.completedDate}
+        />
+        <Toast msg={msg} visible={visible} />
+      </>
+    );
+  }
 
   // ── Full-page Course Viewer ──────────────────────────────────────────
   if (viewerOpen || viewerExiting) {
@@ -167,7 +274,7 @@ export default function LearningCenter() {
             <CourseViewer
               course={courses[viewerIdx]}
               onClose={closeViewer}
-              onProgress={p => handleProgress(viewerIdx, p)}
+              onProgress={(p, t) => handleProgress(viewerIdx, p, t)}
             />
           )}
         </div>
