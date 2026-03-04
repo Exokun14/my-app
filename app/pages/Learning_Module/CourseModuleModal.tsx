@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   LessonBlocks, blankContentBlock,
-  type LessonBlock, type LessonBlockKind, type Activity,
+  type LessonBlock, type Activity, ACT_META,
 } from "./ActivityBuilderPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -29,6 +29,7 @@ export interface CourseModuleModalProps {
   onClose:    () => void;
   onSave:     (idx:number, modules:Module[]) => void;
   toast:      (msg:string) => void;
+  publishedActivities: Activity[]; // NEW: Pass published activities
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ type MediaType = "none"|"video"|"presentation";
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function dc<T>(v:T):T { return JSON.parse(JSON.stringify(v)); }
+function mkId(): string { return Math.random().toString(36).slice(2, 9); }
 
 function blankChapter(type:ChapterType="lesson"):Chapter {
   return { title:"", type, done:false, content:{
@@ -322,18 +324,98 @@ const S = `
 /* Media embed */
 .cmm-media { margin-top:12px; border-radius:10px; overflow:hidden; border:1.5px solid var(--border); }
 .cmm-media iframe { width:100%; height:360px; border:none; display:block; }
+
+/* Activity Selection Panel */
+.cmm-activity-panel {
+  position:fixed; inset:0; z-index:1002;
+  background:rgba(24,16,58,0.4); backdrop-filter:blur(4px);
+  display:flex; align-items:center; justify-content:center;
+  animation:cmm-in .2s ease both;
+}
+.cmm-activity-modal {
+  background:var(--surface,#fff);
+  border-radius:16px;
+  width:90%; max-width:700px; max-height:85vh;
+  display:flex; flex-direction:column;
+  box-shadow:0 20px 60px rgba(124,58,237,0.25);
+  animation:cmm-up .3s cubic-bezier(.16,1,.3,1) both;
+}
+.cmm-activity-modal-hdr {
+  padding:20px 24px;
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.1));
+}
+.cmm-activity-modal-title {
+  font-size:16px; font-weight:800; color:var(--t1,#18103a);
+  margin-bottom:4px;
+}
+.cmm-activity-modal-sub {
+  font-size:11.5px; color:var(--t3,#a89dc8);
+}
+.cmm-activity-modal-body {
+  flex:1; overflow-y:auto; padding:20px 24px;
+}
+.cmm-activity-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:12px;
+}
+.cmm-activity-card {
+  padding:14px; border-radius:10px; cursor:pointer;
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  background:var(--bg,#faf9ff); transition:all .15s;
+  display:flex; flex-direction:column; gap:8px;
+}
+.cmm-activity-card:hover {
+  border-color:rgba(124,58,237,0.3);
+  background:#f5f3ff;
+  transform:translateY(-2px);
+  box-shadow:0 4px 12px rgba(124,58,237,0.12);
+}
+.cmm-activity-card-icon {
+  width:40px; height:40px; border-radius:9px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:20px;
+}
+.cmm-activity-card-title {
+  font-size:12.5px; font-weight:700; color:var(--t1,#18103a);
+}
+.cmm-activity-card-type {
+  font-size:10px; color:var(--t3,#a89dc8); text-transform:uppercase;
+  letter-spacing:.04em; font-weight:600;
+}
+.cmm-activity-modal-foot {
+  padding:16px 24px;
+  border-top:1px solid var(--border,rgba(124,58,237,0.1));
+  display:flex; justify-content:flex-end;
+}
 `;
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
-export default function CourseModuleModal({ open, course, courseIdx, onClose, onSave, toast }: CourseModuleModalProps) {
+export default function CourseModuleModal({ 
+  open, 
+  course, 
+  courseIdx, 
+  onClose, 
+  onSave, 
+  toast,
+  publishedActivities = [] 
+}: CourseModuleModalProps) {
   const [modules,  setModules]  = useState<Module[]>([]);
   const [step,     setStep]     = useState<0|1|2>(0);
   const [selMod,   setSelMod]   = useState(0);
   const [selCh,    setSelCh]    = useState(0);
   const [tab,      setTab]      = useState<"content"|"media"|"quiz">("content");
   const [closing,  setClosing]  = useState(false);
+  const [activityPanelOpen, setActivityPanelOpen] = useState(false);
 
-  useEffect(()=>{ if(open&&course){ setModules(course.modules?dc(course.modules):[blankModule()]); setStep(0); setSelMod(0); setSelCh(0); setTab("content"); setClosing(false); } },[open,course]);
+  useEffect(()=>{ 
+    if(open&&course){ 
+      setModules(course.modules?dc(course.modules):[blankModule()]); 
+      setStep(0); 
+      setSelMod(0); 
+      setSelCh(0); 
+      setTab("content"); 
+      setClosing(false); 
+    } 
+  },[open,course]);
 
   if(!open||!course||courseIdx===null) return null;
 
@@ -345,10 +427,6 @@ export default function CourseModuleModal({ open, course, courseIdx, onClose, on
   const titledCh = modules.reduce((s,m)=>s+m.chapters.filter(c=>c.title.trim()).length,0);
   const progressPct = totalCh>0?Math.round((titledCh/totalCh)*100):0;
   const step0done = modules.every(m=>m.title.trim()&&m.chapters.every(c=>c.title.trim()));
-  const totalActs = modules.reduce((s,m)=>s+m.chapters.reduce((a,c)=>{
-    const segs=(c.content as any).segments??[];
-    return a+segs.filter((x:any)=>x.kind==="activity").length;
-  },0),0);
 
   // Footer
   let footerNote = "";
@@ -373,9 +451,38 @@ export default function CourseModuleModal({ open, course, courseIdx, onClose, on
   const updCh=(mi:number,ci:number,k:keyof Chapter,v:any)=>{ const u=[...modules]; u[mi].chapters[ci]={...u[mi].chapters[ci],[k]:v}; setModules(u); };
   const updChCont=(mi:number,ci:number,k:keyof ChapterContent,v:any)=>{ const u=[...modules]; u[mi].chapters[ci].content={...u[mi].chapters[ci].content,[k]:v}; setModules(u); };
 
-  // Inputs
-  const IN:React.CSSProperties={width:"100%",padding:"9px 12px",borderRadius:8,border:"1.5px solid var(--border,rgba(109,40,217,0.1))",background:"var(--surface,#fff)",color:"var(--t1,#18103a)",fontSize:12,fontFamily:"inherit",transition:"all .15s"};
-  const TA:React.CSSProperties={...IN,resize:"vertical" as const,minHeight:80,lineHeight:1.5};
+  // Add content block
+  const handleAddContent = () => {
+    if (!c || c.type !== "lesson") return;
+    const u = [...modules];
+    const segs = (u[selMod].chapters[selCh].content.segments || []) as LessonBlock[];
+    u[selMod].chapters[selCh].content.segments = [...segs, blankContentBlock()] as any;
+    setModules(u);
+    toast("Content block added");
+  };
+
+  // Add activity
+  const handleAddActivity = () => {
+    if (!c || c.type !== "lesson") return;
+    if (publishedActivities.length === 0) {
+      toast("No published activities available. Create and publish activities first.");
+      return;
+    }
+    setActivityPanelOpen(true);
+  };
+
+  // Select activity
+  const handleSelectActivity = (activity: Activity) => {
+    const u = [...modules];
+    const segs = (u[selMod].chapters[selCh].content.segments || []) as LessonBlock[];
+    u[selMod].chapters[selCh].content.segments = [
+      ...segs, 
+      { id: mkId(), kind: "activity", activity: dc(activity) }
+    ] as any;
+    setModules(u);
+    setActivityPanelOpen(false);
+    toast(`Activity "${activity.title}" added`);
+  };
 
   return (
     <>
@@ -500,19 +607,11 @@ export default function CourseModuleModal({ open, course, courseIdx, onClose, on
                   {c.type==="lesson" && (
                     <div className="cmm-actions">
                       <div className="cmm-actions-title">{c.title||"Untitled Chapter"}</div>
-                      <button className="cmm-action-btn" onClick={()=>{
-                        const segs=(c.content.segments??[]) as LessonBlock[];
-                        const u=[...modules];
-                        u[selMod].chapters[selCh].content.segments=[...segs,blankContentBlock()] as any;
-                        setModules(u);
-                        toast("Content block added");
-                      }}>
+                      <button className="cmm-action-btn" onClick={handleAddContent}>
                         <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M7 1v12M1 7h12"/></svg>
                         Add Content
                       </button>
-                      <button className="cmm-action-btn secondary" onClick={()=>{
-                        toast("Activity builder opens here (use existing panel)");
-                      }}>
+                      <button className="cmm-action-btn secondary" onClick={handleAddActivity}>
                         <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1"/><rect x="8" y="1.5" width="4.5" height="4.5" rx="1"/><rect x="1.5" y="8" width="4.5" height="4.5" rx="1"/><path d="M10.25 8v4.5M8 10.25h4.5"/></svg>
                         Add Activity
                       </button>
@@ -531,7 +630,7 @@ export default function CourseModuleModal({ open, course, courseIdx, onClose, on
                       c.type==="lesson" ? (
                         <div>
                           <LessonBlocks
-                            blocks={(c.content.segments??[]) as LessonBlock[]}
+                            blocks={(c.content.segments||[]) as LessonBlock[]}
                             onChange={segs=>updChCont(selMod,selCh,"segments",segs)}
                           />
                         </div>
@@ -577,21 +676,21 @@ export default function CourseModuleModal({ open, course, courseIdx, onClose, on
                         {(c.content.questions??[]).map((q,qi)=>{
                           const updQ=(k:keyof QuizQuestion,v:any)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi]={...q,[k]:v}; setModules(u); };
                           const updOpt=(oi:number,v:string)=>{ const u=[...modules]; u[selMod].chapters[selCh].content.questions![qi].opts[oi]=v; setModules(u); };
-                          const safeMod=`m${selMod}`,safeCh=`c${selCh}`;
                           return (
                             <div key={qi} style={{background:"var(--surface,#fff)",border:"1.5px solid var(--border,rgba(109,40,217,0.1))",borderRadius:10,padding:14,marginBottom:12}}>
                               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                                 <div style={{width:26,height:26,borderRadius:7,background:"linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488))",color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{qi+1}</div>
-                                <input value={q.q} onChange={e=>updQ("q",e.target.value)} placeholder={`Question ${qi+1}`} style={{...IN,flex:1}}/>
+                                <input value={q.q} onChange={e=>updQ("q",e.target.value)} placeholder={`Question ${qi+1}`} className="cmm-input" style={{flex:1}}/>
                                 <button onClick={()=>{const u=[...modules];u[selMod].chapters[selCh].content.questions!.splice(qi,1);setModules(u);}} style={{width:26,height:26,borderRadius:7,border:"1.5px solid rgba(239,68,68,0.2)",background:"rgba(239,68,68,0.05)",color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>×</button>
                               </div>
                               <div style={{display:"flex",flexDirection:"column",gap:7,paddingLeft:33}}>
                                 {q.opts.map((opt,oi)=>(
                                   <div key={oi} style={{display:"flex",alignItems:"center",gap:9}}>
-                                    <input type="radio" name={`ans-${safeMod}-${safeCh}-${qi}`} checked={q.ans===oi} onChange={()=>updQ("ans",oi)} style={{accentColor:"var(--purple,#7c3aed)",width:15,height:15,flexShrink:0,cursor:"pointer"}}/>
+                                    <input type="radio" name={`ans-${qi}`} checked={q.ans===oi} onChange={()=>updQ("ans",oi)} style={{accentColor:"var(--purple,#7c3aed)",width:15,height:15,flexShrink:0,cursor:"pointer"}}/>
                                     <input value={opt} onChange={e=>updOpt(oi,e.target.value)}
                                       placeholder={`Option ${oi+1}${q.ans===oi?" ✓ correct":""}`}
-                                      style={{...IN,border:`1.5px solid ${q.ans===oi?"rgba(22,163,74,0.45)":"var(--border,rgba(109,40,217,0.1))"}`,background:q.ans===oi?"#f0fdf4":"#fff"}}/>
+                                      className="cmm-input"
+                                      style={{border:`1.5px solid ${q.ans===oi?"rgba(22,163,74,0.45)":"var(--border,rgba(109,40,217,0.1))"}`,background:q.ans===oi?"#f0fdf4":"#fff"}}/>
                                   </div>
                                 ))}
                               </div>
@@ -620,7 +719,6 @@ export default function CourseModuleModal({ open, course, courseIdx, onClose, on
             {step===2 && (
               <div className="cmm-canvas">
                 <div style={{maxWidth:680,margin:"0 auto"}}>
-
                   {/* Course summary card */}
                   <div style={{background:"var(--surface,#fff)",borderRadius:14,padding:"20px 22px",border:"1.5px solid var(--border,rgba(109,40,217,0.1))",marginBottom:16,boxShadow:"0 2px 10px rgba(124,58,237,0.05)"}}>
                     <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
@@ -629,7 +727,6 @@ export default function CourseModuleModal({ open, course, courseIdx, onClose, on
                         <div style={{fontSize:17,fontWeight:800,color:"var(--t1,#18103a)",letterSpacing:"-.02em"}}>{course.title}</div>
                         <div style={{fontSize:11.5,color:"var(--t3,#a89dc8)",marginTop:3}}>
                           {modules.length} module{modules.length!==1?"s":""} · {totalCh} chapter{totalCh!==1?"s":""}
-                          {totalActs>0&&<span> · {totalActs} activit{totalActs===1?"y":"ies"}</span>}
                         </div>
                       </div>
                       <div style={{textAlign:"right"}}>
@@ -722,6 +819,57 @@ export default function CourseModuleModal({ open, course, courseIdx, onClose, on
         </div>
 
       </div>{/* /cmm-fs */}
+
+      {/* Activity Selection Panel */}
+      {activityPanelOpen && (
+        <div className="cmm-activity-panel" onClick={e => e.target === e.currentTarget && setActivityPanelOpen(false)}>
+          <div className="cmm-activity-modal">
+            <div className="cmm-activity-modal-hdr">
+              <div className="cmm-activity-modal-title">Select Activity</div>
+              <div className="cmm-activity-modal-sub">
+                Choose from {publishedActivities.length} published activit{publishedActivities.length === 1 ? "y" : "ies"}
+              </div>
+            </div>
+            <div className="cmm-activity-modal-body">
+              {publishedActivities.length === 0 ? (
+                <div style={{textAlign:"center",padding:"40px 20px",color:"var(--t3)"}}>
+                  <div style={{fontSize:40,marginBottom:12}}>🧩</div>
+                  <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>No Published Activities</div>
+                  <div style={{fontSize:11.5}}>Create and publish activities in the Activity Builder first.</div>
+                </div>
+              ) : (
+                <div className="cmm-activity-grid">
+                  {publishedActivities.map(activity => {
+                    const meta = ACT_META[activity.type];
+                    return (
+                      <div
+                        key={activity.id}
+                        className="cmm-activity-card"
+                        onClick={() => handleSelectActivity(activity)}
+                      >
+                        <div className="cmm-activity-card-icon" style={{
+                          background: meta.bg,
+                          border: `1.5px solid ${meta.border}`,
+                          color: meta.color
+                        }}>
+                          {meta.icon}
+                        </div>
+                        <div className="cmm-activity-card-title">{activity.title}</div>
+                        <div className="cmm-activity-card-type">{meta.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="cmm-activity-modal-foot">
+              <button className="btn btn-s btn-sm" onClick={() => setActivityPanelOpen(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
