@@ -1,13 +1,6 @@
 // API Service Layer - Connects React app to Laravel backend
-// Place this file at: app/Services/api.service.ts
 
-// CRITICAL: Must use absolute URL to Laravel, not relative path
-// Relative paths like '/api' go to Next.js (port 3000), not Laravel
 const API_BASE_URL = 'http://localhost/api';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Course {
   id?: number;
@@ -63,16 +56,11 @@ export interface UserProgress {
   assessment_score?: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER FUNCTIONS
-// ─────────────────────────────────────────────────────────────────────────────
-
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
-    // IMPORTANT: This builds the full URL: http://localhost/api/courses
     const fullUrl = `${API_BASE_URL}${endpoint}`;
     console.log('🔵 Fetching:', fullUrl);
     
@@ -80,18 +68,17 @@ async function apiRequest<T>(
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'X-User-Id': '1',
         ...options.headers,
       },
       ...options,
     });
 
-    // Get response as text first to debug
     const text = await response.text();
     console.log('📥 Response status:', response.status);
     console.log('📥 Content-Type:', response.headers.get('content-type'));
     console.log('📥 Body preview:', text.substring(0, 200));
 
-    // Check if it's JSON
     const contentType = response.headers.get('content-type');
     if (!contentType?.includes('application/json')) {
       console.error('❌ Expected JSON but got:', contentType);
@@ -102,7 +89,6 @@ async function apiRequest<T>(
       };
     }
 
-    // Parse JSON
     let data;
     try {
       data = JSON.parse(text);
@@ -133,10 +119,6 @@ async function apiRequest<T>(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COURSES API
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const coursesAPI = {
   getAll: async (filters?: { category?: string; active?: boolean; client_id?: number }): Promise<ApiResponse<Course[]>> => {
     const params = new URLSearchParams();
@@ -149,6 +131,10 @@ export const coursesAPI = {
   },
 
   getById: async (id: number): Promise<ApiResponse<Course>> => {
+    return apiRequest<Course>(`/courses/${id}`, { method: 'GET' });
+  },
+
+  getFullCourse: async (id: number): Promise<ApiResponse<Course>> => {
     return apiRequest<Course>(`/courses/${id}`, { method: 'GET' });
   },
 
@@ -170,10 +156,14 @@ export const coursesAPI = {
     return apiRequest<{ message: string }>(`/courses/${id}`, { method: 'DELETE' });
   },
 
-  updateProgress: async (id: number, progress: number, enrolled?: boolean): Promise<ApiResponse<{ message: string }>> => {
+  updateProgress: async (id: number, progress: number, enrolled?: boolean, timeSpent?: number): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/courses/${id}/progress`, {
       method: 'PUT',
-      body: JSON.stringify({ progress, enrolled }),
+      body: JSON.stringify({ 
+        progress, 
+        enrolled,
+        time_spent: timeSpent 
+      }),
     });
   },
 
@@ -184,10 +174,6 @@ export const coursesAPI = {
     });
   },
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ACTIVITIES API
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const activitiesAPI = {
   getAll: async (filters?: { type?: string; status?: string }): Promise<ApiResponse<Activity[]>> => {
@@ -222,10 +208,6 @@ export const activitiesAPI = {
   },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROGRESS API
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const progressAPI = {
   getAll: async (filters?: { company?: string; status?: string }): Promise<ApiResponse<UserProgress[]>> => {
     const params = new URLSearchParams();
@@ -251,10 +233,6 @@ export const progressAPI = {
   },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CLIENTS API
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const clientsAPI = {
   getAll: async (): Promise<ApiResponse<any[]>> => {
     return apiRequest<any[]>('/clients', { method: 'GET' });
@@ -268,10 +246,6 @@ export const clientsAPI = {
     return apiRequest<Course[]>(`/clients/${id}/courses`, { method: 'GET' });
   },
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SETTINGS API
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const settingsAPI = {
   getAll: async (): Promise<ApiResponse<{ categories: string[]; colors: string[] }>> => {
@@ -300,10 +274,6 @@ export const settingsAPI = {
   },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FILE UPLOAD API
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const uploadAPI = {
   uploadFile: async (file: File): Promise<ApiResponse<{ url: string; name: string; size: number; type: string }>> => {
     const formData = new FormData();
@@ -316,6 +286,9 @@ export const uploadAPI = {
       const response = await fetch(fullUrl, {
         method: 'POST',
         body: formData,
+        headers: {
+          'X-User-Id': '1',
+        },
       });
 
       const text = await response.text();
@@ -347,10 +320,6 @@ export const uploadAPI = {
     }
   },
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EXPORTS
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const api = {
   courses: coursesAPI,

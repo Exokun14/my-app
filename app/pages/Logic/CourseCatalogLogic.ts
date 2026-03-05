@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Course, Module } from "../../Data/types";
 import type { Activity } from "../Learning_Module/ActivityBuilderPanel";
-import api from "../../services/api.service";
+import api from "../../Services/api.service";
 
 export interface CourseCatalogProps {
   courses:       Course[];

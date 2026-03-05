@@ -14,7 +14,7 @@ import CourseCompletionStats from "./CourseCompletionStats";
 import CourseCreationWizard from "../../Components/CourseCreationWizard";
 import type { Course } from "../../Data/types";
 import constants from "../../Data/test_data.json";
-import api from "../../services/api.service"; // Import API service
+import api from "../../Services/api.service"; // Import API service
 import "../../globals.css";
 
 const PANELS = ["Course Catalog", "Activities", "Client Progress"];
@@ -86,6 +86,11 @@ export default function LearningCenter() {
   const [viewerExiting, setViewerExiting] = useState(false);
   const [showOverview, setShowOverview] = useState(false);
   const [showCompletionStats, setShowCompletionStats] = useState(false);
+  
+  // NEW: Store the full course data separately when opened
+  const [fullCourse, setFullCourse] = useState<Course | null>(null);
+  const [loadingCourse, setLoadingCourse] = useState(false);
+  
   const [courseProgress, setCourseProgress] = useState<Record<number, {
     progress: number;
     timeSpent: number;
@@ -177,8 +182,8 @@ export default function LearningCenter() {
   // ── PROGRESS HANDLER - NOW SAVE TO BACKEND ──────────────────────────────────
   const handleProgress = async (idx: number, progress: number, timeSpent?: number, assessmentScore?: number) => {
     const isCompleted = progress >= 100;
-    const currentProgress = courseProgress[idx] || { quizScores: [], assessmentScores: [] };
-    const course = courses[idx];
+    const currentProgress = courseProgress[idx] || { quizScores: [], assessmentScores: [], timeSpent: 0 };
+    const course = fullCourse || courses[idx]; // Use fullCourse if available
     
     // If assessment score provided, add it
     let updatedAssessmentScores = currentProgress.assessmentScores || [];
@@ -210,39 +215,47 @@ export default function LearningCenter() {
       lastAccessed: new Date().toISOString(),
       enrolled: true,
       completed: isCompleted,
-      completedDate: isCompleted && !currentProgress?.completed 
-        ? new Date().toISOString() 
-        : currentProgress?.completedDate,
-      quizScores: currentProgress.quizScores || [],
-      assessmentScores: updatedAssessmentScores
+      completedDate: isCompleted ? new Date().toISOString() : currentProgress?.completedDate,
+      quizScores: currentProgress?.quizScores || [],
+      assessmentScores: updatedAssessmentScores,
     };
     
     setCourseProgress(prev => ({
       ...prev,
-      [idx]: newProgressData
+      [idx]: newProgressData,
     }));
+
+    // Show completion stats when course is completed
+    if (isCompleted && !currentProgress.completed) {
+      // Delay slightly to allow state to update
+      setTimeout(() => {
+        setShowCompletionStats(true);
+      }, 500);
+    }
 
     // Save progress to backend
     try {
-      if (course.id) {
-        await api.courses.updateProgress(course.id, progress, true);
+      const courseId = course.id;
+      if (courseId) {
+        const response = await api.courses.updateProgress(courseId, progress, true, timeSpent);
+        if (!response.success) {
+          console.error('Failed to update progress on server:', response.error);
+        }
       }
     } catch (error) {
-      console.error('Error saving progress to server:', error);
-    }
-    
-    // Show completion stats popup only on new completion
-    if (isCompleted && !currentProgress?.completed) {
-      setShowCompletionStats(true);
+      console.error('Error updating progress on server:', error);
     }
   };
 
-  const handleOpenActivityBuilder = (activity?: Activity) => {
-    setEditingActivity(activity || null);
-    setActivityBuilderOpen(true);
+  const handleResetData = async () => {
+    const data = await loadDataFromAPI();
+    setCourses(data.courses);
+    setCategories(data.categories);
+    setActivities(data.activities);
+    setCourseProgress({});
+    toast('Data reloaded from server');
   };
 
-  // ── DELETE ACTIVITY - NOW DELETES FROM BACKEND ──────────────────────────────
   const handleDeleteActivity = async (id: string) => {
     try {
       const response = await api.activities.delete(id);
@@ -259,10 +272,63 @@ export default function LearningCenter() {
     }
   };
 
-  const openViewer = (idx: number) => {
-    setViewerIdx(idx);
-    setShowOverview(true);
-    setViewerOpen(false);
+  // ─────────────────────────────────────────────────────────────────────────────
+  // CRITICAL FIX: Load full course data before opening viewer
+  // ─────────────────────────────────────────────────────────────────────────────
+  const openViewer = async (idx: number) => {
+    const course = courses[idx];
+    
+    // If course doesn't have an ID, can't load from backend
+    if (!course.id) {
+      console.warn('Course has no ID, using cached data');
+      
+      // Check if course has modules
+      if (!course.modules || course.modules.length === 0) {
+        toast('⚠️ This course has no modules yet. Please add content first.');
+        return;
+      }
+      
+      setViewerIdx(idx);
+      setFullCourse(course);
+      setShowOverview(true);
+      setViewerOpen(false);
+      return;
+    }
+
+    // Load the FULL course with all modules and chapters from backend
+    setLoadingCourse(true);
+    try {
+      console.log('🔵 Loading full course data for course ID:', course.id);
+      const response = await api.courses.getFullCourse(course.id);
+      
+      if (response.success && response.data) {
+        console.log('✅ Loaded full course:', response.data);
+        console.log('📦 Modules:', response.data.modules?.length || 0);
+        response.data.modules?.forEach((mod: any, i: number) => {
+          console.log(`   Module ${i + 1}: ${mod.title} (${mod.chapters?.length || 0} chapters)`);
+        });
+        
+        // Check if course has no modules
+        if (!response.data.modules || response.data.modules.length === 0) {
+          toast('⚠️ This course has no modules yet. Please add content first.');
+          setLoadingCourse(false);
+          return;
+        }
+        
+        setFullCourse(response.data);
+        setViewerIdx(idx);
+        setShowOverview(true);
+        setViewerOpen(false);
+      } else {
+        console.error('❌ Failed to load course:', response.error);
+        toast(`Error loading course: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('❌ Exception loading course:', error);
+      toast('Failed to load course from server');
+    } finally {
+      setLoadingCourse(false);
+    }
   };
 
   const startCourse = () => {
@@ -277,6 +343,7 @@ export default function LearningCenter() {
       setViewerExiting(false);
       setViewerIdx(null);
       setShowOverview(false);
+      setFullCourse(null); // Clear full course data
     }, 280);
   };
 
@@ -285,28 +352,27 @@ export default function LearningCenter() {
     closeViewer();
   };
 
-  // ── RESET DATA - NOW RELOADS FROM BACKEND ───────────────────────────────────
-  const handleResetData = async () => {
-    if (confirm('Reload data from server?')) {
-      setLoading(true);
-      const data = await loadDataFromAPI();
-      setCourses(data.courses);
-      setCategories(data.categories);
-      setActivities(data.activities);
-      setCourseProgress(data.courseProgress);
-      setLoading(false);
-      toast('Data reloaded from server');
+  const handleOpenActivityBuilder = (activity?: Activity) => {
+    setEditingActivity(activity || null);
+    setActivityBuilderOpen(true);
+  };
+
+  const handleCompleteCourse = (idx: number) => {
+    handleProgress(idx, 100);
+    const currentProgress = courseProgress[idx];
+    if (currentProgress) {
+      setShowCompletionStats(true);
     }
   };
 
-  // Show loading state
+  // Loading state
   if (loading) {
     return (
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '100vh',
+        height: '100vh',
         fontSize: '18px',
         color: 'var(--purple)',
         fontWeight: 600,
@@ -317,15 +383,41 @@ export default function LearningCenter() {
   }
 
   // ── Course Overview (Modal) ──────────────────────────────────────────────────
-  if (showOverview && viewerIdx !== null) {
+  if (showOverview && viewerIdx !== null && fullCourse) {
     return (
       <>
+        {loadingCourse && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}>
+            <div style={{
+              background: 'var(--surface)',
+              padding: '24px 32px',
+              borderRadius: '12px',
+              fontSize: '16px',
+              color: 'var(--t1)',
+              fontWeight: 600,
+            }}>
+              Loading course...
+            </div>
+          </div>
+        )}
         <CourseOverview
-          course={courses[viewerIdx]}
+          course={fullCourse} // Use fullCourse instead of courses[viewerIdx]
           onStart={startCourse}
           onClose={() => {
             setShowOverview(false);
             setViewerIdx(null);
+            setFullCourse(null);
           }}
           toast={toast}
         />
@@ -335,35 +427,29 @@ export default function LearningCenter() {
   }
 
   // ── Course Viewer (Full-screen) ──────────────────────────────────────────────
-  if (viewerOpen && viewerIdx !== null) {
+  if (viewerOpen && viewerIdx !== null && fullCourse) {
     return (
       <>
-        <div className={viewerExiting ? "lp-portal-exit" : ""}>
-          {viewerOpen && viewerIdx !== null && (
-            <CourseViewer
-              course={courses[viewerIdx]}
-              onClose={closeViewer}
-              onProgress={(p, t, a) => handleProgress(viewerIdx, p, t, a)}
-              toast={toast}
-            />
-          )}
-        </div>
+        <CourseViewer
+          course={fullCourse} // Use fullCourse instead of courses[viewerIdx]
+          onClose={closeViewer}
+          onProgress={(progress, timeSpent, assessmentScore) => handleProgress(viewerIdx, progress, timeSpent, assessmentScore)}
+          toast={toast}
+        />
         <Toast msg={msg} visible={visible} />
-        
-        {/* Completion Stats Popup */}
-        {showCompletionStats && viewerIdx !== null && courseProgress[viewerIdx]?.completed && (
+        {showCompletionStats && viewerIdx !== null && (
           <CourseCompletionStats
             open={showCompletionStats}
             onClose={handleCloseCompletionStats}
-            courseName={courses[viewerIdx].title}
+            courseName={fullCourse.title}
             stats={{
-              totalChapters: courses[viewerIdx].modules?.reduce((sum, m) => sum + m.chapters.length, 0) || 0,
-              completedChapters: courses[viewerIdx].modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.done).length, 0) || 0,
-              totalQuizzes: courses[viewerIdx].modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'quiz').length, 0) || 0,
+              totalChapters: fullCourse.modules?.reduce((sum, m) => sum + m.chapters.length, 0) || 0,
+              completedChapters: fullCourse.modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.done).length, 0) || 0,
+              totalQuizzes: fullCourse.modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'quiz').length, 0) || 0,
               quizScores: courseProgress[viewerIdx]?.quizScores || [],
-              totalAssessments: courses[viewerIdx].modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'assessment').length, 0) || 0,
+              totalAssessments: fullCourse.modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'assessment').length, 0) || 0,
               assessmentScores: courseProgress[viewerIdx]?.assessmentScores || [],
-              timeSpent: courseProgress[viewerIdx]?.timeSpent || 0,
+              timeSpent: Number(courseProgress[viewerIdx]?.timeSpent) || 0,
               completionDate: courseProgress[viewerIdx]?.completedDate || new Date().toISOString()
             }}
           />
