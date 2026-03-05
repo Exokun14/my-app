@@ -1,11 +1,8 @@
 'use client'
 
 import { useState } from "react";
-import constants from "../../Data/test_data.json";
 import type { ProgressRecord, ProgressStatus } from "../../Data/types";
 import "../../globals.css";
-
-const { PROGRESS_DATA } = constants;
 
 const BAR_COLOR: Record<ProgressStatus, string> = {
   Completed:     "#16a34a",
@@ -29,13 +26,17 @@ const AVATAR_COLORS = ["#7c3aed", "#0d9488", "#d97706", "#0284c7", "#16a34a"];
 
 interface ClientProgressProps {
   toast: (msg: string) => void;
+  progressData?: ProgressRecord[];  // Made optional with ?
 }
 
-export default function ClientProgress({ toast }: ClientProgressProps) {
+export default function ClientProgress({ toast, progressData = [] }: ClientProgressProps) {
   const [search, setSearch] = useState<string>("");
   const [filter, setFilter] = useState<string>("All");
 
-  const filtered = (PROGRESS_DATA as ProgressRecord[]).filter(r => {
+  // FIXED: Use default empty array if progressData is undefined
+  const safeProgressData = progressData || [];
+
+  const filtered = safeProgressData.filter(r => {
     const statusOk = filter === "All" || r.status === filter;
     const srchOk =
       !search ||
@@ -54,7 +55,7 @@ export default function ClientProgress({ toast }: ClientProgressProps) {
             Client Learning Progress
           </div>
           <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>
-            Employees across all client companies
+            Employees across all client companies ({safeProgressData.length} records)
           </div>
         </div>
         <div style={{ flex: 1 }} />
@@ -108,7 +109,7 @@ export default function ClientProgress({ toast }: ClientProgressProps) {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: "center", padding: 24, color: "var(--t3)", fontSize: 12 }}>
-                    No records found
+                    {safeProgressData.length === 0 ? "No progress data available. Start by completing courses!" : "No records found"}
                   </td>
                 </tr>
               ) : (
