@@ -332,10 +332,16 @@ export default function CourseCompletionStats({
 
   const allAssessmentsPassed = stats.assessmentScores.every(a => a.passed);
 
-  const formatTime = (mins: number) => {
-    if (mins < 60) return `${mins}m`;
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
+  // Fixed formatTime function - handles NaN and null/undefined
+  const formatTime = (mins: number | null | undefined) => {
+    // Convert to number and handle invalid values
+    const validMins = Math.max(0, parseInt(String(mins || 0), 10) || 0);
+    
+    if (validMins === 0) return '0m';
+    if (validMins < 60) return `${validMins}m`;
+    
+    const h = Math.floor(validMins / 60);
+    const m = validMins % 60;
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   };
 

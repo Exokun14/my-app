@@ -195,6 +195,86 @@ export function useCourseCatalog({
     }
   };
 
+  /**
+   * Called by CourseViewer each time a chapter is completed.
+   * 1. Updates local state immediately (card flips without waiting for network)
+   * 2. Writes progress + time_spent to courses table via CourseController@updateProgress
+   * 3. Writes a row to user_course_progress via ProgressController for reporting
+   */
+  const handleCourseProgress = async (
+    courseIdx: number,
+    percent:   number,
+    timeSpent: number
+  ) => {
+    const course = courses[courseIdx];
+    if (!course?.id) return;
+
+    const isCompleted = percent >= 100;
+    const isEnrolled  = percent > 0;
+
+    // 1. Update local state immediately so the card shows the right label now
+    setCourses(prev => prev.map((c, i) =>
+      i === courseIdx
+        ? {
+            ...c,
+            progress:   percent,
+            completed:  isCompleted,
+            enrolled:   isEnrolled,
+            time_spent: (c.time_spent ?? 0) + timeSpent,
+          }
+        : c
+    ));
+
+    // 2. Persist progress to the courses table
+    try {
+      await api.courses.updateProgress(course.id, {
+        progress:   percent,
+        enrolled:   isEnrolled,
+        completed:  isCompleted,
+        time_spent: timeSpent,
+      });
+    } catch (err) {
+      console.error('Failed to persist course progress:', err);
+    }
+
+    // 3. Write to user_course_progress for reporting dashboard
+    try {
+      const status = isCompleted ? 'Completed' : 'In Progress';
+      const today  = new Date().toISOString().split('T')[0];
+
+      // Check if a progress row already exists for this course
+      const existing = (course as any)._progressId;
+
+      if (existing) {
+        await api.progress.update(existing, {
+          progress:   percent,
+          status,
+          time_spent: (course.time_spent ?? 0) + timeSpent,
+          ...(isCompleted ? { completed: today } : {}),
+        });
+      } else {
+        const result = await api.progress.create({
+          name:       'Current User',
+          company:    (course.companies?.[0] ?? 'Unknown'),
+          course:     course.title,
+          progress:   percent,
+          started:    today,
+          status,
+          time_spent: timeSpent,
+          ...(isCompleted ? { completed: today } : {}),
+        });
+        // Cache the row id on the course object so future updates hit the same row
+        if (result.success && result.data?.id) {
+          setCourses(prev => prev.map((c, i) =>
+            i === courseIdx ? { ...c, _progressId: result.data!.id } : c
+          ));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to write user progress row:', err);
+    }
+  };
+
   const openViewer = (realIdx: number) => {
     onOpenCourse(realIdx);
   };
@@ -236,6 +316,7 @@ export function useCourseCatalog({
     cancelDelete,
     handleModSave,
     openViewer,
+    handleCourseProgress,
     openEdit,
     openModules,
     closeEdit,

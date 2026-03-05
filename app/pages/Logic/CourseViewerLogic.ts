@@ -316,10 +316,17 @@ export function useParticleCanvas(
 export function useCourseViewer(
   course:     Course,
   onClose:    () => void,
-  onProgress: (percent: number) => void
+  onProgress: (percent: number, timeSpent: number) => void
 ) {
   const modules       = (course.modules ?? []) as Module[];
   const totalChapters = modules.reduce((s, m) => s + m.chapters.length, 0);
+
+  // Chapter-level timer: reset on navigation, never NaN
+  const chapterStartRef = useRef(Date.now());
+  const calcTimeSpent = () => {
+    const ms = Date.now() - chapterStartRef.current;
+    return (ms > 0 && !isNaN(ms)) ? Math.floor(ms / 60000) : 0;
+  };
 
   const [view,           setView]           = useState<"landing" | "course">("landing");
   const [viewExiting,    setViewExiting]    = useState(false);
@@ -352,7 +359,7 @@ export function useCourseViewer(
 
   useEffect(() => {
     if (totalChapters === 0) return;
-    onProgress(Math.round((completed.size / totalChapters) * 100));
+    onProgress(Math.round((completed.size / totalChapters) * 100), calcTimeSpent());
     if (completed.size === totalChapters) {
       setAllDoneBanner(true);
       setTimeout(() => setAllDoneBanner(false), 4500);
@@ -360,6 +367,7 @@ export function useCourseViewer(
   }, [completed, totalChapters]);
 
   useEffect(() => {
+    chapterStartRef.current = Date.now();
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [selMod, selCh]);
 

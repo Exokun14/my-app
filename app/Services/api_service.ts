@@ -156,12 +156,11 @@ export const coursesAPI = {
     return apiRequest<{ message: string }>(`/courses/${id}`, { method: 'DELETE' });
   },
 
-  // ✅ FIXED: accepts a payload object so callers can pass { progress, enrolled, time_spent, completed }
   updateProgress: async (id: number, payload: {
     progress: number;
-    enrolled?: boolean | number;
+    enrolled?: boolean;
     time_spent?: number;
-    completed?: boolean | number;
+    completed?: boolean;
   }): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/courses/${id}/progress`, {
       method: 'PUT',
