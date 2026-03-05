@@ -14,6 +14,7 @@ import CourseCompletionStats from "./CourseCompletionStats";
 import CourseCreationWizard from "../../Components/CourseCreationWizard";
 import type { Course } from "../../Data/types";
 import constants from "../../Data/test_data.json";
+import api from "../../services/api.service"; // Import API service
 import "../../globals.css";
 
 const PANELS = ["Course Catalog", "Activities", "Client Progress"];
@@ -21,66 +22,45 @@ const INITIAL_COURSES = constants.COURSES as Course[];
 const INITIAL_ACTIVITIES = constants.ACTIVITIES as Activity[];
 const DEFAULT_CATEGORIES = constants.DEFAULT_CATEGORIES;
 
-function loadData() {
-  if (typeof window === 'undefined') {
-    return { 
-      courses: INITIAL_COURSES, 
-      categories: DEFAULT_CATEGORIES, 
-      activities: INITIAL_ACTIVITIES,
-      courseProgress: {}
-    };
-  }
-  
-  try {
-    const stored = localStorage.getItem('learningCenterData');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        courses: parsed.courses && parsed.courses.length > 0 ? parsed.courses : INITIAL_COURSES,
-        categories: parsed.categories && parsed.categories.length > 0 ? parsed.categories : DEFAULT_CATEGORIES,
-        activities: parsed.activities && parsed.activities.length > 0 ? parsed.activities : INITIAL_ACTIVITIES,
-        courseProgress: parsed.courseProgress || {}
-      };
-    }
-  } catch (e) {
-    console.error('Failed to load data:', e);
-  }
-  
-  return {
-    courses: INITIAL_COURSES,
-    categories: DEFAULT_CATEGORIES,
-    activities: INITIAL_ACTIVITIES,
-    courseProgress: {}
-  };
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA LOADING & SAVING - Now uses API instead of localStorage
+// ─────────────────────────────────────────────────────────────────────────────
 
-function saveData(
-  courses: Course[], 
-  categories: string[], 
-  activities: Activity[], 
-  courseProgress: Record<number, { 
-    progress: number; 
-    timeSpent: number; 
-    lastAccessed: string; 
-    enrolled: boolean; 
-    completed: boolean; 
-    completedDate?: string;
-    quizScores: number[];
-    assessmentScores: Array<{ score: number; passed: boolean; passingScore: number }>;
-  }>
-) {
-  if (typeof window === 'undefined') return;
-  
+async function loadDataFromAPI() {
   try {
-    localStorage.setItem('learningCenterData', JSON.stringify({
+    // Load courses from backend
+    const coursesResponse = await api.courses.getAll();
+    const courses = coursesResponse.success && coursesResponse.data && coursesResponse.data.length > 0
+      ? coursesResponse.data
+      : INITIAL_COURSES;
+
+    // Load activities from backend
+    const activitiesResponse = await api.activities.getAll();
+    const activities = activitiesResponse.success && activitiesResponse.data && activitiesResponse.data.length > 0
+      ? activitiesResponse.data
+      : INITIAL_ACTIVITIES;
+
+    // Load categories from backend
+    const categoriesResponse = await api.settings.getCategories();
+    const categories = categoriesResponse.success && categoriesResponse.data && categoriesResponse.data.length > 0
+      ? categoriesResponse.data
+      : DEFAULT_CATEGORIES;
+
+    return {
       courses,
       categories,
       activities,
-      courseProgress,
-      lastUpdated: new Date().toISOString()
-    }));
-  } catch (e) {
-    console.error('Failed to save data:', e);
+      courseProgress: {}, // This will be loaded per-course as needed
+    };
+  } catch (error) {
+    console.error('Failed to load data from API:', error);
+    // Fallback to test data if API fails
+    return {
+      courses: INITIAL_COURSES,
+      categories: DEFAULT_CATEGORIES,
+      activities: INITIAL_ACTIVITIES,
+      courseProgress: {},
+    };
   }
 }
 
@@ -89,6 +69,7 @@ export default function LearningCenter() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const { msg, visible, toast } = useToast();
 
@@ -116,54 +97,93 @@ export default function LearningCenter() {
     assessmentScores: Array<{ score: number; passed: boolean; passingScore: number }>;
   }>>({});
 
+  // ── LOAD DATA FROM BACKEND ON MOUNT ────────────────────────────────────────
   useEffect(() => {
-    const data = loadData();
-    setCourses(data.courses);
-    setCategories(data.categories);
-    setActivities(data.activities);
-    setCourseProgress(data.courseProgress);
-    console.log('Loaded activities:', data.activities);
-    console.log('Loaded course progress:', data.courseProgress);
-    console.log('Published activities:', data.activities.filter(a => a.status === "published"));
+    const loadData = async () => {
+      setLoading(true);
+      const data = await loadDataFromAPI();
+      setCourses(data.courses);
+      setCategories(data.categories);
+      setActivities(data.activities);
+      setCourseProgress(data.courseProgress);
+      setLoading(false);
+      console.log('Loaded from API - Courses:', data.courses.length);
+      console.log('Loaded from API - Activities:', data.activities.length);
+      console.log('Published activities:', data.activities.filter(a => a.status === "published").length);
+    };
+    loadData();
   }, []);
-
-  useEffect(() => {
-    if (courses.length > 0 || activities.length > 0 || Object.keys(courseProgress).length > 0) {
-      saveData(courses, categories, activities, courseProgress);
-    }
-  }, [courses, categories, activities, courseProgress]);
 
   const publishedActivities = activities.filter(a => a.status === "published");
 
-  const handleActivitySave = (activity: Activity, saveAs: "draft" | "published") => {
+  // ── ACTIVITY HANDLERS - NOW SAVE TO BACKEND ─────────────────────────────────
+  const handleActivitySave = async (activity: Activity, saveAs: "draft" | "published") => {
     const updatedActivity = { ...activity, status: saveAs };
     
-    if (editingActivity) {
-      setActivities(prev => prev.map(a => a.id === activity.id ? updatedActivity : a));
-      toast(`Activity ${saveAs === "published" ? "published" : "saved as draft"} successfully!`);
-    } else {
-      setActivities(prev => [...prev, updatedActivity]);
-      toast(`Activity ${saveAs === "published" ? "published" : "created as draft"}!`);
+    try {
+      if (editingActivity) {
+        // UPDATE existing activity
+        const response = await api.activities.update(activity.id, updatedActivity);
+        
+        if (response.success) {
+          setActivities(prev => prev.map(a => a.id === activity.id ? updatedActivity : a));
+          toast(`Activity ${saveAs === "published" ? "published" : "saved as draft"} successfully!`);
+        } else {
+          toast(`Error: ${response.error || 'Failed to update activity'}`);
+          return;
+        }
+      } else {
+        // CREATE new activity
+        const response = await api.activities.create(updatedActivity);
+        
+        if (response.success && response.data) {
+          // Update the activity with the server-generated ID
+          const savedActivity = { ...updatedActivity, id: response.data.activity_id };
+          setActivities(prev => [...prev, savedActivity]);
+          toast(`Activity ${saveAs === "published" ? "published" : "created as draft"}!`);
+        } else {
+          toast(`Error: ${response.error || 'Failed to create activity'}`);
+          return;
+        }
+      }
+      
+      setActivityBuilderOpen(false);
+      setEditingActivity(null);
+    } catch (error) {
+      console.error('Error saving activity:', error);
+      toast('Failed to save activity to server');
     }
-    
-    setActivityBuilderOpen(false);
-    setEditingActivity(null);
   };
 
-  const handleWizardSave = (data: Course) => {
-    setCourses(prev => [...prev, data]);
+  // ── COURSE HANDLERS - NOW SAVE TO BACKEND ───────────────────────────────────
+  const handleWizardSave = async (data: Course) => {
+    try {
+      const response = await api.courses.create(data);
+      
+      if (response.success && response.data) {
+        // Add the new course with the server-generated ID
+        const newCourse = { ...data, id: response.data.id };
+        setCourses(prev => [...prev, newCourse]);
+        toast('Course created successfully!');
+      } else {
+        toast(`Error: ${response.error || 'Failed to create course'}`);
+      }
+    } catch (error) {
+      console.error('Error creating course:', error);
+      toast('Failed to create course on server');
+    }
   };
 
-  const handleProgress = (idx: number, progress: number, timeSpent?: number, assessmentScore?: number) => {
+  // ── PROGRESS HANDLER - NOW SAVE TO BACKEND ──────────────────────────────────
+  const handleProgress = async (idx: number, progress: number, timeSpent?: number, assessmentScore?: number) => {
     const isCompleted = progress >= 100;
     const currentProgress = courseProgress[idx] || { quizScores: [], assessmentScores: [] };
+    const course = courses[idx];
     
     // If assessment score provided, add it
     let updatedAssessmentScores = currentProgress.assessmentScores || [];
     if (assessmentScore !== undefined) {
-      const course = courses[idx];
       const modules = course.modules || [];
-      // Find current assessment's passing score
       let passingScore = 70; // default
       modules.forEach(mod => {
         mod.chapters.forEach(ch => {
@@ -179,6 +199,7 @@ export default function LearningCenter() {
       ];
     }
     
+    // Update local state
     setCourses(prev =>
       prev.map((c, i) => i === idx ? { ...c, progress, enrolled: true } : c)
     );
@@ -200,10 +221,18 @@ export default function LearningCenter() {
       ...prev,
       [idx]: newProgressData
     }));
+
+    // Save progress to backend
+    try {
+      if (course.id) {
+        await api.courses.updateProgress(course.id, progress, true);
+      }
+    } catch (error) {
+      console.error('Error saving progress to server:', error);
+    }
     
     // Show completion stats popup only on new completion
     if (isCompleted && !currentProgress?.completed) {
-      // Show stats immediately
       setShowCompletionStats(true);
     }
   };
@@ -213,8 +242,21 @@ export default function LearningCenter() {
     setActivityBuilderOpen(true);
   };
 
-  const handleDeleteActivity = (id: string) => {
-    setActivities(prev => prev.filter(a => a.id !== id));
+  // ── DELETE ACTIVITY - NOW DELETES FROM BACKEND ──────────────────────────────
+  const handleDeleteActivity = async (id: string) => {
+    try {
+      const response = await api.activities.delete(id);
+      
+      if (response.success) {
+        setActivities(prev => prev.filter(a => a.id !== id));
+        toast('Activity deleted successfully');
+      } else {
+        toast(`Error: ${response.error || 'Failed to delete activity'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting activity:', error);
+      toast('Failed to delete activity from server');
+    }
   };
 
   const openViewer = (idx: number) => {
@@ -226,98 +268,78 @@ export default function LearningCenter() {
   const startCourse = () => {
     setShowOverview(false);
     setViewerOpen(true);
-    
-    // Enroll user and update last accessed time
-    if (viewerIdx !== null) {
-      const currentProgress = courseProgress[viewerIdx];
-      const courseData = courses[viewerIdx];
-      
-      setCourseProgress(prev => ({
-        ...prev,
-        [viewerIdx]: {
-          progress: currentProgress?.progress || courseData.progress || 0,
-          timeSpent: currentProgress?.timeSpent || 0,
-          lastAccessed: new Date().toISOString(),
-          enrolled: true,
-          completed: currentProgress?.completed || false,
-          completedDate: currentProgress?.completedDate,
-          quizScores: currentProgress?.quizScores || [],
-          assessmentScores: currentProgress?.assessmentScores || []
-        }
-      }));
-      
-      // Update course enrolled status
-      setCourses(prev => prev.map((c, i) => 
-        i === viewerIdx ? { ...c, enrolled: true } : c
-      ));
-      
-      toast("Course started! Good luck with your learning.");
-    }
   };
 
   const closeViewer = () => {
     setViewerExiting(true);
     setTimeout(() => {
-      setViewerExiting(false);
       setViewerOpen(false);
+      setViewerExiting(false);
       setViewerIdx(null);
-    }, 320);
+      setShowOverview(false);
+    }, 280);
   };
 
   const handleCloseCompletionStats = () => {
     setShowCompletionStats(false);
-    setViewerOpen(false);
-    setViewerIdx(null);
+    closeViewer();
   };
 
-  const closeOverview = () => {
-    setShowOverview(false);
-    setViewerIdx(null);
+  // ── RESET DATA - NOW RELOADS FROM BACKEND ───────────────────────────────────
+  const handleResetData = async () => {
+    if (confirm('Reload data from server?')) {
+      setLoading(true);
+      const data = await loadDataFromAPI();
+      setCourses(data.courses);
+      setCategories(data.categories);
+      setActivities(data.activities);
+      setCourseProgress(data.courseProgress);
+      setLoading(false);
+      toast('Data reloaded from server');
+    }
   };
 
-  // ── Full-page Course Overview ───────────────────────────────────────
+  // Show loading state
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        fontSize: '18px',
+        color: 'var(--purple)',
+        fontWeight: 600,
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  // ── Course Overview (Modal) ──────────────────────────────────────────────────
   if (showOverview && viewerIdx !== null) {
-    const courseData = courseProgress[viewerIdx] || {
-      progress: courses[viewerIdx].progress || 0,
-      timeSpent: 0,
-      lastAccessed: undefined,
-      enrolled: courses[viewerIdx].enrolled || false,
-      completed: false
-    };
-
     return (
       <>
         <CourseOverview
           course={courses[viewerIdx]}
           onStart={startCourse}
-          onClose={closeOverview}
-          progress={courseData.progress}
-          timeSpent={courseData.timeSpent}
-          lastAccessed={courseData.lastAccessed}
-          enrolled={courseData.enrolled}
-          completed={courseData.completed}
-          completedDate={courseData.completedDate}
+          onClose={() => {
+            setShowOverview(false);
+            setViewerIdx(null);
+          }}
+          toast={toast}
         />
         <Toast msg={msg} visible={visible} />
       </>
     );
   }
 
-  // ── Full-page Course Viewer ──────────────────────────────────────────
-  if (viewerOpen || viewerExiting) {
+  // ── Course Viewer (Full-screen) ──────────────────────────────────────────────
+  if (viewerOpen && viewerIdx !== null) {
     return (
       <>
-        <style>{`
-          @keyframes cv-pageIn  { from{opacity:0;transform:translateY(18px) scale(0.98)} to{opacity:1;transform:translateY(0) scale(1)} }
-          @keyframes cv-pageOut { from{opacity:1;transform:translateY(0) scale(0.98)} to{opacity:0;transform:translateY(18px) scale(0.98)} }
-          .cv-page-enter { animation: cv-pageIn 0.45s cubic-bezier(0.16,1,0.3,1) both; }
-          .cv-page-exit  { animation: cv-pageOut 0.32s ease forwards; }
-        `}</style>
-        <div
-          className={viewerExiting ? "cv-page-exit" : "cv-page-enter"}
-          style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", flexDirection: "column" }}
-        >
-          {viewerIdx !== null && (
+        <div className={viewerExiting ? "lp-portal-exit" : ""}>
+          {viewerOpen && viewerIdx !== null && (
             <CourseViewer
               course={courses[viewerIdx]}
               onClose={closeViewer}
@@ -350,7 +372,7 @@ export default function LearningCenter() {
     );
   }
 
-  // ── Full-page Course Creation Wizard ────────────────────────────────
+  // ── Full-page Course Creation Wizard ────────────────────────────────────
   if (wizardOpen) {
     return (
       <>
@@ -473,22 +495,17 @@ export default function LearningCenter() {
               </div>
             </div>
 
-            {/* Reset Button */}
+            {/* Reload from Server Button */}
             <button
               className="btn btn-s btn-sm"
-              onClick={() => {
-                if (confirm('Reset all data and reload from test_data.json?')) {
-                  localStorage.removeItem('learningCenterData');
-                  window.location.reload();
-                }
-              }}
+              onClick={handleResetData}
               style={{ opacity: 0.6 }}
             >
               <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M12 7a5 5 0 11-10 0 5 5 0 0110 0z"/>
                 <path d="M7 3v4l2 2"/>
               </svg>
-              Reset
+              Reload
             </button>
           </div>
         </div>

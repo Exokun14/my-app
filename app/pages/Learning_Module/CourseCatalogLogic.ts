@@ -89,13 +89,8 @@ export function useCourseCatalog({
       if (editIdx !== null) {
         // UPDATE existing course
         const existingCourse = courses[editIdx];
-        console.log('🔄 Updating course:', existingCourse);
-        console.log('🔄 Course ID:', existingCourse.id);
-        console.log('🔄 Update data:', data);
-        
         if (existingCourse.id) {
           const response = await api.courses.update(existingCourse.id, data);
-          console.log('🔄 Update response:', response);
           
           if (response.success) {
             setCourses(prev => prev.map((c, i) => i === editIdx ? { ...c, ...data } : c));
@@ -104,10 +99,6 @@ export function useCourseCatalog({
             toast(`Error: ${response.error || 'Failed to update course'}`);
             return;
           }
-        } else {
-          console.error('❌ Course has no ID, cannot update in database');
-          toast('Cannot update: Course has no ID');
-          return;
         }
       } else {
         // CREATE new course
