@@ -203,10 +203,8 @@ export default function LearningCenter() {
     
     // Show completion stats popup only on new completion
     if (isCompleted && !currentProgress?.completed) {
-      // Wait a moment then show stats
-      setTimeout(() => {
-        setShowCompletionStats(true);
-      }, 500);
+      // Show stats immediately
+      setShowCompletionStats(true);
     }
   };
 

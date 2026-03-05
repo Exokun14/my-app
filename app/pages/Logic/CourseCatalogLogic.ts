@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Course, Module } from "../../Data/types";
-import type { Activity } from "./ActivityBuilderPanel";
+import type { Activity } from "../Learning_Module/ActivityBuilderPanel";
 
 export interface CourseCatalogProps {
   courses:       Course[];
@@ -72,6 +72,8 @@ export function useCourseCatalog({
   const [editIdx,       setEditIdx]       = useState<number | null>(null);
   const [modOpen,       setModOpen]       = useState(false);
   const [modIdx,        setModIdx]        = useState<number | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteIdx,     setDeleteIdx]     = useState<number | null>(null);
 
   const filtered = courses.filter(c => {
     const catOk    = activeCat === "All" || c.cat === activeCat;
@@ -91,8 +93,22 @@ export function useCourseCatalog({
   };
 
   const handleDelete = (idx: number) => {
-    toast(`"${courses[idx].title}" deleted.`);
-    setCourses(prev => prev.filter((_, i) => i !== idx));
+    setDeleteIdx(idx);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (deleteIdx !== null) {
+      toast(`"${courses[deleteIdx].title}" deleted.`);
+      setCourses(prev => prev.filter((_, i) => i !== deleteIdx));
+      setDeleteConfirmOpen(false);
+      setDeleteIdx(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmOpen(false);
+    setDeleteIdx(null);
   };
 
   const handleModSave = (idx: number, modules: Module[]) => {
@@ -131,10 +147,13 @@ export function useCourseCatalog({
     filterOn, setFilterOn,
     editOpen, editIdx,
     modOpen, modIdx,
+    deleteConfirmOpen, deleteIdx,
     filtered,
     // handlers
     handleEditSave,
     handleDelete,
+    confirmDelete,
+    cancelDelete,
     handleModSave,
     openViewer,
     openEdit,

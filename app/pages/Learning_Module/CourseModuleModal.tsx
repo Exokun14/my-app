@@ -616,6 +616,7 @@ export default function CourseModuleModal({
                           <div style={{fontSize:11.5,fontWeight:600,color:ch.title?"var(--t1,#18103a)":"var(--t3,#c4bdd8)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ch.title||<em>Untitled</em>}</div>
                           <div style={{fontSize:9,color:meta.c,fontWeight:700,marginTop:1}}>{meta.ico} {meta.lbl}</div>
                         </div>
+                        <button onClick={(e)=>{e.stopPropagation();delCh(mi,ci);}} style={{width:20,height:20,borderRadius:5,border:"1.5px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.05)",color:"#dc2626",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,flexShrink:0}}>×</button>
                       </div>
                     );
                   })}

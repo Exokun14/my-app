@@ -18,9 +18,12 @@ export default function CourseCatalog({
     filterOn, setFilterOn,
     editOpen, editIdx,
     modOpen, modIdx,
+    deleteConfirmOpen, deleteIdx,
     filtered,
     handleEditSave,
     handleDelete,
+    confirmDelete,
+    cancelDelete,
     handleModSave,
     openViewer,
     openEdit,
@@ -198,6 +201,170 @@ export default function CourseCatalog({
         toast={toast}
         publishedActivities={publishedActivities}
       />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmOpen && deleteIdx !== null && (
+        <>
+          <style>{`
+            @keyframes deleteModalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes deleteModalSlideUp { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+          `}</style>
+          <div 
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 4000,
+              background: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 20,
+              animation: 'deleteModalFadeIn 0.2s ease'
+            }}
+            onClick={cancelDelete}
+          >
+            <div 
+              style={{
+                background: 'var(--surface, #fff)',
+                borderRadius: 16,
+                border: '1.5px solid rgba(220, 38, 38, 0.2)',
+                boxShadow: '0 20px 60px rgba(220, 38, 38, 0.25)',
+                maxWidth: 440,
+                width: '100%',
+                animation: 'deleteModalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{
+                padding: '24px 24px 20px',
+                borderBottom: '1px solid rgba(220, 38, 38, 0.1)',
+                textAlign: 'center' as const
+              }}>
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '50%',
+                  background: 'rgba(220, 38, 38, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                  fontSize: 28
+                }}>
+                  ⚠️
+                </div>
+                <div style={{
+                  fontSize: 20,
+                  fontWeight: 800,
+                  color: '#dc2626',
+                  marginBottom: 6,
+                  letterSpacing: '-0.02em'
+                }}>
+                  Delete Course?
+                </div>
+                <div style={{
+                  fontSize: 13,
+                  color: 'var(--t2, #4a3870)',
+                  lineHeight: 1.5
+                }}>
+                  This action cannot be undone
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '20px 24px' }}>
+                <div style={{
+                  padding: 16,
+                  borderRadius: 10,
+                  background: 'rgba(220, 38, 38, 0.05)',
+                  border: '1.5px solid rgba(220, 38, 38, 0.15)',
+                  marginBottom: 20
+                }}>
+                  <div style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: '#7f1d1d',
+                    marginBottom: 6
+                  }}>
+                    "{courses[deleteIdx].title}"
+                  </div>
+                  <div style={{
+                    fontSize: 12,
+                    color: '#991b1b',
+                    lineHeight: 1.6
+                  }}>
+                    All course content, modules, and progress data will be permanently deleted.
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{
+                padding: '16px 24px 20px',
+                display: 'flex',
+                gap: 10,
+                borderTop: '1px solid rgba(220, 38, 38, 0.1)'
+              }}>
+                <button
+                  onClick={cancelDelete}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: 9,
+                    border: '1.5px solid var(--border, rgba(124, 58, 237, 0.2))',
+                    background: 'transparent',
+                    color: 'var(--t2, #4a3870)',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    fontFamily: 'inherit'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(124, 58, 237, 0.06)';
+                    e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.3)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.2)';
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: 9,
+                    border: 'none',
+                    background: '#dc2626',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.3)',
+                    fontFamily: 'inherit'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(220, 38, 38, 0.4)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(220, 38, 38, 0.3)';
+                  }}
+                >
+                  Delete Course
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

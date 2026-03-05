@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import constants from "../Data/test_data.json";
-import type { Course, Client } from "../Data/types";
+import { useState, useEffect, useRef } from "react";
+import constants from "../../Data/test_data.json";
+import type { Course, Client } from "../../Data/types";
+import { uploadFile } from "../../Services/api";
 
 const { CLIENTS, CC_COLORS } = constants as { CLIENTS: Client[]; CC_COLORS: string[] };
 
@@ -38,6 +39,10 @@ export default function CreateCourseModal({
   const [renamingCat, setRenamingCat] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState<string>("");
 
+  // ── Upload state ──────────────────────────────────────────
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!open) return;
     if (isEdit && editCourse) {
@@ -56,6 +61,32 @@ export default function CreateCourseModal({
     setNewCatName("");
     setRenamingCat(null);
   }, [open, isEdit, editCourse]);
+
+  // ── Handle thumbnail file upload ──────────────────────────
+  const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Only allow images
+    if (!file.type.startsWith("image/")) {
+      toast("Please select an image file.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const data = await uploadFile(file);
+      setThumbUrl(`http://localhost${data.url}`);
+      toast("Thumbnail uploaded successfully!");
+    } catch (err) {
+      toast("Upload failed. Please try again.");
+      console.error(err);
+    } finally {
+      setUploading(false);
+      // Reset input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const filteredClients = CLIENTS.filter(c => {
     const indOk = industryFilter === "All" || c.cat === industryFilter;
@@ -229,7 +260,7 @@ export default function CreateCourseModal({
             </div>
           </div>
 
-          {/* Thumbnail */}
+          {/* Thumbnail — now supports file upload AND URL */}
           <div className="ccm-section">
             <div className="ccm-sec-hd">
               <div className="ccm-sec-ico" style={{ background: "var(--sky-lt)", color: "var(--sky)" }}>
@@ -240,19 +271,78 @@ export default function CreateCourseModal({
               <span className="ccm-sec-label">Thumbnail</span>
             </div>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+
+              {/* Preview box */}
               <div className="ccm-thumb-preview">
-                {thumbUrl
-                  ? <img src={thumbUrl} alt="thumb" onError={() => setThumbUrl("")} />
-                  : <>
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.35)" strokeWidth="1.5">
-                        <rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
-                      </svg>
-                      <span>No image</span>
-                    </>
-                }
+                {uploading ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.5)" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                    <span style={{ fontSize: 9, color: "rgba(124,58,237,0.5)" }}>Uploading...</span>
+                  </div>
+                ) : thumbUrl ? (
+                  <img src={thumbUrl} alt="thumb" onError={() => setThumbUrl("")} />
+                ) : (
+                  <>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.35)" strokeWidth="1.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+                    </svg>
+                    <span>No image</span>
+                  </>
+                )}
               </div>
-              <div style={{ flex: 1 }}>
-                <input className="f-in" type="text" value={thumbUrl} onChange={e => setThumbUrl(e.target.value)} placeholder="Paste image URL (optional)..." />
+
+              {/* Upload controls */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+
+                {/* Upload button */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handleThumbUpload}
+                />
+                <button
+                  className="btn btn-s btn-sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  style={{ justifyContent: "center", width: "100%" }}
+                >
+                  <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M7 1v8M4 4l3-3 3 3M2 11h10"/>
+                  </svg>
+                  {uploading ? "Uploading..." : "Upload Image"}
+                </button>
+
+                {/* OR divider */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+                  <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>OR</span>
+                  <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+                </div>
+
+                {/* URL input */}
+                <input
+                  className="f-in"
+                  type="text"
+                  value={thumbUrl}
+                  onChange={e => setThumbUrl(e.target.value)}
+                  placeholder="Paste image URL..."
+                  disabled={uploading}
+                />
+
+                {/* Clear button */}
+                {thumbUrl && (
+                  <button
+                    className="btn btn-s btn-sm"
+                    onClick={() => setThumbUrl("")}
+                    style={{ justifyContent: "center", width: "100%", color: "var(--red)", borderColor: "rgba(239,68,68,0.2)" }}
+                  >
+                    Remove Image
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -312,6 +402,9 @@ export default function CreateCourseModal({
           </button>
         </div>
       </div>
+
+      {/* Spinner keyframe */}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

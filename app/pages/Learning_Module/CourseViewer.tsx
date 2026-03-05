@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import type { Course } from "../../Data/types";
 import { ACT_META, type Activity } from "./ActivityBuilderPanel";
+import AssessmentOverview from "./AssessmentOverview";
+import AssessmentResultsPopup from "./AssessmentResultsPopup";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CourseViewerProps {
@@ -607,10 +609,46 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const [scrollProgress, setScrollProgress] = useState(0);
   const [videoWatched, setVideoWatched] = useState<Record<string, boolean>>({});
   const [startTime] = useState(Date.now());
+  const [quizAttempts, setQuizAttempts] = useState<Record<string, number>>({});
+  const [viewedFlashcards, setViewedFlashcards] = useState<Record<string, Set<number>>>({});
+  const [assessmentAttempts, setAssessmentAttempts] = useState<Record<string, number>>({});
+  const [assessmentScores, setAssessmentScores] = useState<Record<string, number[]>>({});
+  const [showAssessmentOverview, setShowAssessmentOverview] = useState(false);
+  const [takingAssessment, setTakingAssessment] = useState(false);
+  const [showAssessmentResults, setShowAssessmentResults] = useState(false);
+  const [lastAssessmentScore, setLastAssessmentScore] = useState(0);
+  const [wasAlreadyCompleted, setWasAlreadyCompleted] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
 
   const currentModule = modules[selMod];
   const currentChapter = currentModule?.chapters[selCh];
+  const chapterKey = `${selMod}-${selCh}`;
+  const currentAttempts = quizAttempts[chapterKey] || 0;
+  const maxQuizAttempts = 3;
+  const maxAssessmentAttempts = 3;
+  const currentAssessmentAttempts = assessmentAttempts[chapterKey] || 0;
+  const previousAssessmentScores = assessmentScores[chapterKey] || [];
+  
+  // Check on mount if course is already completed
+  useEffect(() => {
+    const allDone = modules.every(mod => mod.chapters.every(ch => ch.done));
+    setWasAlreadyCompleted(allDone);
+  }, []);
+  
+  // Check if all previous chapters are completed
+  const areAllPreviousChaptersComplete = () => {
+    for (let m = 0; m <= selMod; m++) {
+      const mod = modules[m];
+      const maxCh = m === selMod ? selCh - 1 : mod.chapters.length - 1;
+      
+      for (let c = 0; c <= maxCh; c++) {
+        if (!mod.chapters[c].done) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
 
   // Track scroll progress
   useEffect(() => {
@@ -623,25 +661,60 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
       setScrollProgress(progress);
 
       // Auto-complete when scrolled to bottom (95% threshold)
+      // BUT NOT for quizzes - they need to be passed manually
       if (progress >= 95 && currentChapter && !currentChapter.done) {
+        // Skip auto-complete for quizzes and assessments
+        if (currentChapter.type === 'quiz' || currentChapter.type === 'assessment') {
+          return;
+        }
+        
         const blocks = (currentChapter.content.blocks || []) as UnifiedBlock[];
         const hasVideo = blocks.some(b => b.type === 'media');
+        const hasActivity = blocks.some(b => b.type === 'activity');
         
-        // If has video, check if video is watched
+        // Check video completion
         if (hasVideo) {
           const allVideosWatched = blocks
             .filter(b => b.type === 'media')
             .every(b => videoWatched[b.id]);
           
-          if (allVideosWatched) {
-            currentChapter.done = true;
-            onProgress(progressPercent);
-          }
-        } else {
-          // No video, just mark complete on scroll
-          currentChapter.done = true;
-          onProgress(progressPercent);
+          if (!allVideosWatched) return;
         }
+        
+        // Check activity completion
+        if (hasActivity) {
+          const allActivitiesComplete = blocks
+            .filter(b => b.type === 'activity' && b.activity)
+            .every(b => {
+              const activity = b.activity!;
+              
+              // Flashcards - must view all cards
+              if (activity.type === 'flashcard' && activity.cards) {
+                const viewed = viewedFlashcards[b.id];
+                return viewed && viewed.size >= activity.cards.length;
+              }
+              
+              // Accordion - must open all items
+              if (activity.type === 'accordion' && activity.items) {
+                return activity.items.every((_, idx) => openAccordions[`${b.id}-${idx}`]);
+              }
+              
+              // Checklist/Hotspot - must check all items
+              if ((activity.type === 'checklist' || activity.type === 'hotspot') && activity.checklist) {
+                return activity.checklist.every((_, idx) => checkedItems[`${b.id}-${idx}`]);
+              }
+              
+              return true; // Other activity types don't require interaction
+            });
+          
+          if (!allActivitiesComplete) {
+            return;
+          }
+        }
+        
+        // All requirements met - auto-complete
+        currentChapter.done = true;
+        onProgress(progressPercent);
       }
     };
 
@@ -650,7 +723,7 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
       element.addEventListener('scroll', handleScroll);
       return () => element.removeEventListener('scroll', handleScroll);
     }
-  }, [currentChapter, videoWatched, onProgress]);
+  }, [currentChapter, videoWatched, viewedFlashcards, openAccordions, checkedItems, onProgress]);
 
   // Reset scroll when chapter changes
   useEffect(() => {
@@ -658,7 +731,21 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
       mainRef.current.scrollTop = 0;
       setScrollProgress(0);
     }
-  }, [selMod, selCh]);
+    
+    // Show assessment overview for assessments (only if prerequisites met)
+    if (currentChapter?.type === 'assessment' && !currentChapter.done) {
+      if (!areAllPreviousChaptersComplete()) {
+        toast("⚠️ Please complete all previous chapters before taking this assessment.");
+        // Go back to previous chapter
+        if (selCh > 0) {
+          setSelCh(selCh - 1);
+        }
+        return;
+      }
+      setShowAssessmentOverview(true);
+      setTakingAssessment(false);
+    }
+  }, [selMod, selCh, currentChapter]);
 
   const totalChapters = modules.reduce((sum, m) => sum + m.chapters.length, 0);
   const completedChapters = modules.reduce(
@@ -670,31 +757,35 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const markComplete = () => {
     if (!currentChapter) return;
     
-    // Quiz validation - must get ALL correct
+    // Quiz validation - must get ALL correct (attempts already tracked in Submit button)
     if (currentChapter.type === 'quiz') {
       const allCorrect = questions.every((q, idx) => answers[`q${idx}`] === q.ans);
+      
       if (!allCorrect) {
-        toast("❌ You must answer all questions correctly to complete this quiz.");
+        // Quiz not passed - don't allow completion
+        toast("⚠️ Please answer all questions correctly before continuing.");
         return;
       }
+      
+      // Quiz passed - mark as complete
+      if (!currentChapter.done) {
+        toast("✅ Quiz passed! Great work!");
+      }
+      currentChapter.done = true;
+      onProgress(progressPercent);
     }
     
     // Assessment validation - must meet passing score
     if (currentChapter.type === 'assessment') {
-      const passingScore = (currentChapter.content as any).passingScore || 70;
-      const correctAnswers = questions.filter((q, idx) => answers[`q${idx}`] === q.ans).length;
-      const scorePercent = Math.round((correctAnswers / questions.length) * 100);
-      
-      if (scorePercent < passingScore) {
-        toast(`❌ You scored ${scorePercent}%. You need ${passingScore}% to pass this assessment.`);
-        return;
-      }
-      
-      // Store assessment score for stats
-      onProgress(progressPercent, 0, scorePercent);
+      // Assessment results are now handled by the submit button
+      // This code path should not be reached for assessments
+      return;
     }
     
-    currentChapter.done = true;
+    // For lessons, mark as done (quiz already marked above)
+    if (currentChapter.type === 'lesson') {
+      currentChapter.done = true;
+    }
     
     // Calculate time spent (in minutes)
     const timeSpent = Math.floor((Date.now() - startTime) / 60000);
@@ -705,8 +796,19 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     const isLastChapter = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
     
     if (isLastChapter) {
-      // Course complete - trigger stats popup
-      toast("🎉 Course completed! Calculating your results...");
+      // Course complete - only trigger if not already completed before
+      currentChapter.done = true;
+      const timeSpent = Math.floor((Date.now() - startTime) / 60000);
+      
+      if (!wasAlreadyCompleted) {
+        onProgress(100, timeSpent); // Force 100% progress
+        toast("🎉 Course completed! Calculating your results...");
+      } else {
+        // Just update progress without toast
+        onProgress(100, timeSpent);
+      }
+      
+      // Don't close - let the completion stats popup show (only if not already completed)
       return;
     }
     
@@ -721,6 +823,84 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     // Reset state
     setAnswers({});
     setSubmitted(false);
+    setTakingAssessment(false);
+  };
+
+  const handleQuizRetry = () => {
+    setAnswers({});
+    setSubmitted(false);
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  };
+
+  const handleStartAssessment = () => {
+    setShowAssessmentOverview(false);
+    setTakingAssessment(true);
+    setAnswers({});
+    setSubmitted(false);
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  };
+
+  const handleCloseAssessmentOverview = () => {
+    setShowAssessmentOverview(false);
+    // Go back if assessment not started
+    if (!takingAssessment) {
+      if (selCh > 0) {
+        setSelCh(selCh - 1);
+      } else if (selMod > 0) {
+        setSelMod(selMod - 1);
+        const prevMod = modules[selMod - 1];
+        setSelCh(prevMod.chapters.length - 1);
+      }
+    }
+  };
+
+  const handleAssessmentRetry = () => {
+    setShowAssessmentResults(false);
+    setAnswers({});
+    setSubmitted(false);
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  };
+
+  const handleAssessmentContinue = () => {
+    setShowAssessmentResults(false);
+    
+    const passingScore = (currentChapter.content as any).passingScore || 70;
+    const passed = lastAssessmentScore >= passingScore;
+    
+    if (passed) {
+      // Move to next chapter or complete course
+      const isLastChapter = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
+      
+      if (isLastChapter) {
+        const timeSpent = Math.floor((Date.now() - startTime) / 60000);
+        onProgress(100, timeSpent);
+        toast("🎉 Course completed! Calculating your results...");
+      } else {
+        // Move to next chapter
+        if (selCh < currentModule.chapters.length - 1) {
+          setSelCh(selCh + 1);
+        } else if (selMod < modules.length - 1) {
+          setSelMod(selMod + 1);
+          setSelCh(0);
+        }
+      }
+      
+      setAnswers({});
+      setSubmitted(false);
+      setTakingAssessment(false);
+    } else {
+      // Failed - return to overview
+      setTakingAssessment(false);
+      setShowAssessmentOverview(true);
+      setAnswers({});
+      setSubmitted(false);
+    }
   };
 
   const handleVideoComplete = (blockId: string) => {
@@ -748,9 +928,206 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const blocks = (currentChapter.content.blocks || []) as UnifiedBlock[];
   const questions = currentChapter.content.questions || [];
 
+  // Show Assessment Overview
+  if (currentChapter.type === 'assessment' && showAssessmentOverview) {
+    const passingScore = (currentChapter.content as any).passingScore || 70;
+    
+    return (
+      <>
+        <style>{STYLES}</style>
+        <AssessmentOverview
+          title={currentChapter.title}
+          description={currentChapter.content.body || "Complete this assessment to demonstrate your knowledge."}
+          passingScore={passingScore}
+          questionCount={questions.length}
+          attemptsUsed={currentAssessmentAttempts}
+          maxAttempts={maxAssessmentAttempts}
+          previousScores={previousAssessmentScores}
+          onStart={handleStartAssessment}
+          onClose={handleCloseAssessmentOverview}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <style>{STYLES}</style>
+      
+      {/* Full-Screen Assessment Mode */}
+      {currentChapter.type === 'assessment' && takingAssessment ? (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1000,
+          background: 'var(--bg,#f8f7ff)',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {/* Assessment Header */}
+          <div style={{
+            padding: '16px 24px',
+            background: 'var(--surface,#fff)',
+            borderBottom: '1px solid var(--border,rgba(124,58,237,0.1))',
+            boxShadow: '0 1px 6px rgba(124,58,237,0.04)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16
+          }}>
+            <div style={{
+              width: 44,
+              height: 44,
+              borderRadius: 11,
+              background: 'linear-gradient(135deg,#7c3aed,#0d9488)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+              flexShrink: 0,
+              boxShadow: '0 2px 10px rgba(124,58,237,0.25)'
+            }}>
+              📝
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--t1,#18103a)', marginBottom: 2 }}>
+                {currentChapter.title}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--t3,#a89dc8)', fontWeight: 600 }}>
+                Assessment in Progress • {questions.length} Questions • {(currentChapter.content as any).passingScore || 70}% to Pass
+              </div>
+            </div>
+            <div style={{
+              padding: '6px 12px',
+              borderRadius: 8,
+              background: 'rgba(217,119,6,0.08)',
+              border: '1.5px solid rgba(217,119,6,0.2)',
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#d97706'
+            }}>
+              Attempt {currentAssessmentAttempts + 1} / {maxAssessmentAttempts}
+            </div>
+          </div>
+
+          {/* Assessment Content */}
+          <div style={{
+            flex: 1,
+            overflow: 'auto',
+            padding: '32px 20px'
+          }}>
+            <div style={{ maxWidth: 900, margin: '0 auto' }}>
+              {currentChapter.content.body && (
+                <div style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 24, lineHeight: 1.7 }}>
+                  {currentChapter.content.body}
+                </div>
+              )}
+              
+              {(currentChapter.content as any).passingScore && (
+                <div style={{
+                  padding: 12,
+                  borderRadius: 10,
+                  background: 'rgba(217,119,6,0.08)',
+                  border: '1.5px solid rgba(217,119,6,0.2)',
+                  marginBottom: 20,
+                  fontSize: 12,
+                  color: '#92400e',
+                  fontWeight: 600
+                }}>
+                  ⚠️ Passing Score: {(currentChapter.content as any).passingScore}% • You must score at least this to pass
+                </div>
+              )}
+              
+              {questions.map((q, qIdx) => (
+                <div key={qIdx} className="cv-quiz-question">
+                  <div className="cv-quiz-number">{qIdx + 1}</div>
+                  <div className="cv-quiz-text">{q.q}</div>
+                  {q.opts.map((opt, optIdx) => {
+                    const isSelected = answers[`q${qIdx}`] === optIdx;
+                    const isCorrect = q.ans === optIdx;
+                    
+                    let optClass = 'cv-quiz-option';
+                    if (isSelected) optClass += ' selected';
+                    
+                    return (
+                      <div
+                        key={optIdx}
+                        className={optClass}
+                        onClick={() => setAnswers(prev => ({ ...prev, [`q${qIdx}`]: optIdx }))}
+                      >
+                        <div className="cv-quiz-radio" />
+                        <div className="cv-quiz-option-text">{opt}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Assessment Footer */}
+          <div style={{
+            padding: '16px 24px',
+            background: 'var(--surface,#fff)',
+            borderTop: '1px solid var(--border,rgba(124,58,237,0.1))',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            boxShadow: '0 -1px 6px rgba(124,58,237,0.04)'
+          }}>
+            <div style={{ flex: 1, fontSize: 11, color: 'var(--t3,#a89dc8)', fontWeight: 500 }}>
+              {Object.keys(answers).length} / {questions.length} answered
+            </div>
+            
+            <button 
+              onClick={() => {
+                // Calculate score and show popup immediately
+                const passingScore = (currentChapter.content as any).passingScore || 70;
+                const correctAnswers = questions.filter((q, idx) => answers[`q${idx}`] === q.ans).length;
+                const scorePercent = Math.round((correctAnswers / questions.length) * 100);
+                
+                // Store score
+                setLastAssessmentScore(scorePercent);
+                
+                // Track attempt
+                setAssessmentScores(prev => ({
+                  ...prev,
+                  [chapterKey]: [...(prev[chapterKey] || []), scorePercent]
+                }));
+                
+                const newAttempts = currentAssessmentAttempts + 1;
+                setAssessmentAttempts(prev => ({ ...prev, [chapterKey]: newAttempts }));
+                
+                // Mark as complete if passed
+                if (scorePercent >= passingScore) {
+                  currentChapter.done = true;
+                  onProgress(progressPercent, 0, scorePercent);
+                }
+                
+                // Show popup immediately
+                setShowAssessmentResults(true);
+              }}
+              disabled={Object.keys(answers).length !== questions.length}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 9,
+                border: 'none',
+                background: Object.keys(answers).length === questions.length 
+                  ? 'linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488))'
+                  : 'var(--border,rgba(124,58,237,0.2))',
+                color: Object.keys(answers).length === questions.length ? '#fff' : 'var(--t3,#a89dc8)',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: Object.keys(answers).length === questions.length ? 'pointer' : 'not-allowed',
+                transition: 'all 0.15s',
+                boxShadow: Object.keys(answers).length === questions.length ? '0 2px 8px rgba(124,58,237,0.25)' : 'none'
+              }}
+            >
+              Submit Assessment
+            </button>
+          </div>
+        </div>
+      ) : (
+        // Regular course viewer layout
       <div className="cv-page">
         
         {/* Header */}
@@ -910,7 +1287,15 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
                       {/* Flashcards */}
                       {act.type === 'flashcard' && act.cards && act.cards.length > 0 && (
                         <div className="cv-flashcard-container">
-                          <div className="cv-flashcard" onClick={() => setFlashcardFlipped(!flashcardFlipped)}>
+                          <div className="cv-flashcard" onClick={() => {
+                            setFlashcardFlipped(!flashcardFlipped);
+                            // Track card as viewed
+                            setViewedFlashcards(prev => {
+                              const viewed = new Set(prev[block.id] || []);
+                              viewed.add(flashcardIndex);
+                              return { ...prev, [block.id]: viewed };
+                            });
+                          }}>
                             <div className={`cv-flashcard-inner${flashcardFlipped ? ' flipped' : ''}`}>
                               <div className="cv-flashcard-face cv-flashcard-front">
                                 <div>
@@ -929,9 +1314,17 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
                           <div className="cv-flashcard-controls">
                             <button 
                               className="cv-flashcard-btn cv-flashcard-btn-prev"
-                              onClick={() => {
-                                setFlashcardIndex(Math.max(0, flashcardIndex - 1));
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newIndex = Math.max(0, flashcardIndex - 1);
+                                setFlashcardIndex(newIndex);
                                 setFlashcardFlipped(false);
+                                // Track as viewed
+                                setViewedFlashcards(prev => {
+                                  const viewed = new Set(prev[block.id] || []);
+                                  viewed.add(newIndex);
+                                  return { ...prev, [block.id]: viewed };
+                                });
                               }}
                               disabled={flashcardIndex === 0}
                             >
@@ -945,9 +1338,17 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
                             </div>
                             <button 
                               className="cv-flashcard-btn cv-flashcard-btn-next"
-                              onClick={() => {
-                                setFlashcardIndex(Math.min(act.cards.length - 1, flashcardIndex + 1));
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newIndex = Math.min(act.cards.length - 1, flashcardIndex + 1);
+                                setFlashcardIndex(newIndex);
                                 setFlashcardFlipped(false);
+                                // Track as viewed
+                                setViewedFlashcards(prev => {
+                                  const viewed = new Set(prev[block.id] || []);
+                                  viewed.add(newIndex);
+                                  return { ...prev, [block.id]: viewed };
+                                });
                               }}
                               disabled={flashcardIndex === act.cards.length - 1}
                             >
@@ -983,7 +1384,7 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
               })}
 
               {/* Quiz/Assessment Content */}
-              {(currentChapter.type === 'quiz' || currentChapter.type === 'assessment') && (
+              {currentChapter.type === 'quiz' && (
                 <div className="cv-quiz">
                   {currentChapter.content.body && (
                     <div style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 24, lineHeight: 1.7 }}>
@@ -1036,21 +1437,60 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
                     </div>
                   ))}
                   
-                  {submitted && (
+                  {submitted && currentChapter.type === 'quiz' && (
                     <div style={{
                       padding: 16,
                       borderRadius: 10,
-                      background: 'rgba(13,148,136,0.08)',
-                      border: '1.5px solid rgba(13,148,136,0.2)',
+                      background: questions.every((q, idx) => answers[`q${idx}`] === q.ans) 
+                        ? 'rgba(13,148,136,0.08)' 
+                        : 'rgba(220,38,38,0.06)',
+                      border: questions.every((q, idx) => answers[`q${idx}`] === q.ans)
+                        ? '1.5px solid rgba(13,148,136,0.2)'
+                        : '1.5px solid rgba(220,38,38,0.2)',
                       marginTop: 20,
                     }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--teal)', marginBottom: 4 }}>
-                        Score: {Object.values(answers).filter((ans, idx) => ans === questions[idx]?.ans).length} / {questions.length}
+                      <div style={{ 
+                        fontSize: 15, 
+                        fontWeight: 700, 
+                        color: questions.every((q, idx) => answers[`q${idx}`] === q.ans) ? 'var(--teal,#0d9488)' : '#dc2626', 
+                        marginBottom: 4 
+                      }}>
+                        {questions.every((q, idx) => answers[`q${idx}`] === q.ans) ? (
+                          `✅ Perfect! All answers correct!`
+                        ) : (
+                          `❌ Some answers are incorrect`
+                        )}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--t2)' }}>
-                        {Object.values(answers).filter((ans, idx) => ans === questions[idx]?.ans).length === questions.length
-                          ? "Perfect! You've mastered this material."
-                          : "Review the incorrect answers and try again."}
+                        {questions.every((q, idx) => answers[`q${idx}`] === q.ans) ? (
+                          "Great work! You can now proceed."
+                        ) : (
+                          <>
+                            Attempts: {currentAttempts + 1} / {maxQuizAttempts}
+                            {currentAttempts + 1 < maxQuizAttempts && (
+                              <div style={{ marginTop: 10 }}>
+                                <button
+                                  onClick={handleQuizRetry}
+                                  style={{
+                                    padding: '8px 16px',
+                                    borderRadius: 8,
+                                    border: 'none',
+                                    background: '#dc2626',
+                                    color: '#fff',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                                >
+                                  🔄 Try Again ({maxQuizAttempts - currentAttempts - 1} left)
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1078,14 +1518,52 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
           {(currentChapter.type === 'quiz' || currentChapter.type === 'assessment') && !submitted ? (
             <button 
               className="cv-btn cv-btn-primary"
-              onClick={() => setSubmitted(true)}
+              onClick={() => {
+                if (currentChapter.type === 'assessment') {
+                  // For assessments: calculate score and show popup immediately
+                  const passingScore = (currentChapter.content as any).passingScore || 70;
+                  const correctAnswers = questions.filter((q, idx) => answers[`q${idx}`] === q.ans).length;
+                  const scorePercent = Math.round((correctAnswers / questions.length) * 100);
+                  
+                  // Store score
+                  setLastAssessmentScore(scorePercent);
+                  
+                  // Track attempt
+                  setAssessmentScores(prev => ({
+                    ...prev,
+                    [chapterKey]: [...(prev[chapterKey] || []), scorePercent]
+                  }));
+                  
+                  const newAttempts = currentAssessmentAttempts + 1;
+                  setAssessmentAttempts(prev => ({ ...prev, [chapterKey]: newAttempts }));
+                  
+                  // Mark as complete if passed
+                  if (scorePercent >= passingScore) {
+                    currentChapter.done = true;
+                    onProgress(progressPercent, 0, scorePercent);
+                  }
+                  
+                  // Show popup immediately (don't set submitted)
+                  setShowAssessmentResults(true);
+                } else {
+                  // For quizzes: increment attempt counter and set submitted to show inline results
+                  const newAttempts = currentAttempts + 1;
+                  setQuizAttempts(prev => ({ ...prev, [chapterKey]: newAttempts }));
+                  setSubmitted(true);
+                }
+              }}
               disabled={Object.keys(answers).length !== questions.length}
             >
               Submit Answers
             </button>
           ) : (
             <button className="cv-btn cv-btn-primary" onClick={markComplete}>
-              {currentChapter.done ? 'Next Chapter' : isLastChapter ? 'Complete Course' : 'Mark Complete'}
+              {wasAlreadyCompleted && currentChapter.done
+                ? 'Done'
+                : currentChapter.done 
+                  ? (isLastChapter ? 'Complete Course' : 'Next Chapter')
+                  : (isLastChapter ? 'Complete Course' : 'Mark Complete')
+              }
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 1l4 4-4 4"/>
               </svg>
@@ -1093,6 +1571,20 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
           )}
         </div>
       </div>
+      )}
+      
+      {/* Assessment Results Popup */}
+      {showAssessmentResults && currentChapter?.type === 'assessment' && (
+        <AssessmentResultsPopup
+          open={showAssessmentResults}
+          score={lastAssessmentScore}
+          passingScore={(currentChapter.content as any).passingScore || 70}
+          passed={lastAssessmentScore >= ((currentChapter.content as any).passingScore || 70)}
+          attemptsRemaining={maxAssessmentAttempts - currentAssessmentAttempts}
+          onRetry={handleAssessmentRetry}
+          onContinue={handleAssessmentContinue}
+        />
+      )}
     </>
   );
 }

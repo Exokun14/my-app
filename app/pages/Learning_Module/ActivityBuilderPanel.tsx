@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { uploadFile } from "../../Services/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type SegmentType = "accordion" | "flashcard" | "fillblank" | "checklist" | "matching" | "hotspot";
@@ -14,6 +15,8 @@ export interface Activity {
   items?: AccordionItem[]; cards?: FlashCard[]; questions?: FillBlankQ[];
   checklist?: ChecklistItem[]; pairs?: MatchPair[];
   status?: "draft" | "published";
+  // ── NEW: optional media attachment ──
+  media?: { url: string; type: "image" | "video" | "file"; name: string; };
 }
 
 export type LessonBlockKind = "content" | "activity";
@@ -74,6 +77,7 @@ const TEMPLATES: Array<{id:string;name:string;type:SegmentType;tags:string[];des
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const STYLES = `
 @keyframes abp-in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 
 .abp-fs {
   position:fixed; inset:0; z-index:1001;
@@ -239,6 +243,33 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
   background:rgba(124,58,237,0.04);
 }
 
+/* Media upload zone */
+.abp-media-zone {
+  border:2px dashed var(--border,rgba(124,58,237,0.2));
+  border-radius:10px; padding:16px;
+  background:var(--bg,#faf9ff);
+  display:flex; align-items:center; gap:12px;
+  transition:all .15s;
+}
+.abp-media-zone:hover {
+  border-color:rgba(124,58,237,0.4);
+  background:rgba(124,58,237,0.03);
+}
+.abp-media-zone.has-media {
+  border-style:solid;
+  border-color:rgba(124,58,237,0.2);
+  background:var(--surface,#fff);
+}
+.abp-media-preview {
+  width:56px; height:56px; border-radius:8px;
+  overflow:hidden; flex-shrink:0;
+  background:rgba(124,58,237,0.06);
+  display:flex; align-items:center; justify-content:center;
+}
+.abp-media-preview img {
+  width:100%; height:100%; object-fit:cover;
+}
+
 .abp-foot {
   height:72px; flex-shrink:0;
   display:flex; align-items:center; gap:10px; padding:0 24px;
@@ -280,7 +311,7 @@ interface ActivityBuilderPanelProps {
   onSave: (activity: Activity, saveAs: "draft" | "published") => void;
   editActivity: Activity | null;
   toast: (msg: string) => void;
-  allActivities?: Activity[]; // NEW: To show existing activities
+  allActivities?: Activity[];
 }
 
 export default function ActivityBuilderPanel({
@@ -293,11 +324,15 @@ export default function ActivityBuilderPanel({
 }: ActivityBuilderPanelProps) {
   const isEdit = !!editActivity;
 
-  const [viewMode, setViewMode] = useState<"create" | "library">("create"); // NEW: Toggle between create and library
+  const [viewMode, setViewMode] = useState<"create" | "library">("create");
   const [step, setStep] = useState<1 | 2>(1);
   const [activity, setActivity] = useState<Activity>(blankActivity("accordion"));
   const [selectedType, setSelectedType] = useState<SegmentType | null>(null);
   const [closing, setClosing] = useState(false);
+
+  // ── Media upload state ────────────────────────────────────
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -314,6 +349,39 @@ export default function ActivityBuilderPanel({
     }
     setClosing(false);
   }, [open, isEdit, editActivity]);
+
+  // ── Handle media file upload ──────────────────────────────
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setMediaUploading(true);
+    try {
+      const data = await uploadFile(file);
+      const fullUrl = `http://localhost${data.url}`;
+
+      // Determine media type from file mime
+      const mediaType: "image" | "video" | "file" =
+        file.type.startsWith("image/") ? "image" :
+        file.type.startsWith("video/") ? "video" : "file";
+
+      setActivity(prev => ({
+        ...prev,
+        media: { url: fullUrl, type: mediaType, name: file.name }
+      }));
+      toast("Media uploaded successfully!");
+    } catch (err) {
+      toast("Upload failed. Please try again.");
+      console.error(err);
+    } finally {
+      setMediaUploading(false);
+      if (mediaInputRef.current) mediaInputRef.current.value = "";
+    }
+  };
+
+  const removeMedia = () => {
+    setActivity(prev => ({ ...prev, media: undefined }));
+  };
 
   const handleTypeSelect = (type: SegmentType) => {
     setSelectedType(type);
@@ -334,22 +402,18 @@ export default function ActivityBuilderPanel({
     setStep(2);
   };
 
-  const handleBack = () => {
-    setStep(1);
-  };
+  const handleBack = () => { setStep(1); };
 
   const handleSubmit = (saveAs: "draft" | "published") => {
     if (!activity.title.trim()) {
       toast("Please enter an activity title.");
       return;
     }
-
     const itemCount = getActivityItemCount(activity);
     if (itemCount === 0) {
       toast("Please add at least one item to your activity.");
       return;
     }
-
     onSave({ ...activity, status: saveAs }, saveAs);
     handleClose();
   };
@@ -403,57 +467,30 @@ export default function ActivityBuilderPanel({
         {/* View Toggle */}
         {!isEdit && (
           <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "12px 24px",
-            background: "var(--bg,#f8f7ff)",
+            display: "flex", alignItems: "center", gap: 4,
+            padding: "12px 24px", background: "var(--bg,#f8f7ff)",
             borderBottom: "1px solid var(--border,rgba(124,58,237,0.1))",
           }}>
-            <button
-              onClick={() => setViewMode("create")}
-              style={{
-                flex: 1,
-                padding: "8px 16px",
-                borderRadius: 8,
-                border: "none",
-                background: viewMode === "create" ? "var(--purple,#7c3aed)" : "transparent",
-                color: viewMode === "create" ? "#fff" : "var(--t2,#4a3870)",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
+            <button onClick={() => setViewMode("create")} style={{
+              flex: 1, padding: "8px 16px", borderRadius: 8, border: "none",
+              background: viewMode === "create" ? "var(--purple,#7c3aed)" : "transparent",
+              color: viewMode === "create" ? "#fff" : "var(--t2,#4a3870)",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+            }}>
               Create New
             </button>
-            <button
-              onClick={() => setViewMode("library")}
-              style={{
-                flex: 1,
-                padding: "8px 16px",
-                borderRadius: 8,
-                border: "none",
-                background: viewMode === "library" ? "var(--purple,#7c3aed)" : "transparent",
-                color: viewMode === "library" ? "#fff" : "var(--t2,#4a3870)",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.15s",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-              }}
-            >
+            <button onClick={() => setViewMode("library")} style={{
+              flex: 1, padding: "8px 16px", borderRadius: 8, border: "none",
+              background: viewMode === "library" ? "var(--purple,#7c3aed)" : "transparent",
+              color: viewMode === "library" ? "#fff" : "var(--t2,#4a3870)",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}>
               Library
               {allActivities.length > 0 && (
                 <span style={{
-                  padding: "2px 6px",
-                  borderRadius: 4,
+                  padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700,
                   background: viewMode === "library" ? "rgba(255,255,255,0.2)" : "rgba(124,58,237,0.1)",
-                  fontSize: 10,
-                  fontWeight: 700,
                 }}>
                   {allActivities.length}
                 </span>
@@ -465,18 +502,14 @@ export default function ActivityBuilderPanel({
         {/* Body */}
         <div className="abp-body">
           {viewMode === "library" ? (
-            /* Library View */
             <div className="abp-main" style={{ padding: 24 }}>
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1,#18103a)", marginBottom: 4 }}>
-                  Activity Library
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1,#18103a)", marginBottom: 4 }}>Activity Library</div>
                 <div style={{ fontSize: 11.5, color: "var(--t3,#a89dc8)" }}>
-                  {allActivities.length} activit{allActivities.length === 1 ? "y" : "ies"} · 
-                  {' '}{allActivities.filter(a => a.status === "published").length} published
+                  {allActivities.length} activit{allActivities.length === 1 ? "y" : "ies"} · {' '}
+                  {allActivities.filter(a => a.status === "published").length} published
                 </div>
               </div>
-
               {allActivities.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--t3,#a89dc8)" }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>🧩</div>
@@ -484,92 +517,44 @@ export default function ActivityBuilderPanel({
                   <div style={{ fontSize: 12 }}>Switch to "Create New" to build your first activity</div>
                 </div>
               ) : (
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                  gap: 12,
-                  overflowY: "auto",
-                  flex: 1,
-                }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, overflowY: "auto", flex: 1 }}>
                   {allActivities.map(act => {
                     const meta = ACT_META[act.type];
                     const itemCount = getActivityItemCount(act);
                     return (
-                      <div
-                        key={act.id}
-                        style={{
-                          padding: 14,
-                          borderRadius: 10,
-                          border: "1.5px solid var(--border,rgba(124,58,237,0.1))",
-                          background: "var(--bg,#faf9ff)",
-                          cursor: "pointer",
-                          transition: "all 0.15s",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = "rgba(124,58,237,0.3)";
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.boxShadow = "0 4px 12px rgba(124,58,237,0.12)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = "rgba(124,58,237,0.1)";
-                          e.currentTarget.style.transform = "translateY(0)";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                        onClick={() => {
-                          setActivity(dc(act));
-                          setSelectedType(act.type);
-                          setStep(2);
-                          setViewMode("create");
-                        }}
+                      <div key={act.id} style={{
+                        padding: 14, borderRadius: 10,
+                        border: "1.5px solid var(--border,rgba(124,58,237,0.1))",
+                        background: "var(--bg,#faf9ff)", cursor: "pointer", transition: "all 0.15s",
+                      }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(124,58,237,0.3)"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(124,58,237,0.12)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(124,58,237,0.1)"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+                        onClick={() => { setActivity(dc(act)); setSelectedType(act.type); setStep(2); setViewMode("create"); }}
                       >
                         <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-                          <div style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 9,
-                            background: meta.bg,
-                            color: meta.color,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 18,
-                            flexShrink: 0,
-                          }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 9, background: meta.bg, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
                             {meta.icon}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{
-                              fontSize: 12.5,
-                              fontWeight: 700,
-                              color: "var(--t1,#18103a)",
-                              marginBottom: 3,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1,#18103a)", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {act.title || "Untitled"}
                             </div>
-                            <div style={{
-                              fontSize: 10,
-                              color: "var(--t3,#a89dc8)",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
-                              fontWeight: 600,
-                            }}>
+                            <div style={{ fontSize: 10, color: "var(--t3,#a89dc8)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>
                               {meta.label} · {itemCount} items
                             </div>
                           </div>
                         </div>
+                        {/* Show media badge if activity has media */}
+                        {act.media && (
+                          <div style={{ fontSize: 10, color: "var(--teal,#0d9488)", fontWeight: 600, marginBottom: 6 }}>
+                            📎 {act.media.name}
+                          </div>
+                        )}
                         <div style={{
-                          padding: "4px 8px",
-                          borderRadius: 5,
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
+                          padding: "4px 8px", borderRadius: 5, fontSize: 9.5, fontWeight: 700,
+                          textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center",
                           background: act.status === "published" ? "#d1fae5" : "#fef3c7",
                           color: act.status === "published" ? "#065f46" : "#92400e",
-                          textAlign: "center",
                         }}>
                           {act.status}
                         </div>
@@ -580,18 +565,15 @@ export default function ActivityBuilderPanel({
               )}
             </div>
           ) : (
-            /* Create View */
-          <div className="abp-main">{step === 1 ? (
+            <div className="abp-main">{step === 1 ? (
               <>
                 {/* Step 1: Type Selection */}
                 <div className="abp-section">
                   <div className="abp-sec-hd">
                     <div className="abp-sec-ico" style={{ background: "var(--purple-lt)", color: "var(--purple)" }}>
                       <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <rect x="2" y="2" width="5" height="5" rx="1"/>
-                        <rect x="9" y="2" width="5" height="5" rx="1"/>
-                        <rect x="2" y="9" width="5" height="5" rx="1"/>
-                        <rect x="9" y="9" width="5" height="5" rx="1"/>
+                        <rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/>
+                        <rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>
                       </svg>
                     </div>
                     <span className="abp-sec-label">Activity Type</span>
@@ -600,23 +582,15 @@ export default function ActivityBuilderPanel({
                     {ALL_TYPES.map(type => {
                       const meta = ACT_META[type];
                       return (
-                        <div
-                          key={type}
-                          className={`abp-type-card${selectedType === type ? " selected" : ""}`}
-                          onClick={() => handleTypeSelect(type)}
-                        >
-                          <div className="abp-type-icon" style={{ background: meta.bg, border: `1.5px solid ${meta.border}`, color: meta.color }}>
-                            {meta.icon}
-                          </div>
+                        <div key={type} className={`abp-type-card${selectedType === type ? " selected" : ""}`} onClick={() => handleTypeSelect(type)}>
+                          <div className="abp-type-icon" style={{ background: meta.bg, border: `1.5px solid ${meta.border}`, color: meta.color }}>{meta.icon}</div>
                           <div className="abp-type-info">
                             <div className="abp-type-label">{meta.label}</div>
                             <div className="abp-type-desc">{meta.desc}</div>
                           </div>
                           {selectedType === type && (
                             <div className="abp-type-check">
-                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M2 6l3 3 5-6"/>
-                              </svg>
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 6l3 3 5-6"/></svg>
                             </div>
                           )}
                         </div>
@@ -638,30 +612,18 @@ export default function ActivityBuilderPanel({
                   </div>
                   <div className="abp-template-list">
                     {TEMPLATES.map(template => (
-                      <div
-                        key={template.id}
-                        className="abp-template-card"
-                        onClick={() => handleTemplateSelect(template)}
-                      >
-                        <div className="abp-template-icon" style={{ 
-                          background: ACT_META[template.type].bg, 
-                          border: `1.5px solid ${ACT_META[template.type].border}`,
-                          color: ACT_META[template.type].color 
-                        }}>
+                      <div key={template.id} className="abp-template-card" onClick={() => handleTemplateSelect(template)}>
+                        <div className="abp-template-icon" style={{ background: ACT_META[template.type].bg, border: `1.5px solid ${ACT_META[template.type].border}`, color: ACT_META[template.type].color }}>
                           {ACT_META[template.type].icon}
                         </div>
                         <div style={{ flex: 1 }}>
                           <div className="abp-template-name">{template.name}</div>
                           <div className="abp-template-desc">{template.desc}</div>
                           <div className="abp-template-tags">
-                            {template.tags.map(tag => (
-                              <span key={tag} className="abp-template-tag">{tag}</span>
-                            ))}
+                            {template.tags.map(tag => <span key={tag} className="abp-template-tag">{tag}</span>)}
                           </div>
                         </div>
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="rgba(124,58,237,0.4)" strokeWidth="2">
-                          <path d="M5 2l5 5-5 5"/>
-                        </svg>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="rgba(124,58,237,0.4)" strokeWidth="2"><path d="M5 2l5 5-5 5"/></svg>
                       </div>
                     ))}
                   </div>
@@ -674,30 +636,92 @@ export default function ActivityBuilderPanel({
                   <div className="abp-sec-hd">
                     <div className="abp-sec-ico" style={{ background: "var(--purple-lt)", color: "var(--purple)" }}>
                       <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <rect x="2" y="2" width="12" height="12" rx="1.5"/>
-                        <path d="M5 8h6M8 5v6"/>
+                        <rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8h6M8 5v6"/>
                       </svg>
                     </div>
                     <span className="abp-sec-label">Activity Details</span>
                   </div>
                   <div className="field-g">
                     <label className="f-lbl">Activity Title <span style={{ color: "var(--red)" }}>*</span></label>
-                    <input
-                      className="f-in"
-                      type="text"
-                      value={activity.title}
+                    <input className="f-in" type="text" value={activity.title}
                       onChange={e => setActivity({...activity, title: e.target.value})}
                       placeholder="e.g. POS System Overview"
                     />
+                  </div>
+
+                  {/* ── Media Upload Section ─────────────────────────── */}
+                  <div className="field-g" style={{ marginBottom: 0 }}>
+                    <label className="f-lbl">Attach Media <span style={{ fontSize: 10, fontWeight: 500, color: "var(--t3)" }}>(optional — image, video, or file)</span></label>
+
+                    {/* Hidden file input */}
+                    <input
+                      ref={mediaInputRef}
+                      type="file"
+                      accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx"
+                      style={{ display: "none" }}
+                      onChange={handleMediaUpload}
+                    />
+
+                    {activity.media ? (
+                      /* Media preview */
+                      <div className="abp-media-zone has-media">
+                        <div className="abp-media-preview">
+                          {activity.media.type === "image" ? (
+                            <img src={activity.media.url} alt="media preview" />
+                          ) : activity.media.type === "video" ? (
+                            <span style={{ fontSize: 24 }}>🎬</span>
+                          ) : (
+                            <span style={{ fontSize: 24 }}>📄</span>
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {activity.media.name}
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--t3)", textTransform: "uppercase", fontWeight: 600 }}>
+                            {activity.media.type}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <button className="btn btn-s btn-sm" onClick={() => mediaInputRef.current?.click()} disabled={mediaUploading}>
+                            Replace
+                          </button>
+                          <button className="btn btn-sm" onClick={removeMedia}
+                            style={{ color: "#dc2626", borderColor: "rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.05)" }}>
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Upload prompt */
+                      <div className="abp-media-zone" onClick={() => !mediaUploading && mediaInputRef.current?.click()}
+                        style={{ cursor: mediaUploading ? "wait" : "pointer", justifyContent: "center", flexDirection: "column", textAlign: "center", padding: "20px 16px" }}>
+                        {mediaUploading ? (
+                          <>
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.5)" strokeWidth="2" style={{ animation: "spin 1s linear infinite", marginBottom: 8 }}>
+                              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                            </svg>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--purple)", marginBottom: 2 }}>Uploading...</div>
+                          </>
+                        ) : (
+                          <>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.4)" strokeWidth="1.5" style={{ marginBottom: 8 }}>
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                              <polyline points="17 8 12 3 7 8"/>
+                              <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--purple)", marginBottom: 2 }}>Click to upload media</div>
+                            <div style={{ fontSize: 10, color: "var(--t3)" }}>Images, videos, PDFs, or documents</div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="abp-section" style={{ borderBottom: "none", flex: 1, overflow: "auto" }}>
                   <div className="abp-sec-hd">
-                    <div className="abp-sec-ico" style={{ 
-                      background: ACT_META[activity.type].bg, 
-                      color: ACT_META[activity.type].color 
-                    }}>
+                    <div className="abp-sec-ico" style={{ background: ACT_META[activity.type].bg, color: ACT_META[activity.type].color }}>
                       {ACT_META[activity.type].icon}
                     </div>
                     <span className="abp-sec-label">Content Items</span>
@@ -705,12 +729,11 @@ export default function ActivityBuilderPanel({
                       {getActivityItemCount(activity)} item{getActivityItemCount(activity) === 1 ? "" : "s"}
                     </span>
                   </div>
-                  
                   {renderContentBuilder()}
                 </div>
               </>
             )}
-          </div>
+            </div>
           )}
         </div>
 
@@ -719,43 +742,26 @@ export default function ActivityBuilderPanel({
           <div style={{ fontSize: 11, color: footerNoteColor, flex: 1, fontWeight: 500 }}>{footerNote}</div>
           {step === 2 && (
             <button className="btn btn-s btn-sm" onClick={handleBack}>
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M7 1L3 5l4 4"/>
-              </svg>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 1L3 5l4 4"/></svg>
               Back
             </button>
           )}
           <button className="btn btn-s btn-sm" onClick={handleClose}>Cancel</button>
           {step === 1 ? (
-            <button 
-              className="btn btn-p btn-sm" 
-              onClick={handleNext}
-              disabled={!selectedType}
-            >
+            <button className="btn btn-p btn-sm" onClick={handleNext} disabled={!selectedType}>
               Next Step
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 1l4 4-4 4"/>
-              </svg>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 1l4 4-4 4"/></svg>
             </button>
           ) : (
             <>
-              <button 
-                className="btn btn-s btn-sm" 
-                onClick={() => handleSubmit("draft")}
-              >
+              <button className="btn btn-s btn-sm" onClick={() => handleSubmit("draft")}>
                 <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.9">
-                  <path d="M11 1H3a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V3a2 2 0 00-2-2z"/>
-                  <path d="M7 11V7M7 4h.01"/>
+                  <path d="M11 1H3a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V3a2 2 0 00-2-2z"/><path d="M7 11V7M7 4h.01"/>
                 </svg>
                 Save as Draft
               </button>
-              <button 
-                className="btn btn-p btn-sm" 
-                onClick={() => handleSubmit("published")}
-              >
-                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.9">
-                  <path d="M2 7.5l3.5 3.5 6.5-7"/>
-                </svg>
+              <button className="btn btn-p btn-sm" onClick={() => handleSubmit("published")}>
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M2 7.5l3.5 3.5 6.5-7"/></svg>
                 Publish Activity
               </button>
             </>
@@ -773,51 +779,20 @@ export default function ActivityBuilderPanel({
             <div key={idx} className="abp-item-row">
               <div className="abp-item-num">{idx + 1}</div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                <input
-                  className="f-in"
-                  type="text"
-                  placeholder="Question"
-                  value={item.q}
-                  onChange={e => {
-                    const items = [...(activity.items || [])];
-                    items[idx] = {...item, q: e.target.value};
-                    setActivity({...activity, items});
-                  }}
-                />
-                <textarea
-                  className="f-in"
-                  placeholder="Answer"
-                  rows={2}
-                  value={item.a}
-                  onChange={e => {
-                    const items = [...(activity.items || [])];
-                    items[idx] = {...item, a: e.target.value};
-                    setActivity({...activity, items});
-                  }}
-                />
+                <input className="f-in" type="text" placeholder="Question" value={item.q}
+                  onChange={e => { const items = [...(activity.items || [])]; items[idx] = {...item, q: e.target.value}; setActivity({...activity, items}); }} />
+                <textarea className="f-in" placeholder="Answer" rows={2} value={item.a}
+                  onChange={e => { const items = [...(activity.items || [])]; items[idx] = {...item, a: e.target.value}; setActivity({...activity, items}); }} />
               </div>
               {activity.items && activity.items.length > 1 && (
-                <button
-                  className="abp-item-del"
-                  onClick={() => {
-                    const items = activity.items?.filter((_, i) => i !== idx);
-                    setActivity({...activity, items});
-                  }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M1 1l8 8M9 1L1 9"/>
-                  </svg>
+                <button className="abp-item-del" onClick={() => { const items = activity.items?.filter((_, i) => i !== idx); setActivity({...activity, items}); }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
                 </button>
               )}
             </div>
           ))}
-          <button
-            className="abp-add-btn"
-            onClick={() => setActivity({...activity, items: [...(activity.items || []), {q:"", a:""}]})}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M6 1v10M1 6h10"/>
-            </svg>
+          <button className="abp-add-btn" onClick={() => setActivity({...activity, items: [...(activity.items || []), {q:"", a:""}]})}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
             Add Question
           </button>
         </div>
@@ -831,51 +806,20 @@ export default function ActivityBuilderPanel({
             <div key={idx} className="abp-item-row">
               <div className="abp-item-num">{idx + 1}</div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                <input
-                  className="f-in"
-                  type="text"
-                  placeholder="Front of card"
-                  value={card.front}
-                  onChange={e => {
-                    const cards = [...(activity.cards || [])];
-                    cards[idx] = {...card, front: e.target.value};
-                    setActivity({...activity, cards});
-                  }}
-                />
-                <input
-                  className="f-in"
-                  type="text"
-                  placeholder="Back of card"
-                  value={card.back}
-                  onChange={e => {
-                    const cards = [...(activity.cards || [])];
-                    cards[idx] = {...card, back: e.target.value};
-                    setActivity({...activity, cards});
-                  }}
-                />
+                <input className="f-in" type="text" placeholder="Front of card" value={card.front}
+                  onChange={e => { const cards = [...(activity.cards || [])]; cards[idx] = {...card, front: e.target.value}; setActivity({...activity, cards}); }} />
+                <input className="f-in" type="text" placeholder="Back of card" value={card.back}
+                  onChange={e => { const cards = [...(activity.cards || [])]; cards[idx] = {...card, back: e.target.value}; setActivity({...activity, cards}); }} />
               </div>
               {activity.cards && activity.cards.length > 1 && (
-                <button
-                  className="abp-item-del"
-                  onClick={() => {
-                    const cards = activity.cards?.filter((_, i) => i !== idx);
-                    setActivity({...activity, cards});
-                  }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M1 1l8 8M9 1L1 9"/>
-                  </svg>
+                <button className="abp-item-del" onClick={() => { const cards = activity.cards?.filter((_, i) => i !== idx); setActivity({...activity, cards}); }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
                 </button>
               )}
             </div>
           ))}
-          <button
-            className="abp-add-btn"
-            onClick={() => setActivity({...activity, cards: [...(activity.cards || []), {front:"", back:""}]})}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M6 1v10M1 6h10"/>
-            </svg>
+          <button className="abp-add-btn" onClick={() => setActivity({...activity, cards: [...(activity.cards || []), {front:"", back:""}]})}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
             Add Card
           </button>
         </div>
@@ -888,40 +832,18 @@ export default function ActivityBuilderPanel({
           {activity.checklist?.map((item, idx) => (
             <div key={idx} className="abp-item-row">
               <div className="abp-item-num">{idx + 1}</div>
-              <input
-                className="f-in"
-                type="text"
-                placeholder="Task or step description"
-                value={item.text}
-                onChange={e => {
-                  const checklist = [...(activity.checklist || [])];
-                  checklist[idx] = {text: e.target.value};
-                  setActivity({...activity, checklist});
-                }}
-                style={{ flex: 1 }}
-              />
+              <input className="f-in" type="text" placeholder="Task or step description" value={item.text}
+                onChange={e => { const checklist = [...(activity.checklist || [])]; checklist[idx] = {text: e.target.value}; setActivity({...activity, checklist}); }}
+                style={{ flex: 1 }} />
               {activity.checklist && activity.checklist.length > 1 && (
-                <button
-                  className="abp-item-del"
-                  onClick={() => {
-                    const checklist = activity.checklist?.filter((_, i) => i !== idx);
-                    setActivity({...activity, checklist});
-                  }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M1 1l8 8M9 1L1 9"/>
-                  </svg>
+                <button className="abp-item-del" onClick={() => { const checklist = activity.checklist?.filter((_, i) => i !== idx); setActivity({...activity, checklist}); }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
                 </button>
               )}
             </div>
           ))}
-          <button
-            className="abp-add-btn"
-            onClick={() => setActivity({...activity, checklist: [...(activity.checklist || []), {text:""}]})}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M6 1v10M1 6h10"/>
-            </svg>
+          <button className="abp-add-btn" onClick={() => setActivity({...activity, checklist: [...(activity.checklist || []), {text:""}]})}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
             Add Item
           </button>
         </div>
@@ -935,54 +857,23 @@ export default function ActivityBuilderPanel({
             <div key={idx} className="abp-item-row">
               <div className="abp-item-num">{idx + 1}</div>
               <div style={{ flex: 1, display: "flex", gap: 8 }}>
-                <input
-                  className="f-in"
-                  type="text"
-                  placeholder="Left column"
-                  value={pair.left}
-                  onChange={e => {
-                    const pairs = [...(activity.pairs || [])];
-                    pairs[idx] = {...pair, left: e.target.value};
-                    setActivity({...activity, pairs});
-                  }}
-                  style={{ flex: 1 }}
-                />
+                <input className="f-in" type="text" placeholder="Left column" value={pair.left}
+                  onChange={e => { const pairs = [...(activity.pairs || [])]; pairs[idx] = {...pair, left: e.target.value}; setActivity({...activity, pairs}); }}
+                  style={{ flex: 1 }} />
                 <div style={{ display: "flex", alignItems: "center", color: "var(--t3)", fontSize: 14 }}>↔</div>
-                <input
-                  className="f-in"
-                  type="text"
-                  placeholder="Right column"
-                  value={pair.right}
-                  onChange={e => {
-                    const pairs = [...(activity.pairs || [])];
-                    pairs[idx] = {...pair, right: e.target.value};
-                    setActivity({...activity, pairs});
-                  }}
-                  style={{ flex: 1 }}
-                />
+                <input className="f-in" type="text" placeholder="Right column" value={pair.right}
+                  onChange={e => { const pairs = [...(activity.pairs || [])]; pairs[idx] = {...pair, right: e.target.value}; setActivity({...activity, pairs}); }}
+                  style={{ flex: 1 }} />
               </div>
               {activity.pairs && activity.pairs.length > 1 && (
-                <button
-                  className="abp-item-del"
-                  onClick={() => {
-                    const pairs = activity.pairs?.filter((_, i) => i !== idx);
-                    setActivity({...activity, pairs});
-                  }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M1 1l8 8M9 1L1 9"/>
-                  </svg>
+                <button className="abp-item-del" onClick={() => { const pairs = activity.pairs?.filter((_, i) => i !== idx); setActivity({...activity, pairs}); }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
                 </button>
               )}
             </div>
           ))}
-          <button
-            className="abp-add-btn"
-            onClick={() => setActivity({...activity, pairs: [...(activity.pairs || []), {left:"", right:""}]})}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M6 1v10M1 6h10"/>
-            </svg>
+          <button className="abp-add-btn" onClick={() => setActivity({...activity, pairs: [...(activity.pairs || []), {left:"", right:""}]})}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
             Add Pair
           </button>
         </div>
@@ -996,51 +887,20 @@ export default function ActivityBuilderPanel({
             <div key={idx} className="abp-item-row">
               <div className="abp-item-num">{idx + 1}</div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                <input
-                  className="f-in"
-                  type="text"
-                  placeholder="Sentence with __BLANK__ placeholder"
-                  value={q.sentence}
-                  onChange={e => {
-                    const questions = [...(activity.questions || [])];
-                    questions[idx] = {...q, sentence: e.target.value};
-                    setActivity({...activity, questions});
-                  }}
-                />
-                <input
-                  className="f-in"
-                  type="text"
-                  placeholder="Correct answer"
-                  value={q.blanks[0] || ""}
-                  onChange={e => {
-                    const questions = [...(activity.questions || [])];
-                    questions[idx] = {...q, blanks: [e.target.value]};
-                    setActivity({...activity, questions});
-                  }}
-                />
+                <input className="f-in" type="text" placeholder="Sentence with __BLANK__ placeholder" value={q.sentence}
+                  onChange={e => { const questions = [...(activity.questions || [])]; questions[idx] = {...q, sentence: e.target.value}; setActivity({...activity, questions}); }} />
+                <input className="f-in" type="text" placeholder="Correct answer" value={q.blanks[0] || ""}
+                  onChange={e => { const questions = [...(activity.questions || [])]; questions[idx] = {...q, blanks: [e.target.value]}; setActivity({...activity, questions}); }} />
               </div>
               {activity.questions && activity.questions.length > 1 && (
-                <button
-                  className="abp-item-del"
-                  onClick={() => {
-                    const questions = activity.questions?.filter((_, i) => i !== idx);
-                    setActivity({...activity, questions});
-                  }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M1 1l8 8M9 1L1 9"/>
-                  </svg>
+                <button className="abp-item-del" onClick={() => { const questions = activity.questions?.filter((_, i) => i !== idx); setActivity({...activity, questions}); }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
                 </button>
               )}
             </div>
           ))}
-          <button
-            className="abp-add-btn"
-            onClick={() => setActivity({...activity, questions: [...(activity.questions || []), {sentence:"Type a sentence with __BLANK__ here.", blanks:[""]}]})}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M6 1v10M1 6h10"/>
-            </svg>
+          <button className="abp-add-btn" onClick={() => setActivity({...activity, questions: [...(activity.questions || []), {sentence:"Type a sentence with __BLANK__ here.", blanks:[""]}]})}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
             Add Question
           </button>
         </div>
@@ -1052,124 +912,44 @@ export default function ActivityBuilderPanel({
 }
 
 // ─── Export LessonBlocks Component ───────────────────────────────────────────
-export function LessonBlocks({ 
-  blocks, 
-  onChange 
-}: { 
-  blocks: LessonBlock[]; 
-  onChange: (blocks: LessonBlock[]) => void;
-}) {
+export function LessonBlocks({ blocks, onChange }: { blocks: LessonBlock[]; onChange: (blocks: LessonBlock[]) => void; }) {
   const updateBlock = (idx: number, updates: Partial<LessonBlock>) => {
     const updated = [...blocks];
     updated[idx] = { ...updated[idx], ...updates };
     onChange(updated);
   };
-
-  const deleteBlock = (idx: number) => {
-    onChange(blocks.filter((_, i) => i !== idx));
-  };
+  const deleteBlock = (idx: number) => { onChange(blocks.filter((_, i) => i !== idx)); };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {blocks.map((block, idx) => (
-        <div 
-          key={block.id}
-          style={{
-            padding: 14,
-            borderRadius: 10,
-            background: "var(--bg,#faf9ff)",
-            border: "1.5px solid var(--border,rgba(124,58,237,0.1))",
-          }}
-        >
+        <div key={block.id} style={{ padding: 14, borderRadius: 10, background: "var(--bg,#faf9ff)", border: "1.5px solid var(--border,rgba(124,58,237,0.1))" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 7,
-              background: block.kind === "content" 
-                ? "linear-gradient(135deg,#0284c7,#0d9488)"
-                : "linear-gradient(135deg,#7c3aed,#d97706)",
-              color: "#fff",
-              fontSize: 11,
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: block.kind === "content" ? "linear-gradient(135deg,#0284c7,#0d9488)" : "linear-gradient(135deg,#7c3aed,#d97706)", color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {idx + 1}
             </div>
-            <div style={{ 
-              fontSize: 11.5, 
-              fontWeight: 700, 
-              color: "var(--t2,#4a3870)",
-              textTransform: "uppercase",
-              letterSpacing: ".05em",
-              flex: 1,
-            }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--t2,#4a3870)", textTransform: "uppercase", letterSpacing: ".05em", flex: 1 }}>
               {block.kind === "content" ? "📝 Content Block" : `🧩 ${block.activity?.title || "Activity"}`}
             </div>
-            <button
-              onClick={() => deleteBlock(idx)}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 7,
-                border: "1.5px solid rgba(239,68,68,0.2)",
-                background: "rgba(239,68,68,0.05)",
-                color: "#dc2626",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M1 1l8 8M9 1L1 9"/>
-              </svg>
+            <button onClick={() => deleteBlock(idx)} style={{ width: 28, height: 28, borderRadius: 7, border: "1.5px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.05)", color: "#dc2626", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
             </button>
           </div>
-          
           {block.kind === "content" ? (
-            <textarea
-              value={block.body || ""}
-              onChange={(e) => updateBlock(idx, { body: e.target.value })}
-              placeholder="Enter content text..."
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 8,
-                border: "1.5px solid var(--border,rgba(109,40,217,0.1))",
-                background: "var(--surface,#fff)",
-                color: "var(--t1,#18103a)",
-                fontSize: 12.5,
-                fontFamily: "inherit",
-                resize: "vertical",
-                minHeight: 80,
-                lineHeight: 1.5,
-              }}
-            />
+            <textarea value={block.body || ""} onChange={(e) => updateBlock(idx, { body: e.target.value })} placeholder="Enter content text..." style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid var(--border,rgba(109,40,217,0.1))", background: "var(--surface,#fff)", color: "var(--t1,#18103a)", fontSize: 12.5, fontFamily: "inherit", resize: "vertical", minHeight: 80, lineHeight: 1.5 }} />
           ) : (
-            <div style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              background: "rgba(124,58,237,0.04)",
-              border: "1.5px solid rgba(124,58,237,0.12)",
-              fontSize: 11.5,
-              color: "var(--t2,#4a3870)",
-            }}>
+            <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(124,58,237,0.04)", border: "1.5px solid rgba(124,58,237,0.12)", fontSize: 11.5, color: "var(--t2,#4a3870)" }}>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>
                 {block.activity?.type && ACT_META[block.activity.type]?.icon} {block.activity?.title}
               </div>
               <div style={{ fontSize: 10, color: "var(--t3,#a89dc8)" }}>
-                {block.activity?.type && ACT_META[block.activity.type]?.label} • 
-                {block.activity?.items?.length || 
-                 block.activity?.cards?.length || 
-                 block.activity?.questions?.length || 
-                 block.activity?.checklist?.length || 
-                 block.activity?.pairs?.length || 0} items
+                {block.activity?.type && ACT_META[block.activity.type]?.label} • {block.activity?.items?.length || block.activity?.cards?.length || block.activity?.questions?.length || block.activity?.checklist?.length || block.activity?.pairs?.length || 0} items
               </div>
+              {block.activity?.media && (
+                <div style={{ fontSize: 10, color: "var(--teal,#0d9488)", marginTop: 4, fontWeight: 600 }}>
+                  📎 {block.activity.media.name}
+                </div>
+              )}
             </div>
           )}
         </div>
