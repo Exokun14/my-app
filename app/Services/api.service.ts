@@ -175,6 +175,14 @@ export const coursesAPI = {
       body: JSON.stringify({ modules }),
     });
   },
+
+  // Marks a single chapter row as done in the chapters table.
+  // chapterId is the DB id that comes back on every chapter object from getCourseModules.
+  markChapterDone: async (chapterId: number): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/chapters/${chapterId}/done`, {
+      method: 'PUT',
+    });
+  },
 };
 
 export const activitiesAPI = {

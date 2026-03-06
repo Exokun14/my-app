@@ -132,9 +132,6 @@ export default function LearningCenter() {
 
   const publishedActivities = activities.filter(a => a.status === "published");
 
-  // Show InitialLoader until the loader animation calls onComplete
-  const showInitialLoader = !loaderDone;
-
   // ── ACTIVITY HANDLERS ────────────────────────────────────────────────────────
   const handleActivitySave = async (activity: Activity, saveAs: "draft" | "published") => {
     const updatedActivity = { ...activity, status: saveAs };
@@ -246,7 +243,9 @@ export default function LearningCenter() {
     );
 
     if (isCompleted && !currentProgress.completed) {
-      setTimeout(() => { setShowCompletionStats(true); }, 500);
+      // Show completion stats — keep viewerIdx/fullCourse alive so the popup can read them
+      setTimeout(() => setShowCompletionStats(true), 300);
+      // Refresh courses list in background
       setTimeout(async () => {
         const coursesResponse = await api.courses.getAll();
         if (coursesResponse.success && coursesResponse.data) { setCourses(coursesResponse.data); }
@@ -365,7 +364,14 @@ export default function LearningCenter() {
     }, 280);
   };
 
-  const handleCloseCompletionStats = () => { setShowCompletionStats(false); closeViewer(); };
+  const handleCloseCompletionStats = () => {
+    setShowCompletionStats(false);
+    setViewerOpen(false);
+    setViewerExiting(false);
+    setViewerIdx(null);
+    setShowOverview(false);
+    setFullCourse(null);
+  };
 
   const handleOpenActivityBuilder = (activity?: Activity) => {
     setEditingActivity(activity || null);
@@ -379,17 +385,13 @@ export default function LearningCenter() {
   };
 
   // ── INITIAL LOADER ───────────────────────────────────────────────────────────
-  if (showInitialLoader) {
-    return (
-      <InitialLoader
-        stage={loadStage}
-        onComplete={() => setLoaderDone(true)}
-      />
-    );
-  }
+  // The loader renders on top (z-index 99999). The dashboard renders underneath
+  // it the whole time — hidden but fully painted. When onComplete fires the
+  // dashboard is already ready so there is zero flash on reveal.
+  const showLoader = !loaderDone;
 
   // ── Course Overview ──────────────────────────────────────────────────────────
-  if (showOverview && viewerIdx !== null && fullCourse) {
+  if (loaderDone && showOverview && viewerIdx !== null && fullCourse) {
     return (
       <>
         <CourseOverview
@@ -411,7 +413,7 @@ export default function LearningCenter() {
   }
 
   // ── Course Viewer ────────────────────────────────────────────────────────────
-  if (viewerOpen && viewerIdx !== null && fullCourse) {
+  if (loaderDone && viewerOpen && viewerIdx !== null && fullCourse) {
     return (
       <>
         <CourseViewer
@@ -444,7 +446,7 @@ export default function LearningCenter() {
   }
 
   // ── Course Creation Wizard ───────────────────────────────────────────────────
-  if (wizardOpen) {
+  if (loaderDone && wizardOpen) {
     return (
       <>
         <CourseCreationWizard
@@ -463,6 +465,16 @@ export default function LearningCenter() {
   // ── Main Learning Center ─────────────────────────────────────────────────────
   return (
     <>
+      {/* Loader sits on top. Dashboard renders underneath it fully painted
+          so when the loader exits there is nothing left to load. */}
+      {showLoader && (
+        <InitialLoader
+          stage={loadStage}
+          onComplete={() => setLoaderDone(true)}
+        />
+      )}
+
+      <div style={{ visibility: showLoader ? 'hidden' : 'visible' }}>
       <style>{`
         @keyframes lc-fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         .lc-main-enter { animation: lc-fadeIn 0.35s ease both; }
@@ -584,6 +596,7 @@ export default function LearningCenter() {
 
       <Toast msg={msg} visible={visible} />
       <LoadingPopup visible={serverLoading} message={serverLoadingMsg} />
+    </div>
     </>
   );
 }

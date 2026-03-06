@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 interface LoadingPopupProps {
   visible: boolean;
   message?: string;
+  noBlock?: boolean; // when true: no input blocker, just the pill indicator
 }
 
-export default function LoadingPopup({ visible, message = "Loading..." }: LoadingPopupProps) {
+export default function LoadingPopup({ visible, message = "Loading...", noBlock = false }: LoadingPopupProps) {
   const [show, setShow] = useState(false);
   const [exiting, setExiting] = useState(false);
 
@@ -31,12 +32,23 @@ export default function LoadingPopup({ visible, message = "Loading..." }: Loadin
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
 
+        .lp-blocker {
+          position: fixed;
+          inset: 0;
+          /* Sits BELOW quiz/assessment/completion popups (those use z-index 2000+) */
+          z-index: 1500;
+          background: transparent;
+          cursor: not-allowed;
+          pointer-events: all;
+        }
+
         .lp-wrap {
           position: fixed;
           bottom: 32px;
           left: 50%;
           transform: translateX(-50%);
-          z-index: 9999;
+          /* Always on top of everything — just the pill, no block */
+          z-index: 99999;
           pointer-events: none;
         }
 
@@ -146,6 +158,7 @@ export default function LoadingPopup({ visible, message = "Loading..." }: Loadin
         }
       `}</style>
 
+      {!noBlock && <div className="lp-blocker" />}
       <div className="lp-wrap">
         <div className={`lp-pill${exiting ? ' lp-exit' : ''}`}>
           <div className="lp-spinner">

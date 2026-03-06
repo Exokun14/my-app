@@ -15,15 +15,14 @@ export interface Activity {
   items?: AccordionItem[]; cards?: FlashCard[]; questions?: FillBlankQ[];
   checklist?: ChecklistItem[]; pairs?: MatchPair[];
   status?: "draft" | "published";
-  // ── NEW: optional media attachment ──
   media?: { url: string; type: "image" | "video" | "file"; name: string; };
 }
 
 export type LessonBlockKind = "content" | "activity";
-export interface LessonBlock { 
-  id: string; 
-  kind: LessonBlockKind; 
-  body?: string; 
+export interface LessonBlock {
+  id: string;
+  kind: LessonBlockKind;
+  body?: string;
   activity?: Activity;
 }
 
@@ -54,8 +53,17 @@ export function blankActivity(type: SegmentType): Activity {
   }
 }
 
-export function blankContentBlock(): LessonBlock { 
-  return { id: mkId(), kind: "content", body: "" }; 
+export function blankContentBlock(): LessonBlock {
+  return { id: mkId(), kind: "content", body: "" };
+}
+
+export function getActivityItemCount(act: Activity): number {
+  if (act.items)     return act.items.length;
+  if (act.cards)     return act.cards.length;
+  if (act.questions) return act.questions.length;
+  if (act.checklist) return act.checklist.length;
+  if (act.pairs)     return act.pairs.length;
+  return 0;
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────
@@ -103,14 +111,15 @@ const STYLES = `
 .abp-hdr-sub { font-size:12px; color:var(--t3,#8e7ec0); margin-top:2px; }
 
 .abp-body { flex:1; display:flex; overflow:hidden; }
-
-.abp-main { flex:1; display:flex; flex-direction:column; overflow:hidden; padding:24px; }
+.abp-main { flex:1; display:flex; flex-direction:column; overflow:auto; padding:24px; gap:16px; }
 
 .abp-section {
   background:var(--surface,#fff);
   border:1.5px solid var(--border,rgba(124,58,237,0.1));
-  border-radius:14px; padding:20px; margin-bottom:16px;
+  border-radius:14px; padding:20px; flex-shrink:0;
 }
+.abp-section.grow { flex:1; overflow:auto; }
+
 .abp-sec-hd {
   display:flex; align-items:center; gap:10px; margin-bottom:16px;
 }
@@ -143,21 +152,15 @@ const STYLES = `
   display:flex; align-items:center; justify-content:center; font-size:20px;
 }
 .abp-type-info { flex:1; min-width:0; }
-.abp-type-label {
-  font-size:13px; font-weight:700; color:var(--t1,#18103a); margin-bottom:4px;
-}
-.abp-type-desc {
-  font-size:11px; color:var(--t3,#a89dc8); line-height:1.4;
-}
+.abp-type-label { font-size:13px; font-weight:700; color:var(--t1,#18103a); margin-bottom:4px; }
+.abp-type-desc  { font-size:11px; color:var(--t3,#a89dc8); line-height:1.4; }
 .abp-type-check {
   width:24px; height:24px; border-radius:6px; flex-shrink:0;
   background:var(--purple,#7c3aed); color:#fff;
   display:flex; align-items:center; justify-content:center;
 }
 
-.abp-template-list {
-  display:flex; flex-direction:column; gap:10px;
-}
+.abp-template-list { display:flex; flex-direction:column; gap:10px; }
 .abp-template-card {
   padding:12px 14px; border-radius:10px; cursor:pointer;
   border:1.5px solid var(--border,rgba(124,58,237,0.1));
@@ -172,15 +175,9 @@ const STYLES = `
   width:38px; height:38px; border-radius:9px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center; font-size:18px;
 }
-.abp-template-name {
-  font-size:12.5px; font-weight:700; color:var(--t1,#18103a); margin-bottom:3px;
-}
-.abp-template-desc {
-  font-size:10.5px; color:var(--t3,#a89dc8); line-height:1.3;
-}
-.abp-template-tags {
-  display:flex; gap:6px; margin-top:6px;
-}
+.abp-template-name { font-size:12.5px; font-weight:700; color:var(--t1,#18103a); margin-bottom:3px; }
+.abp-template-desc { font-size:10.5px; color:var(--t3,#a89dc8); line-height:1.3; }
+.abp-template-tags { display:flex; gap:6px; margin-top:6px; }
 .abp-template-tag {
   padding:3px 8px; border-radius:5px;
   background:rgba(124,58,237,0.08); color:var(--purple,#7c3aed);
@@ -204,9 +201,7 @@ const STYLES = `
 }
 textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
 
-.abp-item-list {
-  display:flex; flex-direction:column; gap:10px;
-}
+.abp-item-list { display:flex; flex-direction:column; gap:10px; }
 .abp-item-row {
   display:flex; align-items:flex-start; gap:10px;
   padding:12px; border-radius:9px;
@@ -226,9 +221,7 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
   cursor:pointer; display:flex; align-items:center; justify-content:center;
   transition:all .15s;
 }
-.abp-item-del:hover {
-  background:rgba(239,68,68,0.12); border-color:rgba(239,68,68,0.3);
-}
+.abp-item-del:hover { background:rgba(239,68,68,0.12); border-color:rgba(239,68,68,0.3); }
 
 .abp-add-btn {
   width:100%; padding:11px 14px; border-radius:9px;
@@ -238,12 +231,8 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
   display:flex; align-items:center; justify-content:center; gap:7px;
   transition:all .15s;
 }
-.abp-add-btn:hover {
-  border-color:var(--purple,#7c3aed);
-  background:rgba(124,58,237,0.04);
-}
+.abp-add-btn:hover { border-color:var(--purple,#7c3aed); background:rgba(124,58,237,0.04); }
 
-/* Media upload zone */
 .abp-media-zone {
   border:2px dashed var(--border,rgba(124,58,237,0.2));
   border-radius:10px; padding:16px;
@@ -251,13 +240,9 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
   display:flex; align-items:center; gap:12px;
   transition:all .15s;
 }
-.abp-media-zone:hover {
-  border-color:rgba(124,58,237,0.4);
-  background:rgba(124,58,237,0.03);
-}
+.abp-media-zone:hover { border-color:rgba(124,58,237,0.4); background:rgba(124,58,237,0.03); }
 .abp-media-zone.has-media {
-  border-style:solid;
-  border-color:rgba(124,58,237,0.2);
+  border-style:solid; border-color:rgba(124,58,237,0.2);
   background:var(--surface,#fff);
 }
 .abp-media-preview {
@@ -266,9 +251,7 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
   background:rgba(124,58,237,0.06);
   display:flex; align-items:center; justify-content:center;
 }
-.abp-media-preview img {
-  width:100%; height:100%; object-fit:cover;
-}
+.abp-media-preview img { width:100%; height:100%; object-fit:cover; }
 
 .abp-foot {
   height:72px; flex-shrink:0;
@@ -277,6 +260,16 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
   border-top:1px solid var(--border,rgba(124,58,237,0.1));
   box-shadow:0 -1px 6px rgba(124,58,237,0.04);
 }
+
+/* Activity preview card used inside module/course editors */
+.abp-activity-chip {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 14px; border-radius:10px;
+  border:1.5px solid var(--border,rgba(124,58,237,0.12));
+  background:var(--surface,#fff);
+  transition:all .15s;
+}
+.abp-activity-chip:hover { border-color:rgba(124,58,237,0.3); box-shadow:0 2px 10px rgba(124,58,237,0.08); }
 
 .btn {
   display:inline-flex; align-items:center; gap:6px;
@@ -289,16 +282,12 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
   background:transparent; color:var(--t2,#4a3870);
   border:1.5px solid var(--border,rgba(109,40,217,0.12));
 }
-.btn-s:hover {
-  background:rgba(124,58,237,0.04); border-color:rgba(109,40,217,0.2);
-}
+.btn-s:hover { background:rgba(124,58,237,0.04); border-color:rgba(109,40,217,0.2); }
 .btn-p {
   background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
   color:#fff; border:none; box-shadow:0 2px 8px rgba(124,58,237,0.25);
 }
-.btn-p:hover {
-  transform:translateY(-1px); box-shadow:0 4px 14px rgba(124,58,237,0.35);
-}
+.btn-p:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(124,58,237,0.35); }
 .btn-p:active { transform:translateY(0); }
 .btn-sm { padding:7px 14px; font-size:11.5px; }
 .btn-sm svg { width:12px; height:12px; }
@@ -308,7 +297,11 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
 interface ActivityBuilderPanelProps {
   open: boolean;
   onClose: () => void;
-  onSave: (activity: Activity, saveAs: "draft" | "published") => void;
+  /**
+   * FIX: added `isUpdate` flag so the parent can distinguish
+   * between a brand-new activity (push) and an edit (replace by id).
+   */
+  onSave: (activity: Activity, saveAs: "draft" | "published", isUpdate: boolean) => void;
   editActivity: Activity | null;
   toast: (msg: string) => void;
   allActivities?: Activity[];
@@ -324,13 +317,14 @@ export default function ActivityBuilderPanel({
 }: ActivityBuilderPanelProps) {
   const isEdit = !!editActivity;
 
-  const [viewMode, setViewMode] = useState<"create" | "library">("create");
-  const [step, setStep] = useState<1 | 2>(1);
-  const [activity, setActivity] = useState<Activity>(blankActivity("accordion"));
-  const [selectedType, setSelectedType] = useState<SegmentType | null>(null);
-  const [closing, setClosing] = useState(false);
+  const [viewMode,      setViewMode]      = useState<"create" | "library">("create");
+  const [step,          setStep]          = useState<1 | 2>(1);
+  const [activity,      setActivity]      = useState<Activity>(blankActivity("accordion"));
+  const [selectedType,  setSelectedType]  = useState<SegmentType | null>(null);
+  const [closing,       setClosing]       = useState(false);
+  // FIX: track whether we loaded an existing activity (edit prop OR picked from library)
+  const [isUpdate,      setIsUpdate]      = useState(false);
 
-  // ── Media upload state ────────────────────────────────────
   const [mediaUploading, setMediaUploading] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
@@ -341,34 +335,28 @@ export default function ActivityBuilderPanel({
       setSelectedType(editActivity.type);
       setStep(2);
       setViewMode("create");
+      setIsUpdate(true);   // editing existing → update
     } else {
       setActivity(blankActivity("accordion"));
       setSelectedType(null);
       setStep(1);
       setViewMode("create");
+      setIsUpdate(false);  // fresh → insert
     }
     setClosing(false);
   }, [open, isEdit, editActivity]);
 
-  // ── Handle media file upload ──────────────────────────────
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setMediaUploading(true);
     try {
       const data = await uploadFile(file);
       const fullUrl = `http://localhost${data.url}`;
-
-      // Determine media type from file mime
       const mediaType: "image" | "video" | "file" =
         file.type.startsWith("image/") ? "image" :
         file.type.startsWith("video/") ? "video" : "file";
-
-      setActivity(prev => ({
-        ...prev,
-        media: { url: fullUrl, type: mediaType, name: file.name }
-      }));
+      setActivity(prev => ({ ...prev, media: { url: fullUrl, type: mediaType, name: file.name } }));
       toast("Media uploaded successfully!");
     } catch (err) {
       toast("Upload failed. Please try again.");
@@ -379,70 +367,62 @@ export default function ActivityBuilderPanel({
     }
   };
 
-  const removeMedia = () => {
-    setActivity(prev => ({ ...prev, media: undefined }));
-  };
+  const removeMedia = () => setActivity(prev => ({ ...prev, media: undefined }));
 
   const handleTypeSelect = (type: SegmentType) => {
     setSelectedType(type);
     setActivity(blankActivity(type));
+    setIsUpdate(false);
   };
 
   const handleTemplateSelect = (template: typeof TEMPLATES[0]) => {
     setSelectedType(template.type);
-    setActivity(dc(template.activity));
+    // Templates always generate a fresh id → insert, not update
+    setActivity({ ...dc(template.activity), id: mkId(), status: "draft" });
+    setIsUpdate(false);
     setStep(2);
+  };
+
+  // FIX: picking from library keeps the original id → this is an update
+  const handleLibrarySelect = (act: Activity) => {
+    setActivity(dc(act));
+    setSelectedType(act.type);
+    setStep(2);
+    setViewMode("create");
+    setIsUpdate(true);
   };
 
   const handleNext = () => {
-    if (step === 1 && !selectedType) {
-      toast("Please select an activity type.");
-      return;
-    }
+    if (!selectedType) { toast("Please select an activity type."); return; }
     setStep(2);
   };
 
-  const handleBack = () => { setStep(1); };
-
-  const handleSubmit = (saveAs: "draft" | "published") => {
-    if (!activity.title.trim()) {
-      toast("Please enter an activity title.");
-      return;
-    }
-    const itemCount = getActivityItemCount(activity);
-    if (itemCount === 0) {
-      toast("Please add at least one item to your activity.");
-      return;
-    }
-    onSave({ ...activity, status: saveAs }, saveAs);
-    handleClose();
-  };
+  const handleBack = () => setStep(1);
 
   const handleClose = () => {
     setClosing(true);
     setTimeout(onClose, 150);
   };
 
-  const getActivityItemCount = (act: Activity): number => {
-    if (act.items) return act.items.length;
-    if (act.cards) return act.cards.length;
-    if (act.questions) return act.questions.length;
-    if (act.checklist) return act.checklist.length;
-    if (act.pairs) return act.pairs.length;
-    return 0;
+  const handleSubmit = (saveAs: "draft" | "published") => {
+    if (!activity.title.trim()) { toast("Please enter an activity title."); return; }
+    const itemCount = getActivityItemCount(activity);
+    if (itemCount === 0) { toast("Please add at least one item to your activity."); return; }
+    // FIX: pass isUpdate so parent knows whether to splice-replace or push
+    onSave({ ...activity, status: saveAs }, saveAs, isUpdate || isEdit);
+    handleClose();
   };
 
   const footerNote = step === 1
     ? selectedType ? `Click next to build your ${ACT_META[selectedType].label}` : "Select an activity type to continue"
-    : !activity.title.trim()
-      ? "Enter a title to continue"
-      : getActivityItemCount(activity) === 0
-        ? "Add at least one item"
-        : `${getActivityItemCount(activity)} item${getActivityItemCount(activity) === 1 ? "" : "s"} added`;
+    : !activity.title.trim() ? "Enter a title to continue"
+    : getActivityItemCount(activity) === 0 ? "Add at least one item"
+    : `${getActivityItemCount(activity)} item${getActivityItemCount(activity) === 1 ? "" : "s"} added`;
 
-  const footerNoteColor = (step === 1 && !selectedType) || (step === 2 && (!activity.title.trim() || getActivityItemCount(activity) === 0))
-    ? "var(--t3)"
-    : "var(--teal)";
+  const footerNoteColor =
+    (step === 1 && !selectedType) ||
+    (step === 2 && (!activity.title.trim() || getActivityItemCount(activity) === 0))
+      ? "var(--t3)" : "var(--teal)";
 
   if (!open) return null;
 
@@ -450,14 +430,12 @@ export default function ActivityBuilderPanel({
     <>
       <style>{STYLES}</style>
       <div className={`abp-fs${closing ? " closing" : ""}`}>
-        
+
         {/* Header */}
         <div className="abp-hdr">
           <div className="abp-hdr-ico">🧩</div>
           <div className="abp-hdr-text">
-            <div className="abp-hdr-title">
-              {isEdit ? "Edit Activity" : "Create New Activity"}
-            </div>
+            <div className="abp-hdr-title">{isEdit || isUpdate ? "Edit Activity" : "Create New Activity"}</div>
             <div className="abp-hdr-sub">
               {step === 1 ? "Choose an activity type or template" : `Building ${ACT_META[activity.type]?.label}`}
             </div>
@@ -467,92 +445,96 @@ export default function ActivityBuilderPanel({
         {/* View Toggle */}
         {!isEdit && (
           <div style={{
-            display: "flex", alignItems: "center", gap: 4,
-            padding: "12px 24px", background: "var(--bg,#f8f7ff)",
-            borderBottom: "1px solid var(--border,rgba(124,58,237,0.1))",
+            display:"flex", alignItems:"center", gap:4,
+            padding:"12px 24px", background:"var(--bg,#f8f7ff)",
+            borderBottom:"1px solid var(--border,rgba(124,58,237,0.1))",
           }}>
-            <button onClick={() => setViewMode("create")} style={{
-              flex: 1, padding: "8px 16px", borderRadius: 8, border: "none",
-              background: viewMode === "create" ? "var(--purple,#7c3aed)" : "transparent",
-              color: viewMode === "create" ? "#fff" : "var(--t2,#4a3870)",
-              fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
-            }}>
-              Create New
-            </button>
-            <button onClick={() => setViewMode("library")} style={{
-              flex: 1, padding: "8px 16px", borderRadius: 8, border: "none",
-              background: viewMode === "library" ? "var(--purple,#7c3aed)" : "transparent",
-              color: viewMode === "library" ? "#fff" : "var(--t2,#4a3870)",
-              fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            }}>
-              Library
-              {allActivities.length > 0 && (
-                <span style={{
-                  padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700,
-                  background: viewMode === "library" ? "rgba(255,255,255,0.2)" : "rgba(124,58,237,0.1)",
-                }}>
-                  {allActivities.length}
-                </span>
-              )}
-            </button>
+            {(["create","library"] as const).map(mode => (
+              <button key={mode} onClick={() => setViewMode(mode)} style={{
+                flex:1, padding:"8px 16px", borderRadius:8, border:"none",
+                background: viewMode === mode ? "var(--purple,#7c3aed)" : "transparent",
+                color: viewMode === mode ? "#fff" : "var(--t2,#4a3870)",
+                fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+              }}>
+                {mode === "create" ? "Create New" : "Library"}
+                {mode === "library" && allActivities.length > 0 && (
+                  <span style={{
+                    padding:"2px 6px", borderRadius:4, fontSize:10, fontWeight:700,
+                    background: viewMode === "library" ? "rgba(255,255,255,0.2)" : "rgba(124,58,237,0.1)",
+                  }}>
+                    {allActivities.length}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         )}
 
         {/* Body */}
         <div className="abp-body">
+          {/* ── LIBRARY VIEW ── */}
           {viewMode === "library" ? (
-            <div className="abp-main" style={{ padding: 24 }}>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1,#18103a)", marginBottom: 4 }}>Activity Library</div>
-                <div style={{ fontSize: 11.5, color: "var(--t3,#a89dc8)" }}>
-                  {allActivities.length} activit{allActivities.length === 1 ? "y" : "ies"} · {' '}
+            <div className="abp-main">
+              <div style={{ marginBottom:4 }}>
+                <div style={{ fontSize:14, fontWeight:700, color:"var(--t1,#18103a)", marginBottom:4 }}>Activity Library</div>
+                <div style={{ fontSize:11.5, color:"var(--t3,#a89dc8)" }}>
+                  {allActivities.length} activit{allActivities.length === 1 ? "y" : "ies"} ·{" "}
                   {allActivities.filter(a => a.status === "published").length} published
                 </div>
               </div>
+
               {allActivities.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--t3,#a89dc8)" }}>
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>🧩</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No activities yet</div>
-                  <div style={{ fontSize: 12 }}>Switch to "Create New" to build your first activity</div>
+                <div style={{ textAlign:"center", padding:"60px 20px", color:"var(--t3,#a89dc8)" }}>
+                  <div style={{ fontSize:48, marginBottom:12 }}>🧩</div>
+                  <div style={{ fontSize:14, fontWeight:600, marginBottom:6 }}>No activities yet</div>
+                  <div style={{ fontSize:12 }}>Switch to "Create New" to build your first activity</div>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, overflowY: "auto", flex: 1 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:12 }}>
                   {allActivities.map(act => {
                     const meta = ACT_META[act.type];
                     const itemCount = getActivityItemCount(act);
                     return (
-                      <div key={act.id} style={{
-                        padding: 14, borderRadius: 10,
-                        border: "1.5px solid var(--border,rgba(124,58,237,0.1))",
-                        background: "var(--bg,#faf9ff)", cursor: "pointer", transition: "all 0.15s",
-                      }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(124,58,237,0.3)"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(124,58,237,0.12)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(124,58,237,0.1)"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
-                        onClick={() => { setActivity(dc(act)); setSelectedType(act.type); setStep(2); setViewMode("create"); }}
+                      <div key={act.id}
+                        onClick={() => handleLibrarySelect(act)}
+                        style={{
+                          padding:14, borderRadius:10, cursor:"pointer",
+                          border:"1.5px solid var(--border,rgba(124,58,237,0.1))",
+                          background:"var(--bg,#faf9ff)", transition:"all 0.15s",
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = "rgba(124,58,237,0.3)";
+                          e.currentTarget.style.transform = "translateY(-2px)";
+                          e.currentTarget.style.boxShadow = "0 4px 12px rgba(124,58,237,0.12)";
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = "rgba(124,58,237,0.1)";
+                          e.currentTarget.style.transform = "translateY(0)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
                       >
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-                          <div style={{ width: 38, height: 38, borderRadius: 9, background: meta.bg, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                        <div style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:10 }}>
+                          <div style={{ width:38, height:38, borderRadius:9, background:meta.bg, color:meta.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
                             {meta.icon}
                           </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1,#18103a)", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:12.5, fontWeight:700, color:"var(--t1,#18103a)", marginBottom:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                               {act.title || "Untitled"}
                             </div>
-                            <div style={{ fontSize: 10, color: "var(--t3,#a89dc8)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>
+                            <div style={{ fontSize:10, color:"var(--t3,#a89dc8)", textTransform:"uppercase", letterSpacing:"0.04em", fontWeight:600 }}>
                               {meta.label} · {itemCount} items
                             </div>
                           </div>
                         </div>
-                        {/* Show media badge if activity has media */}
                         {act.media && (
-                          <div style={{ fontSize: 10, color: "var(--teal,#0d9488)", fontWeight: 600, marginBottom: 6 }}>
+                          <div style={{ fontSize:10, color:"var(--teal,#0d9488)", fontWeight:600, marginBottom:6 }}>
                             📎 {act.media.name}
                           </div>
                         )}
                         <div style={{
-                          padding: "4px 8px", borderRadius: 5, fontSize: 9.5, fontWeight: 700,
-                          textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center",
+                          padding:"4px 8px", borderRadius:5, fontSize:9.5, fontWeight:700,
+                          textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"center",
                           background: act.status === "published" ? "#d1fae5" : "#fef3c7",
                           color: act.status === "published" ? "#065f46" : "#92400e",
                         }}>
@@ -564,190 +546,172 @@ export default function ActivityBuilderPanel({
                 </div>
               )}
             </div>
+
           ) : (
-            <div className="abp-main">{step === 1 ? (
-              <>
-                {/* Step 1: Type Selection */}
-                <div className="abp-section">
-                  <div className="abp-sec-hd">
-                    <div className="abp-sec-ico" style={{ background: "var(--purple-lt)", color: "var(--purple)" }}>
-                      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/>
-                        <rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>
-                      </svg>
+            /* ── CREATE VIEW ── */
+            <div className="abp-main">
+              {step === 1 ? (
+                <>
+                  {/* Type Selection */}
+                  <div className="abp-section">
+                    <div className="abp-sec-hd">
+                      <div className="abp-sec-ico" style={{ background:"rgba(124,58,237,0.08)", color:"var(--purple,#7c3aed)" }}>
+                        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/>
+                          <rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>
+                        </svg>
+                      </div>
+                      <span className="abp-sec-label">Activity Type</span>
                     </div>
-                    <span className="abp-sec-label">Activity Type</span>
-                  </div>
-                  <div className="abp-type-grid">
-                    {ALL_TYPES.map(type => {
-                      const meta = ACT_META[type];
-                      return (
-                        <div key={type} className={`abp-type-card${selectedType === type ? " selected" : ""}`} onClick={() => handleTypeSelect(type)}>
-                          <div className="abp-type-icon" style={{ background: meta.bg, border: `1.5px solid ${meta.border}`, color: meta.color }}>{meta.icon}</div>
-                          <div className="abp-type-info">
-                            <div className="abp-type-label">{meta.label}</div>
-                            <div className="abp-type-desc">{meta.desc}</div>
-                          </div>
-                          {selectedType === type && (
-                            <div className="abp-type-check">
-                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 6l3 3 5-6"/></svg>
+                    <div className="abp-type-grid">
+                      {ALL_TYPES.map(type => {
+                        const meta = ACT_META[type];
+                        return (
+                          <div key={type} className={`abp-type-card${selectedType === type ? " selected" : ""}`} onClick={() => handleTypeSelect(type)}>
+                            <div className="abp-type-icon" style={{ background:meta.bg, border:`1.5px solid ${meta.border}`, color:meta.color }}>{meta.icon}</div>
+                            <div className="abp-type-info">
+                              <div className="abp-type-label">{meta.label}</div>
+                              <div className="abp-type-desc">{meta.desc}</div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Templates */}
-                <div className="abp-section" style={{ borderBottom: "none" }}>
-                  <div className="abp-sec-hd">
-                    <div className="abp-sec-ico" style={{ background: "var(--sky-lt)", color: "var(--sky)" }}>
-                      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M3 2h10l2 2v10a1 1 0 01-1 1H2a1 1 0 01-1-1V4l2-2z"/>
-                        <path d="M5 6h6M5 9h6M5 12h4"/>
-                      </svg>
+                            {selectedType === type && (
+                              <div className="abp-type-check">
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 6l3 3 5-6"/></svg>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                    <span className="abp-sec-label">Quick Start Templates</span>
                   </div>
-                  <div className="abp-template-list">
-                    {TEMPLATES.map(template => (
-                      <div key={template.id} className="abp-template-card" onClick={() => handleTemplateSelect(template)}>
-                        <div className="abp-template-icon" style={{ background: ACT_META[template.type].bg, border: `1.5px solid ${ACT_META[template.type].border}`, color: ACT_META[template.type].color }}>
-                          {ACT_META[template.type].icon}
+
+                  {/* Templates */}
+                  <div className="abp-section">
+                    <div className="abp-sec-hd">
+                      <div className="abp-sec-ico" style={{ background:"rgba(2,132,199,0.08)", color:"#0284c7" }}>
+                        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M3 2h10l2 2v10a1 1 0 01-1 1H2a1 1 0 01-1-1V4l2-2z"/>
+                          <path d="M5 6h6M5 9h6M5 12h4"/>
+                        </svg>
+                      </div>
+                      <span className="abp-sec-label">Quick Start Templates</span>
+                    </div>
+                    <div className="abp-template-list">
+                      {TEMPLATES.map(template => (
+                        <div key={template.id} className="abp-template-card" onClick={() => handleTemplateSelect(template)}>
+                          <div className="abp-template-icon" style={{ background:ACT_META[template.type].bg, border:`1.5px solid ${ACT_META[template.type].border}`, color:ACT_META[template.type].color }}>
+                            {ACT_META[template.type].icon}
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <div className="abp-template-name">{template.name}</div>
+                            <div className="abp-template-desc">{template.desc}</div>
+                            <div className="abp-template-tags">
+                              {template.tags.map(tag => <span key={tag} className="abp-template-tag">{tag}</span>)}
+                            </div>
+                          </div>
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="rgba(124,58,237,0.4)" strokeWidth="2"><path d="M5 2l5 5-5 5"/></svg>
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <div className="abp-template-name">{template.name}</div>
-                          <div className="abp-template-desc">{template.desc}</div>
-                          <div className="abp-template-tags">
-                            {template.tags.map(tag => <span key={tag} className="abp-template-tag">{tag}</span>)}
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Activity Details */}
+                  <div className="abp-section">
+                    <div className="abp-sec-hd">
+                      <div className="abp-sec-ico" style={{ background:"rgba(124,58,237,0.08)", color:"var(--purple,#7c3aed)" }}>
+                        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8h6M8 5v6"/>
+                        </svg>
+                      </div>
+                      <span className="abp-sec-label">Activity Details</span>
+                    </div>
+                    <div className="field-g">
+                      <label className="f-lbl">Activity Title <span style={{ color:"#dc2626" }}>*</span></label>
+                      <input className="f-in" type="text" value={activity.title}
+                        onChange={e => setActivity({ ...activity, title: e.target.value })}
+                        placeholder="e.g. POS System Overview"
+                      />
+                    </div>
+
+                    {/* Media Upload */}
+                    <div className="field-g" style={{ marginBottom:0 }}>
+                      <label className="f-lbl">Attach Media <span style={{ fontSize:10, fontWeight:500, color:"var(--t3)" }}>(optional)</span></label>
+                      <input ref={mediaInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx"
+                        style={{ display:"none" }} onChange={handleMediaUpload} />
+
+                      {activity.media ? (
+                        <div className="abp-media-zone has-media">
+                          <div className="abp-media-preview">
+                            {activity.media.type === "image" ? <img src={activity.media.url} alt="preview" /> :
+                             activity.media.type === "video" ? <span style={{ fontSize:24 }}>🎬</span> :
+                             <span style={{ fontSize:24 }}>📄</span>}
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:"var(--t1)", marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{activity.media.name}</div>
+                            <div style={{ fontSize:10, color:"var(--t3)", textTransform:"uppercase", fontWeight:600 }}>{activity.media.type}</div>
+                          </div>
+                          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                            <button className="btn btn-s btn-sm" onClick={() => mediaInputRef.current?.click()} disabled={mediaUploading}>Replace</button>
+                            <button className="btn btn-sm" onClick={removeMedia} style={{ color:"#dc2626", borderColor:"rgba(239,68,68,0.2)", background:"rgba(239,68,68,0.05)" }}>Remove</button>
                           </div>
                         </div>
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="rgba(124,58,237,0.4)" strokeWidth="2"><path d="M5 2l5 5-5 5"/></svg>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Step 2: Content Building */}
-                <div className="abp-section">
-                  <div className="abp-sec-hd">
-                    <div className="abp-sec-ico" style={{ background: "var(--purple-lt)", color: "var(--purple)" }}>
-                      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8h6M8 5v6"/>
-                      </svg>
-                    </div>
-                    <span className="abp-sec-label">Activity Details</span>
-                  </div>
-                  <div className="field-g">
-                    <label className="f-lbl">Activity Title <span style={{ color: "var(--red)" }}>*</span></label>
-                    <input className="f-in" type="text" value={activity.title}
-                      onChange={e => setActivity({...activity, title: e.target.value})}
-                      placeholder="e.g. POS System Overview"
-                    />
-                  </div>
-
-                  {/* ── Media Upload Section ─────────────────────────── */}
-                  <div className="field-g" style={{ marginBottom: 0 }}>
-                    <label className="f-lbl">Attach Media <span style={{ fontSize: 10, fontWeight: 500, color: "var(--t3)" }}>(optional — image, video, or file)</span></label>
-
-                    {/* Hidden file input */}
-                    <input
-                      ref={mediaInputRef}
-                      type="file"
-                      accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx"
-                      style={{ display: "none" }}
-                      onChange={handleMediaUpload}
-                    />
-
-                    {activity.media ? (
-                      /* Media preview */
-                      <div className="abp-media-zone has-media">
-                        <div className="abp-media-preview">
-                          {activity.media.type === "image" ? (
-                            <img src={activity.media.url} alt="media preview" />
-                          ) : activity.media.type === "video" ? (
-                            <span style={{ fontSize: 24 }}>🎬</span>
+                      ) : (
+                        <div className="abp-media-zone"
+                          onClick={() => !mediaUploading && mediaInputRef.current?.click()}
+                          style={{ cursor:mediaUploading ? "wait" : "pointer", justifyContent:"center", flexDirection:"column", textAlign:"center", padding:"20px 16px" }}>
+                          {mediaUploading ? (
+                            <>
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.5)" strokeWidth="2" style={{ animation:"spin 1s linear infinite", marginBottom:8 }}>
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                              </svg>
+                              <div style={{ fontSize:12, fontWeight:600, color:"var(--purple)" }}>Uploading...</div>
+                            </>
                           ) : (
-                            <span style={{ fontSize: 24 }}>📄</span>
+                            <>
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.4)" strokeWidth="1.5" style={{ marginBottom:8 }}>
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                              </svg>
+                              <div style={{ fontSize:12, fontWeight:700, color:"var(--purple)", marginBottom:2 }}>Click to upload media</div>
+                              <div style={{ fontSize:10, color:"var(--t3)" }}>Images, videos, PDFs, or documents</div>
+                            </>
                           )}
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {activity.media.name}
-                          </div>
-                          <div style={{ fontSize: 10, color: "var(--t3)", textTransform: "uppercase", fontWeight: 600 }}>
-                            {activity.media.type}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          <button className="btn btn-s btn-sm" onClick={() => mediaInputRef.current?.click()} disabled={mediaUploading}>
-                            Replace
-                          </button>
-                          <button className="btn btn-sm" onClick={removeMedia}
-                            style={{ color: "#dc2626", borderColor: "rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.05)" }}>
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Upload prompt */
-                      <div className="abp-media-zone" onClick={() => !mediaUploading && mediaInputRef.current?.click()}
-                        style={{ cursor: mediaUploading ? "wait" : "pointer", justifyContent: "center", flexDirection: "column", textAlign: "center", padding: "20px 16px" }}>
-                        {mediaUploading ? (
-                          <>
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.5)" strokeWidth="2" style={{ animation: "spin 1s linear infinite", marginBottom: 8 }}>
-                              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                            </svg>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--purple)", marginBottom: 2 }}>Uploading...</div>
-                          </>
-                        ) : (
-                          <>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(124,58,237,0.4)" strokeWidth="1.5" style={{ marginBottom: 8 }}>
-                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                              <polyline points="17 8 12 3 7 8"/>
-                              <line x1="12" y1="3" x2="12" y2="15"/>
-                            </svg>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--purple)", marginBottom: 2 }}>Click to upload media</div>
-                            <div style={{ fontSize: 10, color: "var(--t3)" }}>Images, videos, PDFs, or documents</div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="abp-section" style={{ borderBottom: "none", flex: 1, overflow: "auto" }}>
-                  <div className="abp-sec-hd">
-                    <div className="abp-sec-ico" style={{ background: ACT_META[activity.type].bg, color: ACT_META[activity.type].color }}>
-                      {ACT_META[activity.type].icon}
+                      )}
                     </div>
-                    <span className="abp-sec-label">Content Items</span>
-                    <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)", fontWeight: 500 }}>
-                      {getActivityItemCount(activity)} item{getActivityItemCount(activity) === 1 ? "" : "s"}
-                    </span>
                   </div>
-                  {renderContentBuilder()}
-                </div>
-              </>
-            )}
+
+                  {/* Content Builder */}
+                  <div className="abp-section grow">
+                    <div className="abp-sec-hd">
+                      <div className="abp-sec-ico" style={{ background:ACT_META[activity.type].bg, color:ACT_META[activity.type].color }}>
+                        {ACT_META[activity.type].icon}
+                      </div>
+                      <span className="abp-sec-label">Content Items</span>
+                      <span style={{ marginLeft:"auto", fontSize:10, color:"var(--t3)", fontWeight:500 }}>
+                        {getActivityItemCount(activity)} item{getActivityItemCount(activity) === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    {renderContentBuilder()}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="abp-foot">
-          <div style={{ fontSize: 11, color: footerNoteColor, flex: 1, fontWeight: 500 }}>{footerNote}</div>
-          {step === 2 && (
+          <div style={{ fontSize:11, color:footerNoteColor, flex:1, fontWeight:500 }}>{footerNote}</div>
+          {step === 2 && viewMode === "create" && (
             <button className="btn btn-s btn-sm" onClick={handleBack}>
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 1L3 5l4 4"/></svg>
               Back
             </button>
           )}
           <button className="btn btn-s btn-sm" onClick={handleClose}>Cancel</button>
-          {step === 1 ? (
+          {viewMode === "create" && (step === 1 ? (
             <button className="btn btn-p btn-sm" onClick={handleNext} disabled={!selectedType}>
               Next Step
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 1l4 4-4 4"/></svg>
@@ -765,191 +729,243 @@ export default function ActivityBuilderPanel({
                 Publish Activity
               </button>
             </>
-          )}
+          ))}
         </div>
       </div>
     </>
   );
 
+  // ─── Content builders ────────────────────────────────────────────────────────
   function renderContentBuilder() {
-    if (activity.type === "accordion") {
-      return (
-        <div className="abp-item-list">
-          {activity.items?.map((item, idx) => (
-            <div key={idx} className="abp-item-row">
-              <div className="abp-item-num">{idx + 1}</div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                <input className="f-in" type="text" placeholder="Question" value={item.q}
-                  onChange={e => { const items = [...(activity.items || [])]; items[idx] = {...item, q: e.target.value}; setActivity({...activity, items}); }} />
-                <textarea className="f-in" placeholder="Answer" rows={2} value={item.a}
-                  onChange={e => { const items = [...(activity.items || [])]; items[idx] = {...item, a: e.target.value}; setActivity({...activity, items}); }} />
-              </div>
-              {activity.items && activity.items.length > 1 && (
-                <button className="abp-item-del" onClick={() => { const items = activity.items?.filter((_, i) => i !== idx); setActivity({...activity, items}); }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
-                </button>
-              )}
-            </div>
-          ))}
-          <button className="abp-add-btn" onClick={() => setActivity({...activity, items: [...(activity.items || []), {q:"", a:""}]})}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
-            Add Question
-          </button>
-        </div>
-      );
-    }
+    const type = activity.type;
 
-    if (activity.type === "flashcard") {
-      return (
-        <div className="abp-item-list">
-          {activity.cards?.map((card, idx) => (
-            <div key={idx} className="abp-item-row">
-              <div className="abp-item-num">{idx + 1}</div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                <input className="f-in" type="text" placeholder="Front of card" value={card.front}
-                  onChange={e => { const cards = [...(activity.cards || [])]; cards[idx] = {...card, front: e.target.value}; setActivity({...activity, cards}); }} />
-                <input className="f-in" type="text" placeholder="Back of card" value={card.back}
-                  onChange={e => { const cards = [...(activity.cards || [])]; cards[idx] = {...card, back: e.target.value}; setActivity({...activity, cards}); }} />
-              </div>
-              {activity.cards && activity.cards.length > 1 && (
-                <button className="abp-item-del" onClick={() => { const cards = activity.cards?.filter((_, i) => i !== idx); setActivity({...activity, cards}); }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
-                </button>
-              )}
+    if (type === "accordion") return (
+      <div className="abp-item-list">
+        {activity.items?.map((item, idx) => (
+          <div key={idx} className="abp-item-row">
+            <div className="abp-item-num">{idx + 1}</div>
+            <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}>
+              <input className="f-in" type="text" placeholder="Question" value={item.q}
+                onChange={e => { const items = [...(activity.items||[])]; items[idx] = {...item, q:e.target.value}; setActivity({...activity, items}); }} />
+              <textarea className="f-in" placeholder="Answer" rows={2} value={item.a}
+                onChange={e => { const items = [...(activity.items||[])]; items[idx] = {...item, a:e.target.value}; setActivity({...activity, items}); }} />
             </div>
-          ))}
-          <button className="abp-add-btn" onClick={() => setActivity({...activity, cards: [...(activity.cards || []), {front:"", back:""}]})}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
-            Add Card
-          </button>
-        </div>
-      );
-    }
+            {(activity.items?.length ?? 0) > 1 && (
+              <button className="abp-item-del" onClick={() => setActivity({...activity, items: activity.items?.filter((_,i) => i !== idx)})}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="abp-add-btn" onClick={() => setActivity({...activity, items:[...(activity.items||[]),{q:"",a:""}]})}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
+          Add Question
+        </button>
+      </div>
+    );
 
-    if (activity.type === "checklist" || activity.type === "hotspot") {
-      return (
-        <div className="abp-item-list">
-          {activity.checklist?.map((item, idx) => (
-            <div key={idx} className="abp-item-row">
-              <div className="abp-item-num">{idx + 1}</div>
-              <input className="f-in" type="text" placeholder="Task or step description" value={item.text}
-                onChange={e => { const checklist = [...(activity.checklist || [])]; checklist[idx] = {text: e.target.value}; setActivity({...activity, checklist}); }}
-                style={{ flex: 1 }} />
-              {activity.checklist && activity.checklist.length > 1 && (
-                <button className="abp-item-del" onClick={() => { const checklist = activity.checklist?.filter((_, i) => i !== idx); setActivity({...activity, checklist}); }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
-                </button>
-              )}
+    if (type === "flashcard") return (
+      <div className="abp-item-list">
+        {activity.cards?.map((card, idx) => (
+          <div key={idx} className="abp-item-row">
+            <div className="abp-item-num">{idx + 1}</div>
+            <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}>
+              <input className="f-in" type="text" placeholder="Front of card" value={card.front}
+                onChange={e => { const cards = [...(activity.cards||[])]; cards[idx] = {...card, front:e.target.value}; setActivity({...activity, cards}); }} />
+              <input className="f-in" type="text" placeholder="Back of card" value={card.back}
+                onChange={e => { const cards = [...(activity.cards||[])]; cards[idx] = {...card, back:e.target.value}; setActivity({...activity, cards}); }} />
             </div>
-          ))}
-          <button className="abp-add-btn" onClick={() => setActivity({...activity, checklist: [...(activity.checklist || []), {text:""}]})}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
-            Add Item
-          </button>
-        </div>
-      );
-    }
+            {(activity.cards?.length ?? 0) > 1 && (
+              <button className="abp-item-del" onClick={() => setActivity({...activity, cards: activity.cards?.filter((_,i) => i !== idx)})}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="abp-add-btn" onClick={() => setActivity({...activity, cards:[...(activity.cards||[]),{front:"",back:""}]})}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
+          Add Card
+        </button>
+      </div>
+    );
 
-    if (activity.type === "matching") {
-      return (
-        <div className="abp-item-list">
-          {activity.pairs?.map((pair, idx) => (
-            <div key={idx} className="abp-item-row">
-              <div className="abp-item-num">{idx + 1}</div>
-              <div style={{ flex: 1, display: "flex", gap: 8 }}>
-                <input className="f-in" type="text" placeholder="Left column" value={pair.left}
-                  onChange={e => { const pairs = [...(activity.pairs || [])]; pairs[idx] = {...pair, left: e.target.value}; setActivity({...activity, pairs}); }}
-                  style={{ flex: 1 }} />
-                <div style={{ display: "flex", alignItems: "center", color: "var(--t3)", fontSize: 14 }}>↔</div>
-                <input className="f-in" type="text" placeholder="Right column" value={pair.right}
-                  onChange={e => { const pairs = [...(activity.pairs || [])]; pairs[idx] = {...pair, right: e.target.value}; setActivity({...activity, pairs}); }}
-                  style={{ flex: 1 }} />
-              </div>
-              {activity.pairs && activity.pairs.length > 1 && (
-                <button className="abp-item-del" onClick={() => { const pairs = activity.pairs?.filter((_, i) => i !== idx); setActivity({...activity, pairs}); }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
-                </button>
-              )}
-            </div>
-          ))}
-          <button className="abp-add-btn" onClick={() => setActivity({...activity, pairs: [...(activity.pairs || []), {left:"", right:""}]})}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
-            Add Pair
-          </button>
-        </div>
-      );
-    }
+    if (type === "checklist" || type === "hotspot") return (
+      <div className="abp-item-list">
+        {activity.checklist?.map((item, idx) => (
+          <div key={idx} className="abp-item-row">
+            <div className="abp-item-num">{idx + 1}</div>
+            <input className="f-in" type="text" placeholder="Task or step description" value={item.text}
+              onChange={e => { const checklist = [...(activity.checklist||[])]; checklist[idx] = {text:e.target.value}; setActivity({...activity, checklist}); }}
+              style={{ flex:1 }} />
+            {(activity.checklist?.length ?? 0) > 1 && (
+              <button className="abp-item-del" onClick={() => setActivity({...activity, checklist: activity.checklist?.filter((_,i) => i !== idx)})}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="abp-add-btn" onClick={() => setActivity({...activity, checklist:[...(activity.checklist||[]),{text:""}]})}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
+          Add Item
+        </button>
+      </div>
+    );
 
-    if (activity.type === "fillblank") {
-      return (
-        <div className="abp-item-list">
-          {activity.questions?.map((q, idx) => (
-            <div key={idx} className="abp-item-row">
-              <div className="abp-item-num">{idx + 1}</div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                <input className="f-in" type="text" placeholder="Sentence with __BLANK__ placeholder" value={q.sentence}
-                  onChange={e => { const questions = [...(activity.questions || [])]; questions[idx] = {...q, sentence: e.target.value}; setActivity({...activity, questions}); }} />
-                <input className="f-in" type="text" placeholder="Correct answer" value={q.blanks[0] || ""}
-                  onChange={e => { const questions = [...(activity.questions || [])]; questions[idx] = {...q, blanks: [e.target.value]}; setActivity({...activity, questions}); }} />
-              </div>
-              {activity.questions && activity.questions.length > 1 && (
-                <button className="abp-item-del" onClick={() => { const questions = activity.questions?.filter((_, i) => i !== idx); setActivity({...activity, questions}); }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
-                </button>
-              )}
+    if (type === "matching") return (
+      <div className="abp-item-list">
+        {activity.pairs?.map((pair, idx) => (
+          <div key={idx} className="abp-item-row">
+            <div className="abp-item-num">{idx + 1}</div>
+            <div style={{ flex:1, display:"flex", gap:8 }}>
+              <input className="f-in" type="text" placeholder="Left column" value={pair.left}
+                onChange={e => { const pairs = [...(activity.pairs||[])]; pairs[idx] = {...pair, left:e.target.value}; setActivity({...activity, pairs}); }}
+                style={{ flex:1 }} />
+              <div style={{ display:"flex", alignItems:"center", color:"var(--t3)", fontSize:14 }}>↔</div>
+              <input className="f-in" type="text" placeholder="Right column" value={pair.right}
+                onChange={e => { const pairs = [...(activity.pairs||[])]; pairs[idx] = {...pair, right:e.target.value}; setActivity({...activity, pairs}); }}
+                style={{ flex:1 }} />
             </div>
-          ))}
-          <button className="abp-add-btn" onClick={() => setActivity({...activity, questions: [...(activity.questions || []), {sentence:"Type a sentence with __BLANK__ here.", blanks:[""]}]})}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
-            Add Question
-          </button>
-        </div>
-      );
-    }
+            {(activity.pairs?.length ?? 0) > 1 && (
+              <button className="abp-item-del" onClick={() => setActivity({...activity, pairs: activity.pairs?.filter((_,i) => i !== idx)})}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="abp-add-btn" onClick={() => setActivity({...activity, pairs:[...(activity.pairs||[]),{left:"",right:""}]})}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
+          Add Pair
+        </button>
+      </div>
+    );
+
+    if (type === "fillblank") return (
+      <div className="abp-item-list">
+        {activity.questions?.map((q, idx) => (
+          <div key={idx} className="abp-item-row">
+            <div className="abp-item-num">{idx + 1}</div>
+            <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}>
+              <input className="f-in" type="text" placeholder="Sentence with __BLANK__ placeholder" value={q.sentence}
+                onChange={e => { const questions = [...(activity.questions||[])]; questions[idx] = {...q, sentence:e.target.value}; setActivity({...activity, questions}); }} />
+              <input className="f-in" type="text" placeholder="Correct answer" value={q.blanks[0] || ""}
+                onChange={e => { const questions = [...(activity.questions||[])]; questions[idx] = {...q, blanks:[e.target.value]}; setActivity({...activity, questions}); }} />
+            </div>
+            {(activity.questions?.length ?? 0) > 1 && (
+              <button className="abp-item-del" onClick={() => setActivity({...activity, questions: activity.questions?.filter((_,i) => i !== idx)})}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="abp-add-btn" onClick={() => setActivity({...activity, questions:[...(activity.questions||[]),{sentence:"Type a sentence with __BLANK__ here.",blanks:[""]}]})}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
+          Add Question
+        </button>
+      </div>
+    );
 
     return null;
   }
 }
 
-// ─── Export LessonBlocks Component ───────────────────────────────────────────
-export function LessonBlocks({ blocks, onChange }: { blocks: LessonBlock[]; onChange: (blocks: LessonBlock[]) => void; }) {
+// ─── ActivityInlinePreview ────────────────────────────────────────────────────
+/**
+ * A compact read-only chip used inside CourseModuleModal / lesson editors
+ * to show that an activity is attached to a module or lesson block.
+ */
+export function ActivityInlinePreview({ activity, onEdit, onRemove }: {
+  activity: Activity;
+  onEdit?: () => void;
+  onRemove?: () => void;
+}) {
+  const meta = ACT_META[activity.type];
+  const itemCount = getActivityItemCount(activity);
+  return (
+    <div style={{
+      display:"flex", alignItems:"center", gap:10,
+      padding:"10px 14px", borderRadius:10,
+      border:`1.5px solid ${meta.border}`,
+      background: meta.bg + "66",
+      transition:"all .15s",
+    }}>
+      <div style={{ width:36, height:36, borderRadius:9, background:meta.bg, border:`1.5px solid ${meta.border}`, color:meta.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+        {meta.icon}
+      </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:13, fontWeight:700, color:"#18103a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {activity.title || "Untitled Activity"}
+        </div>
+        <div style={{ fontSize:10.5, color:meta.color, fontWeight:600, marginTop:2 }}>
+          {meta.label} · {itemCount} item{itemCount === 1 ? "" : "s"}
+          {activity.status && (
+            <span style={{ marginLeft:8, padding:"1px 7px", borderRadius:4, fontSize:9, fontWeight:700, textTransform:"uppercase",
+              background: activity.status === "published" ? "#d1fae5" : "#fef3c7",
+              color: activity.status === "published" ? "#065f46" : "#92400e",
+            }}>
+              {activity.status}
+            </span>
+          )}
+        </div>
+        {activity.media && (
+          <div style={{ fontSize:10, color:"#0d9488", marginTop:2, fontWeight:600 }}>📎 {activity.media.name}</div>
+        )}
+      </div>
+      {onEdit && (
+        <button onClick={onEdit} style={{ padding:"5px 10px", borderRadius:7, border:`1.5px solid ${meta.border}`, background:"#fff", color:meta.color, fontSize:11, fontWeight:700, cursor:"pointer" }}>
+          Edit
+        </button>
+      )}
+      {onRemove && (
+        <button onClick={onRemove} style={{ width:28, height:28, borderRadius:7, border:"1.5px solid rgba(239,68,68,0.2)", background:"rgba(239,68,68,0.05)", color:"#dc2626", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── LessonBlocks ─────────────────────────────────────────────────────────────
+export function LessonBlocks({ blocks, onChange, onEditActivity }: {
+  blocks: LessonBlock[];
+  onChange: (blocks: LessonBlock[]) => void;
+  onEditActivity?: (activity: Activity, blockId: string) => void;
+}) {
   const updateBlock = (idx: number, updates: Partial<LessonBlock>) => {
     const updated = [...blocks];
     updated[idx] = { ...updated[idx], ...updates };
     onChange(updated);
   };
-  const deleteBlock = (idx: number) => { onChange(blocks.filter((_, i) => i !== idx)); };
+  const deleteBlock = (idx: number) => onChange(blocks.filter((_, i) => i !== idx));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       {blocks.map((block, idx) => (
-        <div key={block.id} style={{ padding: 14, borderRadius: 10, background: "var(--bg,#faf9ff)", border: "1.5px solid var(--border,rgba(124,58,237,0.1))" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: block.kind === "content" ? "linear-gradient(135deg,#0284c7,#0d9488)" : "linear-gradient(135deg,#7c3aed,#d97706)", color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div key={block.id} style={{ padding:14, borderRadius:10, background:"var(--bg,#faf9ff)", border:"1.5px solid var(--border,rgba(124,58,237,0.1))" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+            <div style={{ width:28, height:28, borderRadius:7, background: block.kind === "content" ? "linear-gradient(135deg,#0284c7,#0d9488)" : "linear-gradient(135deg,#7c3aed,#d97706)", color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
               {idx + 1}
             </div>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--t2,#4a3870)", textTransform: "uppercase", letterSpacing: ".05em", flex: 1 }}>
-              {block.kind === "content" ? "📝 Content Block" : `🧩 ${block.activity?.title || "Activity"}`}
+            <div style={{ fontSize:11.5, fontWeight:700, color:"var(--t2,#4a3870)", textTransform:"uppercase", letterSpacing:".05em", flex:1 }}>
+              {block.kind === "content" ? "📝 Content Block" : `🧩 Activity`}
             </div>
-            <button onClick={() => deleteBlock(idx)} style={{ width: 28, height: 28, borderRadius: 7, border: "1.5px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.05)", color: "#dc2626", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <button onClick={() => deleteBlock(idx)} style={{ width:28, height:28, borderRadius:7, border:"1.5px solid rgba(239,68,68,0.2)", background:"rgba(239,68,68,0.05)", color:"#dc2626", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1l8 8M9 1L1 9"/></svg>
             </button>
           </div>
+
           {block.kind === "content" ? (
-            <textarea value={block.body || ""} onChange={(e) => updateBlock(idx, { body: e.target.value })} placeholder="Enter content text..." style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid var(--border,rgba(109,40,217,0.1))", background: "var(--surface,#fff)", color: "var(--t1,#18103a)", fontSize: 12.5, fontFamily: "inherit", resize: "vertical", minHeight: 80, lineHeight: 1.5 }} />
+            <textarea value={block.body || ""} onChange={e => updateBlock(idx, { body: e.target.value })} placeholder="Enter content text..."
+              style={{ width:"100%", padding:"10px 12px", borderRadius:8, border:"1.5px solid var(--border,rgba(109,40,217,0.1))", background:"var(--surface,#fff)", color:"var(--t1,#18103a)", fontSize:12.5, fontFamily:"inherit", resize:"vertical", minHeight:80, lineHeight:1.5 }} />
+          ) : block.activity ? (
+            // FIX: render the full ActivityInlinePreview instead of a plain text div
+            <ActivityInlinePreview
+              activity={block.activity}
+              onEdit={onEditActivity ? () => onEditActivity(block.activity!, block.id) : undefined}
+              onRemove={() => updateBlock(idx, { activity: undefined, kind: "content", body: "" })}
+            />
           ) : (
-            <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(124,58,237,0.04)", border: "1.5px solid rgba(124,58,237,0.12)", fontSize: 11.5, color: "var(--t2,#4a3870)" }}>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>
-                {block.activity?.type && ACT_META[block.activity.type]?.icon} {block.activity?.title}
-              </div>
-              <div style={{ fontSize: 10, color: "var(--t3,#a89dc8)" }}>
-                {block.activity?.type && ACT_META[block.activity.type]?.label} • {block.activity?.items?.length || block.activity?.cards?.length || block.activity?.questions?.length || block.activity?.checklist?.length || block.activity?.pairs?.length || 0} items
-              </div>
-              {block.activity?.media && (
-                <div style={{ fontSize: 10, color: "var(--teal,#0d9488)", marginTop: 4, fontWeight: 600 }}>
-                  📎 {block.activity.media.name}
-                </div>
-              )}
+            <div style={{ padding:"10px 12px", borderRadius:8, background:"rgba(124,58,237,0.04)", border:"1.5px solid rgba(124,58,237,0.12)", fontSize:12, color:"var(--t3,#a89dc8)" }}>
+              No activity attached
             </div>
           )}
         </div>
