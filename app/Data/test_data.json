@@ -1,0 +1,875 @@
+{
+  "ACTIVITIES": [
+    {
+      "id": "act_001",
+      "type": "accordion",
+      "title": "POS Key Terms",
+      "status": "published",
+      "items": [
+        {
+          "q": "What is a POS System?",
+          "a": "A Point of Sale system is hardware + software used to process customer transactions where a sale is made."
+        },
+        {
+          "q": "What is a PED?",
+          "a": "A PIN Entry Device — the card reader customers use to enter their PIN for debit/credit transactions."
+        },
+        {
+          "q": "What is an EOD Report?",
+          "a": "End-of-Day report — a summary of all transactions processed during a shift, used for cash reconciliation."
+        }
+      ]
+    },
+    {
+      "id": "act_002",
+      "type": "flashcard",
+      "title": "Hardware Flashcards",
+      "status": "published",
+      "cards": [
+        {
+          "front": "Touchscreen Terminal",
+          "back": "The primary cashier interface — all orders are entered by tapping the screen."
+        },
+        {
+          "front": "Thermal Receipt Printer",
+          "back": "Uses heat (not ink) to print receipts. Faster and lower maintenance than inkjet."
+        },
+        {
+          "front": "Cash Drawer",
+          "back": "Locked drawer connected to the POS. Opens automatically only on cash transactions."
+        }
+      ]
+    },
+    {
+      "id": "act_003",
+      "type": "checklist",
+      "title": "Opening Shift Checklist",
+      "status": "published",
+      "checklist": [
+        { "text": "Verify cash float in drawer" },
+        { "text": "Power on POS terminal" },
+        { "text": "Test barcode scanner functionality" },
+        { "text": "Log in with your credentials" }
+      ]
+    },
+    {
+      "id": "act_004",
+      "type": "matching",
+      "title": "Match Hardware to Functions",
+      "status": "published",
+      "pairs": [
+        {
+          "left": "Touchscreen Terminal",
+          "right": "Main cashier input device"
+        },
+        {
+          "left": "Barcode Scanner",
+          "right": "Reads product codes"
+        },
+        {
+          "left": "Cash Drawer",
+          "right": "Stores physical currency"
+        }
+      ]
+    },
+    {
+      "id": "act_005",
+      "type": "fillblank",
+      "title": "Transaction Procedures",
+      "status": "published",
+      "questions": [
+        {
+          "sentence": "For cash payments, always enter the __BLANK__ amount first.",
+          "blanks": ["tendered"]
+        },
+        {
+          "sentence": "Always obtain __BLANK__ before voiding a transaction.",
+          "blanks": ["supervisor approval"]
+        }
+      ]
+    },
+    {
+      "id": "act_006",
+      "type": "hotspot",
+      "title": "End-of-Day Procedure",
+      "status": "published",
+      "checklist": [
+        { "text": "Run EOD report from manager menu" },
+        { "text": "Count cash drawer and verify against report" },
+        { "text": "Secure cash in safe" }
+      ]
+    },
+    {
+      "id": "act_007",
+      "type": "accordion",
+      "title": "Customer Service FAQs",
+      "status": "published",
+      "items": [
+        {
+          "q": "How do I handle a return without a receipt?",
+          "a": "Check company policy. Most stores allow store credit or exchange with valid ID."
+        },
+        {
+          "q": "What if a customer wants to split payment?",
+          "a": "Most POS systems allow multiple payment types. Process the first payment, then add second payment method."
+        }
+      ]
+    },
+    {
+      "id": "act_008",
+      "type": "checklist",
+      "title": "Closing Shift Checklist",
+      "status": "published",
+      "checklist": [
+        { "text": "Complete all pending transactions" },
+        { "text": "Clean workstation and equipment" },
+        { "text": "Run end-of-shift report" }
+      ]
+    }
+  ],
+  "CLIENTS": [
+    {
+      "id": 1,
+      "name": "Starbucks",
+      "cat": "F&B"
+    },
+    {
+      "id": 2,
+      "name": "Ace Hardware",
+      "cat": "Retail"
+    },
+    {
+      "id": 3,
+      "name": "Popeyes",
+      "cat": "F&B"
+    },
+    {
+      "id": 4,
+      "name": "7-Eleven",
+      "cat": "Retail"
+    }
+  ],
+  "COURSES": [
+    {
+      "title": "Cash Handling 101",
+      "desc": "Basic course covering fundamental cash handling procedures for retail employees.",
+      "time": "15 min",
+      "thumb": null,
+      "thumbEmoji": "💵",
+      "cat": "POS",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "companies": null,
+      "modules": [
+        {
+          "title": "Cash Basics",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Introduction to Cash Handling",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Introduction to Cash Handling",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_001",
+                    "type": "content",
+                    "title": "Why Cash Handling Matters",
+                    "body": "Proper cash handling is crucial for business accuracy and security. Even small mistakes can lead to significant losses over time. This course will teach you the fundamentals of handling cash transactions correctly and safely."
+                  },
+                  {
+                    "id": "blk_002",
+                    "type": "content",
+                    "title": "Your Responsibilities",
+                    "body": "As a cashier, you are responsible for accurately counting cash, verifying bills, making correct change, and securing the cash drawer. You must also be vigilant against counterfeit currency and theft."
+                  },
+                  {
+                    "id": "blk_003",
+                    "type": "content",
+                    "title": "Basic Cash Handling Steps",
+                    "body": "Always count cash twice - once when receiving it from the customer and once when giving change. Keep large bills separate until the transaction is complete. Never leave the cash drawer open or unattended."
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Counting Procedures",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Counting Procedures",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_004",
+                    "type": "content",
+                    "title": "How to Count Bills",
+                    "body": "Start with the largest denomination and work your way down. Count each bill individually, placing it face-up in a stack. Organize bills by denomination before counting. Double-check your count before finalizing."
+                  },
+                  {
+                    "id": "blk_005",
+                    "type": "content",
+                    "title": "Making Change",
+                    "body": "Calculate change by counting up from the purchase amount to the amount tendered. For example, if the total is $7.35 and customer gives you $10, count: $7.35... $7.40 (nickel), $7.50 (dime), $8 (two quarters), $9, $10 (two ones)."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Customer Service Training",
+      "desc": "Intermediate course with visual demonstrations of effective customer service techniques.",
+      "time": "30 min",
+      "thumb": null,
+      "thumbEmoji": "🎯",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "companies": ["Starbucks"],
+      "modules": [
+        {
+          "title": "Communication Skills",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Greeting Customers",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Greeting Customers",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_101",
+                    "type": "content",
+                    "title": "First Impressions",
+                    "body": "The first few seconds of customer interaction set the tone for the entire experience. Make eye contact, smile genuinely, and greet customers warmly within 5 seconds of their arrival."
+                  },
+                  {
+                    "id": "blk_102",
+                    "type": "media",
+                    "mediaType": "video",
+                    "mediaUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "mediaLabel": "Customer Greeting Examples"
+                  },
+                  {
+                    "id": "blk_103",
+                    "type": "content",
+                    "title": "Tone and Body Language",
+                    "body": "Your tone of voice and body language are just as important as your words. Speak clearly and enthusiastically. Stand up straight, face the customer directly, and maintain an open posture. Avoid crossing your arms or looking distracted."
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Handling Complaints",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Handling Complaints",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_104",
+                    "type": "content",
+                    "title": "Stay Calm and Listen",
+                    "body": "When a customer has a complaint, remain calm and professional. Let them express their concern fully without interrupting. Show empathy by acknowledging their feelings with phrases like 'I understand your frustration' or 'I apologize for the inconvenience.'"
+                  },
+                  {
+                    "id": "blk_105",
+                    "type": "media",
+                    "mediaType": "video",
+                    "mediaUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "mediaLabel": "De-escalation Techniques"
+                  },
+                  {
+                    "id": "blk_106",
+                    "type": "content",
+                    "title": "Offer Solutions",
+                    "body": "After listening, offer concrete solutions. If you can't resolve the issue immediately, explain what steps you'll take and give a realistic timeframe. Always follow through on your promises. If needed, escalate to a supervisor while staying with the customer."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Advanced POS Operations",
+      "desc": "Comprehensive training covering all aspects of POS systems with interactive activities and assessments.",
+      "time": "1 hr",
+      "thumb": null,
+      "thumbEmoji": "🖥️",
+      "cat": "POS",
+      "enrolled": true,
+      "progress": 35,
+      "active": true,
+      "companies": ["Ace Hardware", "7-Eleven"],
+      "modules": [
+        {
+          "title": "System Fundamentals",
+          "done": false,
+          "chapters": [
+            {
+              "title": "POS Overview",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "POS Overview",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_201",
+                    "type": "content",
+                    "title": "What is a POS System?",
+                    "body": "A Point of Sale (POS) system is where customers make payments for products or services. Modern POS systems are computerized networks that include hardware (terminals, scanners, printers) and software that tracks sales, inventory, and customer data in real-time."
+                  },
+                  {
+                    "id": "blk_202",
+                    "type": "media",
+                    "mediaType": "presentation",
+                    "mediaUrl": "https://docs.google.com/presentation/d/1BxLw8Y_example/edit",
+                    "mediaLabel": "POS System Components"
+                  },
+                  {
+                    "id": "blk_203",
+                    "type": "content",
+                    "title": "Key Components",
+                    "body": "Every POS system has core components: a touchscreen terminal for input, receipt printer, cash drawer, barcode scanner, and card payment terminal. These work together to process transactions quickly and accurately while maintaining detailed records."
+                  },
+                  {
+                    "id": "blk_204",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_001",
+                      "type": "accordion",
+                      "title": "POS Key Terms",
+                      "status": "published",
+                      "items": [
+                        {
+                          "q": "What is a POS System?",
+                          "a": "A Point of Sale system is hardware + software used to process customer transactions where a sale is made."
+                        },
+                        {
+                          "q": "What is a PED?",
+                          "a": "A PIN Entry Device — the card reader customers use to enter their PIN for debit/credit transactions."
+                        },
+                        {
+                          "q": "What is an EOD Report?",
+                          "a": "End-of-Day report — a summary of all transactions processed during a shift, used for cash reconciliation."
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Hardware Setup",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Hardware Setup",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_205",
+                    "type": "content",
+                    "title": "Terminal Configuration",
+                    "body": "Before starting your shift, ensure all hardware is properly connected and powered on. The terminal should boot up automatically and display the login screen. Check that the printer has paper, the scanner responds to test items, and the cash drawer opens when commanded."
+                  },
+                  {
+                    "id": "blk_206",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_002",
+                      "type": "flashcard",
+                      "title": "Hardware Flashcards",
+                      "status": "published",
+                      "cards": [
+                        {
+                          "front": "Touchscreen Terminal",
+                          "back": "The primary cashier interface — all orders are entered by tapping the screen."
+                        },
+                        {
+                          "front": "Thermal Receipt Printer",
+                          "back": "Uses heat (not ink) to print receipts. Faster and lower maintenance than inkjet."
+                        },
+                        {
+                          "front": "Cash Drawer",
+                          "back": "Locked drawer connected to the POS. Opens automatically only on cash transactions."
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "title": "System Knowledge Check",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "System Knowledge Check",
+                "type": "quiz",
+                "body": "Test your understanding of POS system fundamentals.",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "questions": [
+                  {
+                    "q": "What does POS stand for?",
+                    "opts": ["Point of Sale", "Product Order System", "Payment Online Service", "Purchase Operations Software"],
+                    "ans": 0
+                  },
+                  {
+                    "q": "Which device is used to read product barcodes?",
+                    "opts": ["Cash drawer", "Receipt printer", "Barcode scanner", "Card reader"],
+                    "ans": 2
+                  },
+                  {
+                    "q": "What should you do before starting your shift?",
+                    "opts": ["Leave cash drawer open", "Skip printer check", "Verify all hardware is working", "Use personal login credentials"],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Daily Operations",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Opening Procedures",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Opening Procedures",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_207",
+                    "type": "content",
+                    "title": "Starting Your Shift",
+                    "body": "Begin each shift by following the opening checklist carefully. This ensures consistency and helps prevent issues throughout the day. Never skip steps even if you're running behind schedule."
+                  },
+                  {
+                    "id": "blk_208",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_003",
+                      "type": "checklist",
+                      "title": "Opening Shift Checklist",
+                      "status": "published",
+                      "checklist": [
+                        { "text": "Verify cash float in drawer" },
+                        { "text": "Power on POS terminal" },
+                        { "text": "Test barcode scanner functionality" },
+                        { "text": "Log in with your credentials" }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "blk_209",
+                    "type": "content",
+                    "title": "Cash Float Verification",
+                    "body": "Your cash drawer should contain a predetermined float amount. Count this carefully and verify it matches the expected amount before beginning transactions. Report any discrepancies to your supervisor immediately."
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Closing Procedures",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Closing Procedures",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_210",
+                    "type": "content",
+                    "title": "End of Day Process",
+                    "body": "Closing procedures are critical for accurate financial reporting. The End of Day (EOD) process reconciles all transactions, counts cash, and prepares the system for the next business day."
+                  },
+                  {
+                    "id": "blk_211",
+                    "type": "media",
+                    "mediaType": "video",
+                    "mediaUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "mediaLabel": "EOD Walkthrough"
+                  },
+                  {
+                    "id": "blk_212",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_006",
+                      "type": "hotspot",
+                      "title": "End-of-Day Procedure",
+                      "status": "published",
+                      "checklist": [
+                        { "text": "Run EOD report from manager menu" },
+                        { "text": "Count cash drawer and verify against report" },
+                        { "text": "Secure cash in safe" }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Operations Assessment",
+              "type": "assessment",
+              "done": false,
+              "content": {
+                "title": "Operations Assessment",
+                "type": "assessment",
+                "body": "Complete this assessment to demonstrate your mastery of POS operations.",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "questions": [
+                  {
+                    "q": "What is the first step when opening your shift?",
+                    "opts": ["Start serving customers", "Verify cash float", "Turn on lights", "Clean the terminal"],
+                    "ans": 1
+                  },
+                  {
+                    "q": "What does EOD stand for?",
+                    "opts": ["Every Other Day", "End of Day", "Electronic Order Data", "Employee on Duty"],
+                    "ans": 1
+                  },
+                  {
+                    "q": "When should you report cash discrepancies?",
+                    "opts": ["At end of shift", "Next day", "Immediately", "Never"],
+                    "ans": 2
+                  },
+                  {
+                    "q": "Where should cash be secured at end of shift?",
+                    "opts": ["Cash drawer", "Under counter", "In safe", "Take home"],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Food Safety Essentials",
+      "desc": "Learn critical food safety practices for restaurant and food service environments.",
+      "time": "40 min",
+      "thumb": null,
+      "thumbEmoji": "🍽️",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": true,
+      "companies": ["Starbucks", "Popeyes"],
+      "modules": [
+        {
+          "title": "Safety Fundamentals",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Temperature Control",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Temperature Control",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_301",
+                    "type": "content",
+                    "title": "Danger Zone",
+                    "body": "The temperature danger zone is between 40°F and 140°F (4°C to 60°C). Bacteria multiply rapidly in this range. Keep cold foods cold (below 40°F) and hot foods hot (above 140°F). Food should not remain in the danger zone for more than 2 hours total."
+                  },
+                  {
+                    "id": "blk_302",
+                    "type": "content",
+                    "title": "Proper Storage",
+                    "body": "Store raw meat on bottom shelves to prevent cross-contamination. Keep refrigerator at 40°F or below and freezer at 0°F or below. Check temperatures daily with a calibrated thermometer. Label all items with dates."
+                  },
+                  {
+                    "id": "blk_303",
+                    "type": "media",
+                    "mediaType": "video",
+                    "mediaUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "mediaLabel": "Temperature Monitoring Guide"
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Hand Washing",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Hand Washing",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_304",
+                    "type": "content",
+                    "title": "When to Wash",
+                    "body": "Wash hands before starting work, after using the restroom, after touching face or hair, after handling raw food, after taking out trash, and after any activity that could contaminate hands. Hand washing is your first line of defense against foodborne illness."
+                  },
+                  {
+                    "id": "blk_305",
+                    "type": "content",
+                    "title": "How to Wash",
+                    "body": "Use warm water and soap. Scrub hands and forearms for at least 20 seconds. Clean under fingernails and between fingers. Rinse thoroughly and dry with single-use paper towel. Use paper towel to turn off faucet."
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Safety Quiz",
+              "type": "quiz",
+              "done": false,
+              "content": {
+                "title": "Safety Quiz",
+                "type": "quiz",
+                "body": "Test your knowledge of food safety basics.",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "questions": [
+                  {
+                    "q": "What is the temperature danger zone?",
+                    "opts": ["32°F - 100°F", "40°F - 140°F", "50°F - 150°F", "60°F - 160°F"],
+                    "ans": 1
+                  },
+                  {
+                    "q": "How long should you wash your hands?",
+                    "opts": ["5 seconds", "10 seconds", "20 seconds", "30 seconds"],
+                    "ans": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Workplace Communication",
+      "desc": "Develop effective communication skills for team collaboration and customer interactions.",
+      "time": "25 min",
+      "thumb": null,
+      "thumbEmoji": "💬",
+      "cat": "Management",
+      "enrolled": false,
+      "progress": 0,
+      "active": false,
+      "companies": null,
+      "modules": [
+        {
+          "title": "Team Communication",
+          "done": false,
+          "chapters": [
+            {
+              "title": "Active Listening",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Active Listening",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_401",
+                    "type": "content",
+                    "title": "What is Active Listening?",
+                    "body": "Active listening means fully concentrating on what is being said rather than just passively hearing the message. It involves paying attention, withholding judgment, reflecting, clarifying, and summarizing. This skill is crucial for effective teamwork and customer service."
+                  },
+                  {
+                    "id": "blk_402",
+                    "type": "content",
+                    "title": "Key Techniques",
+                    "body": "Make eye contact, nod to show understanding, avoid interrupting, ask clarifying questions, and paraphrase what you heard to confirm understanding. Put away distractions like phones. Show empathy through your body language and facial expressions."
+                  },
+                  {
+                    "id": "blk_403",
+                    "type": "media",
+                    "mediaType": "video",
+                    "mediaUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "mediaLabel": "Active Listening Examples"
+                  },
+                  {
+                    "id": "blk_404",
+                    "type": "activity",
+                    "activity": {
+                      "id": "act_007",
+                      "type": "accordion",
+                      "title": "Customer Service FAQs",
+                      "status": "published",
+                      "items": [
+                        {
+                          "q": "How do I handle a return without a receipt?",
+                          "a": "Check company policy. Most stores allow store credit or exchange with valid ID."
+                        },
+                        {
+                          "q": "What if a customer wants to split payment?",
+                          "a": "Most POS systems allow multiple payment types. Process the first payment, then add second payment method."
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "title": "Clear Communication",
+              "type": "lesson",
+              "done": false,
+              "content": {
+                "title": "Clear Communication",
+                "type": "lesson",
+                "media": {
+                  "type": "none",
+                  "url": ""
+                },
+                "blocks": [
+                  {
+                    "id": "blk_405",
+                    "type": "content",
+                    "title": "Speaking Clearly",
+                    "body": "Use simple, direct language. Avoid jargon unless you're certain the other person understands it. Speak at a moderate pace - not too fast or too slow. Articulate your words clearly. Organize your thoughts before speaking on important matters."
+                  },
+                  {
+                    "id": "blk_406",
+                    "type": "content",
+                    "title": "Written Communication",
+                    "body": "For written messages, use proper grammar and punctuation. Keep messages concise and focused. Use bullet points for multiple items. Proofread before sending. Consider your tone - written messages can be easily misinterpreted without vocal cues."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "PROGRESS_DATA": [
+    {
+      "name": "John Doe",
+      "company": "Popeyes",
+      "course": "Cash Handling 101",
+      "progress": 100,
+      "started": "2025-01-10",
+      "completed": "2025-01-12",
+      "status": "Completed"
+    },
+    {
+      "name": "Ana Reyes",
+      "company": "Popeyes",
+      "course": "Food Safety Essentials",
+      "progress": 75,
+      "started": "2025-02-01",
+      "completed": null,
+      "status": "In Progress"
+    },
+    {
+      "name": "Chris Park",
+      "company": "Ace Hardware",
+      "course": "Customer Service Training",
+      "progress": 100,
+      "started": "2025-01-20",
+      "completed": "2025-01-25",
+      "status": "Completed"
+    },
+    {
+      "name": "Sarah Miller",
+      "company": "7-Eleven",
+      "course": "Advanced POS Operations",
+      "progress": 35,
+      "started": "2025-02-15",
+      "completed": null,
+      "status": "In Progress"
+    }
+  ],
+  "DEFAULT_CATEGORIES": [
+    "All",
+    "POS",
+    "Security",
+    "Management"
+  ],
+  "CC_COLORS": [
+    "#7c3aed",
+    "#0d9488",
+    "#d97706",
+    "#0284c7",
+    "#dc2626",
+    "#16a34a",
+    "#9333ea",
+    "#0891b2",
+    "#b45309",
+    "#4f46e5"
+  ],
+  "LP_COURSE": {
+    "title": "POS — Introduction",
+    "emoji": "🖥️",
+    "category": "POS Training",
+    "duration": "1 hr 20 min",
+    "modules": []
+  }
+}

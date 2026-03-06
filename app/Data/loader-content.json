@@ -1,0 +1,28 @@
+{
+  "flipWords": [
+    "Something New",
+    "Every Day",
+    "To Grow",
+    "Never Stops",
+    "With Purpose",
+    "To Lead",
+    "To Inspire",
+    "To Improve",
+    "For Life",
+    "Together"
+  ],
+  "quotes": [
+    { "line": "Every expert was once a beginner who refused to quit.", "author": "On growth" },
+    { "line": "Small actions, practiced daily, compound into mastery.", "author": "On consistency" },
+    { "line": "The mind that opens to a new idea never returns to its original size.", "author": "On curiosity" },
+    { "line": "Knowledge is the only asset that grows when you give it away.", "author": "On sharing" },
+    { "line": "Progress, not perfection, is the only benchmark that matters.", "author": "On progress" },
+    { "line": "The gap between who you are and who you want to be is called learning.", "author": "On ambition" },
+    { "line": "Invest in your mind. Every other investment depends on it.", "author": "On priorities" },
+    { "line": "You don't rise to the level of your goals. You fall to the level of your habits.", "author": "On discipline" },
+    { "line": "The beautiful thing about learning is that no one can take it away from you.", "author": "On ownership" },
+    { "line": "An investment in knowledge always pays the best interest.", "author": "On wisdom" },
+    { "line": "Live as if you were to die tomorrow. Learn as if you were to live forever.", "author": "On urgency" },
+    { "line": "The more that you read, the more things you will know.", "author": "On reading" }
+  ]
+}
