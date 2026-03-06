@@ -35,7 +35,6 @@ export default function CourseCatalog({
     closeMod,
   } = useCourseCatalog({ courses, setCourses, toast, onOpenCourse });
 
-  // ── Loading popup ────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
   const [savingMsg, setSavingMsg] = useState("Saving...");
 
@@ -49,8 +48,84 @@ export default function CourseCatalog({
   return (
     <>
       <style>{CARD_STYLES}</style>
+      <style>{`
+        /* ── Sleek filter bar ── */
+        .sf-bar {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-bottom: 12px;
+          flex-shrink: 0;
+          flex-wrap: wrap;
+        }
+        .sf-bar.hidden { display: none; }
 
-      {/* Toolbar */}
+        .sf-section {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 9px;
+          padding: 3px;
+        }
+        .sf-divider {
+          width: 1px; height: 14px;
+          background: var(--border);
+          margin: 0 2px;
+          flex-shrink: 0;
+        }
+        .sf-label {
+          font-size: 9.5px;
+          font-weight: 700;
+          letter-spacing: .1em;
+          text-transform: uppercase;
+          color: var(--t4);
+          padding: 0 6px;
+          flex-shrink: 0;
+        }
+        .sf-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 11px;
+          font-weight: 500;
+          color: var(--t2);
+          padding: 4px 10px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all .14s;
+          background: transparent;
+          border: none;
+          font-family: 'DM Sans', sans-serif;
+          white-space: nowrap;
+        }
+        .sf-chip:hover {
+          background: var(--surface2);
+          color: var(--t1);
+        }
+        .sf-chip.on {
+          background: linear-gradient(135deg, var(--purple), var(--purple-d));
+          color: #fff;
+          font-weight: 600;
+          box-shadow: 0 2px 8px rgba(124,58,237,0.25);
+        }
+        .sf-chip.on-status-pub {
+          background: linear-gradient(135deg, #065f46, #0d9488);
+          color: #fff;
+          font-weight: 600;
+          box-shadow: 0 2px 8px rgba(13,148,136,0.25);
+        }
+        .sf-chip.on-status-dft {
+          background: linear-gradient(135deg, #78350f, #d97706);
+          color: #fff;
+          font-weight: 600;
+          box-shadow: 0 2px 8px rgba(217,119,6,0.25);
+        }
+        .sf-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+      `}</style>
+
+      {/* ── Toolbar ── */}
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexShrink:0 }}>
         <span style={{ fontSize:15, fontWeight:700, color:"var(--t1)", letterSpacing:"-0.01em" }}>Course Lists</span>
         <div style={{ flex:1 }} />
@@ -63,24 +138,46 @@ export default function CourseCatalog({
         </div>
       </div>
 
-      {/* Filters */}
-      <div className={`lc-filter-bar${filterOn ? "" : " hidden"}`}>
-        <span className="fl">Filter</span>
-        <div className="filter-divider" />
-        {categories.map(cat => (
-          <button key={cat} className={`lc-cat${activeCat === cat ? " on" : ""}`} onClick={() => setActiveCat(cat)}>{cat}</button>
-        ))}
-        <div className="filter-divider" style={{ margin:"0 2px" }} />
-        {["All", "Published", "Draft"].map(sf => (
-          <button key={sf} className={`lc-status-chip${statusFilter === sf ? " on" : ""}`} onClick={() => setStatusFilter(sf)}>
-            {sf === "Published" && <span className="dot" style={{ background:"#16a34a" }} />}
-            {sf === "Draft"     && <span className="dot" style={{ background:"#d97706" }} />}
-            {sf}
+      {/* ── Sleek filter bar ── */}
+      <div className={`sf-bar${filterOn ? "" : " hidden"}`}>
+        {/* Category group */}
+        <div className="sf-section">
+          <span className="sf-label">Category</span>
+          <div className="sf-divider" />
+          {categories.map(cat => (
+            <button
+              key={cat}
+              className={`sf-chip${activeCat === cat ? " on" : ""}`}
+              onClick={() => setActiveCat(cat)}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Status group */}
+        <div className="sf-section">
+          <span className="sf-label">Status</span>
+          <div className="sf-divider" />
+          <button className={`sf-chip${statusFilter === "All" ? " on" : ""}`} onClick={() => setStatusFilter("All")}>All</button>
+          <button
+            className={`sf-chip${statusFilter === "Published" ? " on-status-pub" : ""}`}
+            onClick={() => setStatusFilter("Published")}
+          >
+            <span className="sf-dot" style={{ background: statusFilter === "Published" ? "rgba(255,255,255,0.8)" : "#16a34a" }} />
+            Published
           </button>
-        ))}
+          <button
+            className={`sf-chip${statusFilter === "Draft" ? " on-status-dft" : ""}`}
+            onClick={() => setStatusFilter("Draft")}
+          >
+            <span className="sf-dot" style={{ background: statusFilter === "Draft" ? "rgba(255,255,255,0.8)" : "#d97706" }} />
+            Draft
+          </button>
+        </div>
       </div>
 
-      {/* Grid */}
+      {/* ── Grid ── */}
       <div className="lc-courses-scroll">
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(268px,1fr))", gap:16, padding:"4px 2px 16px" }}>
           {filtered.length === 0 ? (
@@ -233,46 +330,36 @@ export default function CourseCatalog({
               style={{ background:'var(--surface,#fff)', borderRadius:16, border:'1.5px solid rgba(220,38,38,0.2)', boxShadow:'0 20px 60px rgba(220,38,38,0.25)', maxWidth:440, width:'100%', animation:'deleteModalSlideUp 0.3s cubic-bezier(0.16,1,0.3,1)' }}
               onClick={e => e.stopPropagation()}
             >
-              {/* Header */}
               <div style={{ padding:'24px 24px 20px', borderBottom:'1px solid rgba(220,38,38,0.1)', textAlign:'center' as const }}>
                 <div style={{ width:56, height:56, borderRadius:'50%', background:'rgba(220,38,38,0.1)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px', fontSize:28 }}>⚠️</div>
                 <div style={{ fontSize:20, fontWeight:800, color:'#dc2626', marginBottom:6, letterSpacing:'-0.02em' }}>Delete Course?</div>
                 <div style={{ fontSize:13, color:'var(--t2,#4a3870)', lineHeight:1.5 }}>This action cannot be undone</div>
               </div>
-
-              {/* Body */}
               <div style={{ padding:'20px 24px' }}>
                 <div style={{ padding:16, borderRadius:10, background:'rgba(220,38,38,0.05)', border:'1.5px solid rgba(220,38,38,0.15)', marginBottom:20 }}>
                   <div style={{ fontSize:14, fontWeight:700, color:'#7f1d1d', marginBottom:6 }}>"{courses[deleteIdx].title}"</div>
                   <div style={{ fontSize:12, color:'#991b1b', lineHeight:1.6 }}>All course content, modules, and progress data will be permanently deleted.</div>
                 </div>
               </div>
-
-              {/* Footer */}
               <div style={{ padding:'16px 24px 20px', display:'flex', gap:10, borderTop:'1px solid rgba(220,38,38,0.1)' }}>
                 <button
                   onClick={cancelDelete}
                   style={{ flex:1, padding:'10px', borderRadius:9, border:'1.5px solid var(--border,rgba(124,58,237,0.2))', background:'transparent', color:'var(--t2,#4a3870)', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.15s', fontFamily:'inherit' }}
                   onMouseEnter={e => { e.currentTarget.style.background='rgba(124,58,237,0.06)'; e.currentTarget.style.borderColor='rgba(124,58,237,0.3)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor='rgba(124,58,237,0.2)'; }}
-                >
-                  Cancel
-                </button>
+                >Cancel</button>
                 <button
                   onClick={() => withLoader("Deleting course...", confirmDelete, 1000)}
                   style={{ flex:1, padding:'10px', borderRadius:9, border:'none', background:'#dc2626', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.15s', boxShadow:'0 4px 14px rgba(220,38,38,0.3)', fontFamily:'inherit' }}
                   onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 6px 20px rgba(220,38,38,0.4)'; }}
                   onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 14px rgba(220,38,38,0.3)'; }}
-                >
-                  Delete Course
-                </button>
+                >Delete Course</button>
               </div>
             </div>
           </div>
         </>
       )}
 
-      {/* Loading Popup */}
       <LoadingPopup visible={saving} message={savingMsg} />
     </>
   );

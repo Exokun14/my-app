@@ -500,7 +500,15 @@ const STYLES = `
 /* ── Course Completion Popup ─────────────────────────────────────────────────── */
 @keyframes ccOverlayIn  { from{opacity:0} to{opacity:1} }
 @keyframes ccCardIn     { 0%{opacity:0;transform:scale(0.78) translateY(40px)} 55%{transform:scale(1.03) translateY(-6px)} 75%{transform:scale(0.98) translateY(2px)} 100%{opacity:1;transform:scale(1) translateY(0)} }
-@keyframes ccTrophyIn   { 0%{opacity:0;transform:scale(0) rotate(-30deg)} 55%{transform:scale(1.18) rotate(8deg)} 75%{transform:scale(0.93) rotate(-4deg)} 100%{opacity:1;transform:scale(1) rotate(0deg)} }
+@keyframes ccTrophyBounce {
+  0%   { transform:translateY(0) scale(1); }
+  15%  { transform:translateY(-18px) scale(1.08); }
+  30%  { transform:translateY(0) scale(0.96); }
+  45%  { transform:translateY(-10px) scale(1.04); }
+  60%  { transform:translateY(0) scale(0.98); }
+  75%  { transform:translateY(-5px) scale(1.02); }
+  100% { transform:translateY(0) scale(1); }
+}
 @keyframes ccTrophyFloat{ 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-7px) scale(1.03)} }
 @keyframes ccPulseRing  { 0%{transform:scale(0.9);opacity:0.7} 60%{transform:scale(1.18);opacity:0} 100%{transform:scale(1.18);opacity:0} }
 @keyframes ccPulseRing2 { 0%{transform:scale(0.9);opacity:0.5} 60%{transform:scale(1.35);opacity:0} 100%{transform:scale(1.35);opacity:0} }
@@ -511,11 +519,31 @@ const STYLES = `
 @keyframes ccOrb        { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(12px,-18px) scale(1.08)} 66%{transform:translate(-10px,8px) scale(0.94)} }
 @keyframes ccBigConfetti{ 0%{transform:translateY(-20px) rotate(0deg) scale(1);opacity:1} 100%{transform:translateY(110px) rotate(900deg) scale(0.2);opacity:0} }
 
+/* NEW: Score bar + sparks for completion */
+@keyframes ccScoreSpark0 { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(-12px,-32px) scale(0)} }
+@keyframes ccScoreSpark1 { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(6px,-38px) scale(0)} }
+@keyframes ccScoreSpark2 { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(14px,-28px) scale(0)} }
+@keyframes ccScoreSpark3 { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(-6px,-42px) scale(0)} }
+@keyframes ccScoreSpark4 { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(10px,-20px) scale(0)} }
+@keyframes ccScoreCountIn {
+  0% { opacity:0; transform:scale(0.4) translateY(10px); }
+  70% { transform:scale(1.1) translateY(-2px); }
+  100% { opacity:1; transform:scale(1) translateY(0); }
+}
+@keyframes ccShimmer {
+  0% { left:-100%; }
+  100% { left:200%; }
+}
+@keyframes ccGlowPulse {
+  0%,100% { box-shadow: 0 0 20px rgba(124,58,237,0.3), 0 6px 28px rgba(251,191,36,0.25); }
+  50%      { box-shadow: 0 0 40px rgba(124,58,237,0.5), 0 8px 40px rgba(251,191,36,0.45); }
+}
+
 .cc-overlay {
   position:fixed; inset:0; z-index:3000;
-  background:rgba(8,4,24,0.48);
-  backdrop-filter:blur(14px) saturate(1.5);
-  display:flex; align-items:center; justify-content:center; padding:20px;
+  background:rgba(8,4,24,0.82);
+  backdrop-filter:blur(20px) saturate(1.6);
+  display:flex; align-items:center; justify-content:center; padding:16px;
   animation:ccOverlayIn 0.3s ease both;
   overflow:hidden;
 }
@@ -528,12 +556,13 @@ const STYLES = `
 }
 
 .cc-popup {
-  background:#fff; border-radius:28px;
-  width:min(100%,520px);
-  box-shadow:0 48px 120px rgba(8,4,24,0.2), 0 0 0 1.5px rgba(124,58,237,0.1);
+  background:#fff; border-radius:24px;
+  width:min(100%,480px);
+  box-shadow:0 48px 120px rgba(8,4,24,0.4), 0 0 0 1.5px rgba(124,58,237,0.1);
   animation:ccCardIn 0.56s cubic-bezier(0.16,1,0.3,1) 0.05s both;
   overflow:hidden; position:relative;
-  max-height:90vh; overflow-y:auto;
+  max-height:calc(100vh - 32px);
+  display:flex; flex-direction:column;
 }
 
 /* Gradient top band — taller, more prominent */
@@ -545,7 +574,7 @@ const STYLES = `
 }
 
 /* Floating colour orbs behind trophy */
-.cc-orbs { position:absolute; top:0; left:0; right:0; height:200px; pointer-events:none; overflow:hidden; }
+.cc-orbs { position:absolute; top:0; left:0; right:0; height:140px; pointer-events:none; overflow:hidden; }
 .cc-orb {
   position:absolute; border-radius:50%; filter:blur(32px);
   animation:ccOrb ease-in-out infinite;
@@ -555,15 +584,16 @@ const STYLES = `
 .cc-confetti { position:absolute; inset:0; pointer-events:none; overflow:hidden; border-radius:28px; }
 
 .cc-inner {
-  padding:32px 32px 28px;
+  padding:20px 24px 20px;
   display:flex; flex-direction:column; align-items:center; text-align:center;
   position:relative; z-index:2;
+  overflow-y:auto; flex:1;
 }
 
-/* Trophy badge with pulsing rings */
+/* Trophy badge with pulsing rings + sparkles */
 .cc-badge-wrap {
   position:relative; display:flex; align-items:center; justify-content:center;
-  width:100px; height:100px; margin-bottom:20px;
+  width:80px; height:80px; margin-bottom:12px;
 }
 .cc-pulse-ring {
   position:absolute; inset:0; border-radius:50%;
@@ -576,14 +606,14 @@ const STYLES = `
   animation:ccPulseRing2 1.8s ease-out 1.1s infinite;
 }
 .cc-badge {
-  width:86px; height:86px; border-radius:50%;
+  width:70px; height:70px; border-radius:50%;
   background:linear-gradient(135deg,rgba(251,191,36,0.18) 0%,rgba(245,158,11,0.12) 100%);
   border:2.5px solid rgba(251,191,36,0.4);
   display:flex; align-items:center; justify-content:center;
-  font-size:42px;
-  box-shadow:0 6px 28px rgba(251,191,36,0.25), 0 2px 8px rgba(251,191,36,0.15);
-  animation:ccTrophyIn 0.7s cubic-bezier(0.16,1,0.3,1) 0.18s both,
-            ccTrophyFloat 3s ease-in-out 1.2s infinite;
+  font-size:34px;
+  animation:ccTrophyBounce 1s cubic-bezier(0.16,1,0.3,1) 0.18s both,
+            ccTrophyFloat 3s ease-in-out 1.4s infinite,
+            ccGlowPulse 2.5s ease-in-out 1.4s infinite;
   position:relative; z-index:2;
 }
 
@@ -594,30 +624,70 @@ const STYLES = `
 }
 
 .cc-title {
-  font-size:24px; font-weight:900; color:var(--t1,#18103a);
-  letter-spacing:-0.03em; margin-bottom:4px; line-height:1.2;
+  font-size:21px; font-weight:900; color:var(--t1,#18103a);
+  letter-spacing:-0.03em; margin-bottom:3px; line-height:1.2;
   animation:qpFadeUp 0.45s ease 0.4s both;
 }
 .cc-subtitle {
-  font-size:13.5px; color:var(--t3,#a89dc8); font-weight:600;
-  margin-bottom:6px;
+  font-size:12.5px; color:var(--t3,#a89dc8); font-weight:600;
+  margin-bottom:5px;
   animation:qpFadeUp 0.4s ease 0.48s both;
 }
 .cc-course-name {
-  font-size:12px; color:var(--t3,#a89dc8); font-weight:500;
-  margin-bottom:24px; max-width:360px; line-height:1.5;
-  padding:6px 14px; border-radius:20px;
+  font-size:11px; color:var(--t3,#a89dc8); font-weight:500;
+  margin-bottom:16px; max-width:360px; line-height:1.5;
+  padding:4px 12px; border-radius:20px;
   background:rgba(124,58,237,0.06); border:1.5px solid rgba(124,58,237,0.1);
   animation:qpFadeUp 0.4s ease 0.54s both;
 }
 
-/* Stats — bigger, more dramatic */
+/* ── Score ring (mirrors quiz popup exactly) ── */
+.cc-score-ring-wrap {
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  margin-bottom:14px;
+  animation:qpFadeUp 0.4s ease 0.44s both;
+}
+.cc-score-ring {
+  width:96px; height:96px; border-radius:50%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  position:relative;
+}
+.cc-score-ring svg { position:absolute; inset:0; width:100%; height:100%; }
+.cc-ring-track { }
+.cc-ring-fill { animation:qpRingFill 1.3s cubic-bezier(0.16,1,0.3,1) 0.5s both; }
+.cc-score-num {
+  font-size:24px; font-weight:900; position:relative; z-index:1; line-height:1;
+  letter-spacing:-0.04em; font-variant-numeric:tabular-nums;
+  animation:qpCountUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.9s both;
+}
+.cc-score-lbl {
+  font-size:8px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--t3,#a89dc8); position:relative; z-index:1; margin-top:2px;
+}
+.cc-score-sublabel {
+  font-size:10px; font-weight:600; color:var(--t3,#a89dc8); letter-spacing:.02em;
+}
+
+/* Bar below ring */
+.cc-score-bar-wrap {
+  width:160px; height:5px; border-radius:6px;
+  background:rgba(124,58,237,0.1); overflow:hidden;
+  margin:0 auto; animation:qpFadeUp 0.4s ease 0.56s both;
+}
+.cc-score-bar-fill {
+  height:100%; border-radius:6px;
+  background:linear-gradient(90deg,#7c3aed,#6366f1,#0d9488);
+  box-shadow:0 0 8px rgba(124,58,237,0.4);
+  animation:qpBarGrow 1.2s cubic-bezier(0.16,1,0.3,1) 0.6s both;
+}
+
+/* Stats — compact */
 .cc-stats {
-  display:grid; grid-template-columns:repeat(3,1fr); gap:10px;
-  width:100%; margin-bottom:20px;
+  display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+  width:100%; margin-bottom:14px;
 }
 .cc-stat {
-  padding:16px 10px 14px; border-radius:14px; text-align:center;
+  padding:11px 8px 10px; border-radius:12px; text-align:center;
   background:var(--bg,#faf9ff);
   border:1.5px solid var(--border,rgba(124,58,237,0.1));
   animation:ccStatIn 0.45s cubic-bezier(0.16,1,0.3,1) both;
@@ -633,47 +703,35 @@ const STYLES = `
 .cc-stat:nth-child(1) { animation-delay:0.55s; }
 .cc-stat:nth-child(2) { animation-delay:0.67s; }
 .cc-stat:nth-child(3) { animation-delay:0.79s; }
-.cc-stat-icon { font-size:20px; margin-bottom:7px; }
-.cc-stat-val  { font-size:22px; font-weight:900; letter-spacing:-0.03em; line-height:1; margin-bottom:4px; }
-.cc-stat-label { font-size:9px; font-weight:700; color:var(--t3,#a89dc8); text-transform:uppercase; letter-spacing:.07em; }
+.cc-stat-icon { font-size:17px; margin-bottom:5px; }
+.cc-stat-val  { font-size:19px; font-weight:900; letter-spacing:-0.03em; line-height:1; margin-bottom:3px; }
+.cc-stat-label { font-size:8.5px; font-weight:700; color:var(--t3,#a89dc8); text-transform:uppercase; letter-spacing:.07em; }
 
-/* Progress bar — chunkier */
-.cc-progress-section { width:100%; margin-bottom:18px; animation:qpFadeUp 0.4s ease 0.88s both; }
-.cc-progress-label {
-  display:flex; justify-content:space-between; align-items:center;
-  font-size:11.5px; font-weight:700; color:var(--t2,#4a3870); margin-bottom:8px;
-}
-.cc-progress-track { height:9px; border-radius:9px; background:rgba(124,58,237,0.08); overflow:hidden; }
-.cc-progress-fill {
-  height:100%; border-radius:9px;
-  background:linear-gradient(90deg,#7c3aed,#6366f1,#0d9488);
-  animation:ccLineGrow 1.2s cubic-bezier(0.16,1,0.3,1) 0.95s both;
-}
-
-/* Modules list — each row slides in from left with stagger */
-.cc-modules { width:100%; display:flex; flex-direction:column; gap:7px; margin-bottom:24px; }
+/* Modules list */
+.cc-modules { width:100%; display:flex; flex-direction:column; gap:5px; margin-bottom:14px; max-height:120px; overflow-y:auto; }
 .cc-module-row {
-  display:flex; align-items:center; gap:10px;
-  padding:10px 14px; border-radius:11px;
+  display:flex; align-items:center; gap:9px;
+  padding:7px 12px; border-radius:9px;
   background:rgba(13,148,136,0.04);
   border:1.5px solid rgba(13,148,136,0.12);
   animation:ccModuleIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+  flex-shrink:0;
 }
 .cc-module-check {
-  width:22px; height:22px; border-radius:50%;
+  width:19px; height:19px; border-radius:50%;
   background:var(--teal,#0d9488);
   display:flex; align-items:center; justify-content:center;
-  flex-shrink:0; font-size:11px; color:#fff;
+  flex-shrink:0; font-size:10px; color:#fff;
   box-shadow:0 2px 6px rgba(13,148,136,0.3);
 }
-.cc-module-name     { flex:1; font-size:12.5px; font-weight:600; color:var(--t1,#18103a); text-align:left; }
-.cc-module-chapters { font-size:11px; color:var(--t3,#a89dc8); font-weight:500; white-space:nowrap; }
+.cc-module-name     { flex:1; font-size:11.5px; font-weight:600; color:var(--t1,#18103a); text-align:left; }
+.cc-module-chapters { font-size:10.5px; color:var(--t3,#a89dc8); font-weight:500; white-space:nowrap; }
 
 /* CTA */
-.cc-cta { display:flex; gap:10px; width:100%; animation:qpFadeUp 0.4s ease 1.1s both; }
+.cc-cta { display:flex; gap:8px; width:100%; animation:qpFadeUp 0.4s ease 1.1s both; flex-shrink:0; }
 .cc-btn {
-  flex:1; padding:14px 16px; border-radius:13px;
-  font-size:14px; font-weight:800; cursor:pointer; border:none;
+  flex:1; padding:11px 14px; border-radius:11px;
+  font-size:13px; font-weight:800; cursor:pointer; border:none;
   transition:all .2s; font-family:inherit; letter-spacing:-0.01em;
 }
 .cc-btn-primary {
@@ -727,7 +785,6 @@ function CountUp({ target, duration = 900, suffix = "" }: { target: number; dura
       if (!start) start = ts;
       const elapsed = ts - start;
       const progress = Math.min(elapsed / duration, 1);
-      // ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplay(Math.round(from + (target - from) * eased));
       if (progress < 1) requestAnimationFrame(step);
@@ -782,7 +839,6 @@ function Confetti() {
       duration: `${0.85 + (i % 5) * 0.14}s`,
       color: ["#7c3aed","#0d9488","#f59e0b","#3b82f6","#ec4899","#10b981"][i % 6],
       size: `${6 + (i % 4) * 2}px`,
-      rotate: `${i % 2 === 0 ? '' : 'border-radius:50%'}`,
     }))
   );
   return (
@@ -836,21 +892,12 @@ function QuizResultPopup({ passed, exhausted, correctCount, totalCount, attempts
   return (
     <div className="cv-popup-overlay">
       <div className="cv-popup">
-        {/* Confetti (pass only) */}
         {passed && <Confetti />}
-
-        {/* Coloured top band */}
         <div className="cv-popup-band" style={{ background: cfg.bandColor }} />
-
         <div className="cv-popup-inner">
-          {/* Emoji */}
           <div className={`cv-popup-emoji${cfg.wobble ? " wobble" : ""}`}>{cfg.emoji}</div>
-
-          {/* Title + body */}
           <div className="cv-popup-title" style={{ color: cfg.titleColor }}>{cfg.title}</div>
           <div className="cv-popup-body">{cfg.body}</div>
-
-          {/* Animated score ring */}
           <div className="cv-popup-score-ring" style={{ background: cfg.ringBg }}>
             <AnimatedRing pct={pct} color={cfg.ringColor} size={110} stroke={8} delay={350} />
             <div className="cv-popup-score-num" style={{ color: cfg.ringColor }}>
@@ -858,8 +905,6 @@ function QuizResultPopup({ passed, exhausted, correctCount, totalCount, attempts
             </div>
             <div className="cv-popup-score-lbl">Score</div>
           </div>
-
-          {/* Thin progress bar */}
           <div className="cv-popup-bar-wrap">
             <div className="cv-popup-bar-fill" style={{
               width: `${pct}%`,
@@ -870,8 +915,6 @@ function QuizResultPopup({ passed, exhausted, correctCount, totalCount, attempts
                 : "linear-gradient(90deg,#7c3aed,#a78bfa)",
             }} />
           </div>
-
-          {/* Breakdown rows */}
           <div className="cv-popup-breakdown">
             <div className="cv-popup-breakdown-row" style={{ background:"rgba(13,148,136,0.06)" }}>
               <div className="cv-popup-breakdown-label">
@@ -894,8 +937,6 @@ function QuizResultPopup({ passed, exhausted, correctCount, totalCount, attempts
               </div>
             )}
           </div>
-
-          {/* Pills */}
           <div className="cv-popup-pills">
             <span className="cv-popup-pill" style={{ background:"rgba(124,58,237,0.09)", color:"#7c3aed" }}>
               Attempt {attemptsUsed} / {maxAttempts}
@@ -904,8 +945,6 @@ function QuizResultPopup({ passed, exhausted, correctCount, totalCount, attempts
               {cfg.statusLabel}
             </span>
           </div>
-
-          {/* Actions */}
           <div className="cv-popup-actions">
             {!passed && !exhausted && (
               <button className="cv-popup-btn cv-popup-btn-ghost" onClick={onRetry}>🔄 Try Again</button>
@@ -936,7 +975,25 @@ function CourseCompletionPopup({ course, modules, totalChapters, timeSpentMinute
     ? `${Math.floor(timeSpentMinutes / 60)}h ${timeSpentMinutes % 60}m`
     : timeSpentMinutes > 0 ? `${timeSpentMinutes}m` : "< 1m";
 
-  // Big confetti behind the card (on the overlay)
+  // Animated count-up for the score number
+  const [displayScore, setDisplayScore] = useState(0);
+
+  useEffect(() => {
+    const duration = 1200;
+    const fps = 60;
+    const totalFrames = (duration / 1000) * fps;
+    const increment = 100 / totalFrames;
+    let currentFrame = 0;
+    const timer = setInterval(() => {
+      currentFrame++;
+      const newScore = Math.min(currentFrame * increment, 100);
+      setDisplayScore(Math.round(newScore));
+      if (currentFrame >= totalFrames) { clearInterval(timer); setDisplayScore(100); }
+    }, 1000 / fps);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Big confetti behind the card
   const bgPieces = useRef(Array.from({ length: 48 }, (_, i) => ({
     id: i,
     left:     `${(i * 73 + 5) % 98}%`,
@@ -944,10 +1001,9 @@ function CourseCompletionPopup({ course, modules, totalChapters, timeSpentMinute
     color:    ["#7c3aed","#0d9488","#f59e0b","#3b82f6","#ec4899","#10b981","#6366f1","#f97316"][i % 8],
     delay:    `${(i * 0.07).toFixed(2)}s`,
     duration: `${1.0 + (i % 7) * 0.18}s`,
-    shape:    i % 4,   // 0=square, 1=circle, 2=diamond, 3=rect
+    shape:    i % 4,
   })));
 
-  // Sparkle positions around the badge
   const sparkles = [
     { top:"-6px",  left:"50%",  color:"#f59e0b", delay:"0.9s",  size:8 },
     { top:"20%",   left:"-8px", color:"#7c3aed", delay:"1.1s",  size:6 },
@@ -974,17 +1030,14 @@ function CourseCompletionPopup({ course, modules, totalChapters, timeSpentMinute
       </div>
 
       <div className="cc-popup">
-        {/* Shimmer band */}
         <div className="cc-band" />
 
-        {/* Soft floating orbs — light purple + teal, very subtle */}
         <div className="cc-orbs">
           <div className="cc-orb" style={{ width:160, height:160, top:-40, left:-40, background:"rgba(124,58,237,0.07)", animationDuration:"7s" }} />
           <div className="cc-orb" style={{ width:120, height:120, top:-20, right:-30, background:"rgba(13,148,136,0.07)", animationDuration:"9s", animationDelay:"2s" }} />
           <div className="cc-orb" style={{ width:80,  height:80,  top:60,  right:20,  background:"rgba(245,158,11,0.06)", animationDuration:"6s", animationDelay:"1s" }} />
         </div>
 
-        {/* Card-level confetti (lighter, fewer) */}
         <Confetti />
 
         <div className="cc-inner">
@@ -1004,8 +1057,36 @@ function CourseCompletionPopup({ course, modules, totalChapters, timeSpentMinute
           </div>
 
           <div className="cc-title">Course Complete! 🎉</div>
-          <div className="cc-subtitle">You did an amazing job</div>
+          <div className="cc-subtitle">Outstanding achievement — you did it!</div>
           <div className="cc-course-name">{course.title}</div>
+
+          {/* ── Score ring (matches quiz popup style) ── */}
+          <div className="cc-score-ring-wrap">
+            <div className="cc-score-ring">
+              <svg viewBox="0 0 120 120">
+                <defs>
+                  <linearGradient id="ccRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#7c3aed"/>
+                    <stop offset="50%" stopColor="#6366f1"/>
+                    <stop offset="100%" stopColor="#0d9488"/>
+                  </linearGradient>
+                </defs>
+                <circle className="cc-ring-track" cx="60" cy="60" r="50"
+                  fill="none" stroke="rgba(124,58,237,0.1)" strokeWidth="8"/>
+                <circle className="cc-ring-fill" cx="60" cy="60" r="50"
+                  fill="none" stroke="url(#ccRingGrad)" strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray="314 314"
+                  transform="rotate(-90 60 60)"/>
+              </svg>
+              <div className="cc-score-num" style={{ color:"#7c3aed" }}>{displayScore}%</div>
+              <div className="cc-score-lbl">Complete</div>
+            </div>
+            <div className="cc-score-sublabel">100% completion achieved 🎯</div>
+            <div className="cc-score-bar-wrap">
+              <div className="cc-score-bar-fill" style={{ width:"100%" }} />
+            </div>
+          </div>
 
           {/* Stats */}
           <div className="cc-stats">
@@ -1027,19 +1108,6 @@ function CourseCompletionPopup({ course, modules, totalChapters, timeSpentMinute
               <div className="cc-stat-icon">⏱️</div>
               <div className="cc-stat-val" style={{ color:"#d97706", fontSize:16 }}>{timeStr}</div>
               <div className="cc-stat-label">Time spent</div>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="cc-progress-section">
-            <div className="cc-progress-label">
-              <span>Overall completion</span>
-              <span style={{ color:"#7c3aed", fontWeight:900 }}>
-                <CountUp target={100} duration={1200} suffix="%" />
-              </span>
-            </div>
-            <div className="cc-progress-track">
-              <div className="cc-progress-fill" style={{ width:"100%" }} />
             </div>
           </div>
 
@@ -1082,15 +1150,13 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const [scrollProgress,   setScrollProgress]   = useState(0);
   const [videoWatched,     setVideoWatched]     = useState<Record<string, boolean>>({});
   const chapterStartRef = useRef(Date.now());
-  const totalTimeRef    = useRef(0);  // accumulates SECONDS across chapters
-  // Returns elapsed seconds for the current chapter (minimum 1 if any time has passed)
+  const totalTimeRef    = useRef(0);
   const calcTimeSpent = () => {
     const ms = Date.now() - chapterStartRef.current;
     if (ms <= 0 || isNaN(ms)) return 0;
-    return Math.max(1, Math.round(ms / 1000)); // at least 1 second if the chapter was opened
+    return Math.max(1, Math.round(ms / 1000));
   };
 
-  // ── Quiz state ───────────────────────────────────────────────────────────────
   const [quizAttempts,    setQuizAttempts]    = useState<Record<string, number>>({});
   const [showQuizPopup,   setShowQuizPopup]   = useState(false);
   const [lastCorrectCount,setLastCorrectCount]= useState(0);
@@ -1105,8 +1171,8 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const [wasAlreadyCompleted,    setWasAlreadyCompleted]    = useState(false);
   const [saving,    setSaving]    = useState(false);
   const [savingMsg, setSavingMsg] = useState("Saving progress...");
+  const [showCompletionPopup,    setShowCompletionPopup]    = useState(false);
 
-  // Track completed chapters reactively — never mutate the course prop directly
   const [doneChapters, setDoneChapters] = useState<Set<string>>(() => {
     const s = new Set<string>();
     modules.forEach((mod, mi) =>
@@ -1123,7 +1189,6 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const MAX_QUIZ_ATTEMPTS       = 3;
   const MAX_ASSESSMENT_ATTEMPTS = 3;
 
-  // FIX: always read from the persistent map — survives chapter navigation
   const currentAttempts           = quizAttempts[chapterKey] ?? 0;
   const currentAssessmentAttempts = assessmentAttempts[chapterKey] ?? 0;
   const previousAssessmentScores  = assessmentScores[chapterKey] ?? [];
@@ -1141,7 +1206,6 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     return true;
   };
 
-  // Scroll → auto-complete lessons
   useEffect(() => {
     const handleScroll = () => {
       if (!mainRef.current) return;
@@ -1171,7 +1235,7 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
         const done  = modules.reduce((s,m)=>s+m.chapters.filter(c=>c.done).length,0);
         const elapsed = calcTimeSpent();
         totalTimeRef.current += elapsed;
-        chapterStartRef.current = Date.now(); // reset so next chapter starts fresh
+        chapterStartRef.current = Date.now();
         setSaving(true); setSavingMsg("Saving progress...");
         onProgress(total > 0 ? Math.round((done/total)*100) : 0, elapsed);
         setTimeout(()=>setSaving(false), 1200);
@@ -1181,8 +1245,6 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     if (el) { el.addEventListener('scroll', handleScroll); return () => el.removeEventListener('scroll', handleScroll); }
   }, [currentChapter, videoWatched, viewedFlashcards, openAccordions, checkedItems, onProgress]);
 
-  // Chapter navigation side-effects
-  // FIX: ONLY reset answers/submitted — quizAttempts stays in its own persistent map
   useEffect(() => {
     chapterStartRef.current = Date.now();
     if (mainRef.current) { mainRef.current.scrollTop = 0; setScrollProgress(0); }
@@ -1215,10 +1277,9 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const markChapterDone = (modIdx: number, chIdx: number) => {
     const key = `${modIdx}-${chIdx}`;
     if (modules[modIdx]?.chapters[chIdx]) {
-      modules[modIdx].chapters[chIdx].done = true; // keep for sidebar/areAllPrevious checks
+      modules[modIdx].chapters[chIdx].done = true;
     }
     setDoneChapters(prev => { const n = new Set(prev); n.add(key); return n; });
-    // Persist to DB — fire and forget, no UI dependency on response
     const chapterId = (modules[modIdx]?.chapters[chIdx] as any)?.id;
     if (chapterId) {
       api.courses.markChapterDone(chapterId).catch(err =>
@@ -1230,42 +1291,32 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const saveProgress = (msg = "Saving progress...", score?: number) => {
     const total = modules.reduce((s,m)=>s+m.chapters.length,0);
     const done  = modules.reduce((s,m)=>s+m.chapters.filter(c=>c.done).length,0);
-    // Accumulate elapsed time for this chapter into the running total
     const elapsed = calcTimeSpent();
     totalTimeRef.current += elapsed;
-    chapterStartRef.current = Date.now(); // reset timer so next chapter starts fresh
+    chapterStartRef.current = Date.now();
     setSaving(true); setSavingMsg(msg);
     onProgress(total > 0 ? Math.round((done/total)*100) : 0, elapsed, score);
     setTimeout(()=>setSaving(false), 1200);
   };
 
-  // ── Submit quiz ──────────────────────────────────────────────────────────────
   const submitQuiz = () => {
     if (!currentChapter) return;
     const qs = currentChapter.content.questions || [];
-
-    // FIX: hard cap — never allow going above MAX
     if (currentAttempts >= MAX_QUIZ_ATTEMPTS) return;
-
     const newAttempts  = currentAttempts + 1;
     const correctCount = qs.filter((q,i) => answers[`q${i}`] === q.ans).length;
     const allCorrect   = correctCount === qs.length;
     const exhausted    = !allCorrect && newAttempts >= MAX_QUIZ_ATTEMPTS;
-
-    // Persist attempt count — survives chapter switching
     setQuizAttempts(prev => ({ ...prev, [chapterKey]: newAttempts }));
     setLastCorrectCount(correctCount);
     setSubmitted(true);
     setShowQuizPopup(true);
-
-    // Mark chapter complete on pass OR when all attempts used
     if ((allCorrect || exhausted) && !currentChapter.done) {
       markChapterDone(selMod, selCh);
       saveProgress(allCorrect ? "Saving quiz result..." : "Saving progress...");
     }
   };
 
-  // Popup actions
   const handleQuizPopupContinue = () => {
     setShowQuizPopup(false);
     const isLast = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
@@ -1275,7 +1326,7 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
       chapterStartRef.current = Date.now();
       setSaving(true); setSavingMsg("Completing course...");
       onProgress(100, totalTimeRef.current);
-      setTimeout(() => setSaving(false), 800);
+      setTimeout(() => { setSaving(false); setShowCompletionPopup(true); }, 800);
     } else {
       advanceChapter();
     }
@@ -1292,12 +1343,12 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     markChapterDone(selMod, selCh);
     const elapsed = calcTimeSpent();
     totalTimeRef.current += elapsed;
-    chapterStartRef.current = Date.now(); // prevent double-count
+    chapterStartRef.current = Date.now();
     const isLast = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
     if (isLast) {
       setSaving(true); setSavingMsg("Completing course...");
       onProgress(100, totalTimeRef.current);
-      setTimeout(() => setSaving(false), 800);
+      setTimeout(() => { setSaving(false); setShowCompletionPopup(true); }, 800);
       return;
     }
     saveProgress("Saving progress...");
@@ -1325,7 +1376,7 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
         chapterStartRef.current = Date.now();
         setSaving(true); setSavingMsg("Completing course...");
         onProgress(100, totalTimeRef.current);
-        setTimeout(() => setSaving(false), 800);
+        setTimeout(() => { setSaving(false); setShowCompletionPopup(true); }, 800);
       } else {
         advanceChapter();
       }
@@ -1367,7 +1418,6 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const blocks    = (currentChapter.content.blocks || []) as UnifiedBlock[];
   const questions = currentChapter.content.questions || [];
 
-  // FIX: derive these after currentAttempts is reliably set from the persistent map
   const quizAllCorrect = submitted && questions.length > 0 && questions.every((q,i) => answers[`q${i}`] === q.ans);
   const quizExhausted  = submitted && !quizAllCorrect && currentAttempts >= MAX_QUIZ_ATTEMPTS;
   const quizCapReached = currentAttempts >= MAX_QUIZ_ATTEMPTS;
@@ -1389,6 +1439,22 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
           onClose={handleCloseAssessmentOverview}
         />
         <LoadingPopup visible={saving} message={savingMsg} noBlock />
+      </>
+    );
+  }
+
+  // Course completion popup
+  if (showCompletionPopup) {
+    return (
+      <>
+        <style>{STYLES}</style>
+        <CourseCompletionPopup
+          course={course}
+          modules={modules}
+          totalChapters={totalChapters}
+          timeSpentMinutes={Math.round(totalTimeRef.current / 60)}
+          onClose={onClose}
+        />
       </>
     );
   }
@@ -1591,12 +1657,10 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
                   return null;
                 })}
 
-                {/* Quiz — questions only, NO inline result banner */}
+                {/* Quiz */}
                 {currentChapter.type === 'quiz' && (
                   <div className="cv-quiz">
                     {currentChapter.content.body && <div style={{ fontSize:14, color:'var(--t2)', marginBottom:24, lineHeight:1.7 }}>{currentChapter.content.body}</div>}
-
-                    {/* Attempt counter */}
                     <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
                       <div style={{ padding:'5px 12px', borderRadius:8, background:'rgba(124,58,237,0.07)', border:'1.5px solid rgba(124,58,237,0.15)', fontSize:11.5, fontWeight:700, color:'#7c3aed' }}>
                         Attempt {Math.min(currentAttempts + (submitted ? 0 : 1), MAX_QUIZ_ATTEMPTS)} / {MAX_QUIZ_ATTEMPTS}
@@ -1607,7 +1671,6 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
                         </div>
                       )}
                     </div>
-
                     {questions.map((q, qIdx) => (
                       <div key={qIdx} className="cv-quiz-question">
                         <div className="cv-quiz-number">{qIdx + 1}</div>
@@ -1620,7 +1683,6 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
                           if (submitted && isSelected && !isCorrect) cls += ' incorrect';
                           if (submitted && isCorrect) cls += ' correct';
                           return (
-                            // FIX: disable clicks once submitted or cap reached
                             <div key={optIdx} className={cls} onClick={() => !submitted && !quizCapReached && setAnswers(p => ({ ...p, [`q${qIdx}`]: optIdx }))}>
                               <div className="cv-quiz-radio" />
                               <div className="cv-quiz-option-text">{opt}</div>
@@ -1646,11 +1708,6 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
                 Previous
               </button>
             )}
-            {/* Quiz footer logic:
-                - Not submitted + cap not reached → Submit button
-                - Passed → free Retry (no attempt cost) + Next Chapter
-                - Exhausted (3 fails) → just Next Chapter
-                - Mid-fail (submitted, not passed, not capped) → nothing (popup handles retry) */}
             {currentChapter.type === 'quiz' && !submitted && !quizCapReached ? (
               <button className="cv-btn cv-btn-primary" onClick={submitQuiz} disabled={Object.keys(answers).length !== questions.length}>
                 Submit Answers
