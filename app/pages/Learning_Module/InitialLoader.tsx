@@ -38,7 +38,7 @@ export default function InitialLoader({ onComplete, stage = 'courses' }: Initial
   const flipTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exitScheduledRef = useRef(false);
   const shardLayerRef    = useRef<HTMLDivElement>(null);
-  const contentRef       = useRef<HTMLDivElement>(null); // fades out; shards are siblings so unaffected
+  const rootRef          = useRef<HTMLDivElement>(null);
 
   const [flipWords, setFlipWords] = useState<string[]>(loaderContent.flipWords.slice(0, 4));
   const [quote, setQuote]         = useState(loaderContent.quotes[0]);
@@ -83,64 +83,61 @@ export default function InitialLoader({ onComplete, stage = 'courses' }: Initial
   }, [stage, displayProgress]);
 
   // ── Shatter: animate shards via Web Animations API ────────────────────────
-  // Architecture:
-  //   - .il-root contains the loader content → fades out independently
-  //   - .il-shard-layer is a SIBLING (not child) of .il-root → flies away independently
-  //   - dashboard is already painted at z-index 0 underneath both
-  //   - as shards fly apart the dashboard shows through the gaps
+  // Each shard is a tile that covers a portion of the loader screen.
+  // background:fixed-equivalent is achieved by matching the loader bg exactly.
+  // onfinish on the last shard calls onComplete — loader is still covering the
+  // screen until that exact moment, so no black gap is ever possible.
   useEffect(() => {
     if (phase !== 'shattering') return;
-    const layer   = shardLayerRef.current;
-    const content = contentRef.current;
-    if (!layer || !content) return;
+    const layer = shardLayerRef.current;
+    const root  = rootRef.current;
+    if (!layer || !root) return;
 
-    let raf: number;
-    raf = requestAnimationFrame(() => {
-      const els = Array.from(layer.querySelectorAll<HTMLElement>('.il-shard'));
-      if (els.length === 0) { setPhase('gone'); onComplete?.(); return; }
+    const els = Array.from(layer.querySelectorAll<HTMLElement>('.il-shard'));
+    if (els.length === 0) return;
 
-      // Fade out ONLY the loader content — shards are siblings so unaffected
-      content.animate(
-        [{ opacity: 1 }, { opacity: 0 }],
-        { duration: 400, fill: 'forwards', easing: 'ease-in' }
+    // Fade out the loader content underneath as shards fly
+    root.animate(
+      [{ opacity: 1 }, { opacity: 0 }],
+      { duration: 700, delay: 100, fill: 'forwards', easing: 'ease-in' }
+    );
+
+    let lastAnim: Animation | null = null;
+    let latestEnd = 0;
+
+    els.forEach((el, i) => {
+      const col   = i % COLS;
+      const row   = Math.floor(i / COLS);
+      const cx    = (col + 0.5) / COLS - 0.5;
+      const cy    = (row + 0.5) / ROWS - 0.5;
+      const dist  = Math.sqrt(cx * cx + cy * cy);
+      const angle = Math.atan2(cy, cx) + (Math.random() - 0.5) * 1.3;
+      const speed = 180 + dist * 580 + Math.random() * 160;
+      const tx    = Math.cos(angle) * speed;
+      const ty    = Math.sin(angle) * speed;
+      const rot   = (Math.random() - 0.5) * 44;
+      const delay = Math.random() * 300;
+      const dur   = 650 + Math.random() * 300;
+      const end   = delay + dur;
+
+      const anim = el.animate(
+        [
+          { transform: 'translate(0,0) rotate(0deg)', opacity: 1,   offset: 0    },
+          { transform: 'translate(0,0) rotate(0deg)', opacity: 1,   offset: 0.06 },
+          { transform: `translate(${tx}px,${ty}px) rotate(${rot}deg)`, opacity: 0, offset: 1 },
+        ],
+        { duration: dur, delay, easing: 'cubic-bezier(0.22,1,0.36,1)', fill: 'forwards' }
       );
 
-      let lastAnim: Animation | null = null;
-      let latestEnd = 0;
-
-      els.forEach((el, i) => {
-        const col   = i % COLS;
-        const row   = Math.floor(i / COLS);
-        const cx    = (col + 0.5) / COLS - 0.5;
-        const cy    = (row + 0.5) / ROWS - 0.5;
-        const dist  = Math.sqrt(cx * cx + cy * cy);
-        const angle = Math.atan2(cy, cx) + (Math.random() - 0.5) * 1.3;
-        const speed = 180 + dist * 580 + Math.random() * 160;
-        const tx    = Math.cos(angle) * speed;
-        const ty    = Math.sin(angle) * speed;
-        const rot   = (Math.random() - 0.5) * 44;
-        const delay = Math.random() * 300;
-        const dur   = 650 + Math.random() * 300;
-        const end   = delay + dur;
-
-        const anim = el.animate(
-          [
-            { transform: 'translate(0,0) rotate(0deg)',                   opacity: 1, offset: 0    },
-            { transform: 'translate(0,0) rotate(0deg)',                   opacity: 1, offset: 0.06 },
-            { transform: `translate(${tx}px,${ty}px) rotate(${rot}deg)`, opacity: 0, offset: 1    },
-          ],
-          { duration: dur, delay, easing: 'cubic-bezier(0.22,1,0.36,1)', fill: 'forwards' }
-        );
-
-        if (end > latestEnd) { latestEnd = end; lastAnim = anim; }
-      });
-
-      if (lastAnim) {
-        (lastAnim as Animation).onfinish = () => { setPhase('gone'); onComplete?.(); };
-      }
+      if (end > latestEnd) { latestEnd = end; lastAnim = anim; }
     });
 
-    return () => cancelAnimationFrame(raf);
+    if (lastAnim) {
+      (lastAnim as Animation).onfinish = () => {
+        setPhase('gone');
+        onComplete?.();
+      };
+    }
   }, [phase]);
 
   // ── Cycling dots ──────────────────────────────────────────────────────────────
@@ -206,14 +203,11 @@ export default function InitialLoader({ onComplete, stage = 'courses' }: Initial
           align-items: center; justify-content: center;
           background: #fafaf9; overflow: hidden;
         }
-        /* When shattering, root bg goes transparent so dashboard shows through gaps */
-        .il-root.shattering { background: transparent; }
 
-        /* Shard layer is a SIBLING of .il-root — not a child.
-           This means it is NOT affected when we fade .il-root's content.
-           It flies away independently, revealing the dashboard behind it. */
+        /* Shard layer — tiles perfectly over the loader, same bg.
+           When shards fly apart the dashboard is revealed underneath. */
         .il-shard-layer {
-          position: fixed; inset: 0; z-index: 201; pointer-events: none;
+          position: absolute; inset: 0; z-index: 20; pointer-events: none;
         }
         .il-shard {
           position: absolute;
@@ -448,9 +442,7 @@ export default function InitialLoader({ onComplete, stage = 'courses' }: Initial
         }
       `}</style>
 
-      <div className={`il-root${phase === 'shattering' ? ' shattering' : ''}`}>
-        {/* This div fades out on shatter. Shard layer is a sibling outside so unaffected. */}
-        <div ref={contentRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="il-root" ref={rootRef}>
         <div className="il-scan" style={{ top: `${scanLine}%` }} />
         <div className="il-corner il-corner-tl" />
         <div className="il-corner il-corner-tr" />
@@ -549,35 +541,33 @@ export default function InitialLoader({ onComplete, stage = 'courses' }: Initial
         </div>
 
         <span className="il-tag">GenieX CRM</span>
-        </div>{/* end contentRef wrapper */}
-      </div>{/* end il-root */}
 
-      {/* Shard layer — SIBLING of il-root, not a child.
-          il-root.shattering has transparent bg so dashboard shows through.
-          Shards tile the screen with the loader colour and fly away independently,
-          revealing the dashboard as gaps appear between them. */}
-      {phase === 'shattering' && (
-        <div className="il-shard-layer" ref={shardLayerRef}>
-          {Array.from({ length: COLS * ROWS }, (_, i) => {
-            const col  = i % COLS;
-            const row  = Math.floor(i / COLS);
-            const even = (col + row) % 2 === 0;
-            return (
-              <div
-                key={i}
-                className="il-shard"
-                style={{
-                  left:       `${(col  / COLS) * 100}%`,
-                  top:        `${(row  / ROWS) * 100}%`,
-                  width:      `${(1   / COLS) * 100 + 0.2}%`,
-                  height:     `${(1   / ROWS) * 100 + 0.2}%`,
-                  background: even ? '#fafaf9' : '#f3f0fe',
-                }}
-              />
-            );
-          })}
-        </div>
-      )}
+        {/* Shard layer — mounts when shattering begins.
+            Each tile exactly covers its grid cell with the loader bg colour.
+            Web Animations API flies them apart to reveal the dashboard below. */}
+        {phase === 'shattering' && (
+          <div className="il-shard-layer" ref={shardLayerRef}>
+            {Array.from({ length: COLS * ROWS }, (_, i) => {
+              const col  = i % COLS;
+              const row  = Math.floor(i / COLS);
+              const even = (col + row) % 2 === 0;
+              return (
+                <div
+                  key={i}
+                  className="il-shard"
+                  style={{
+                    left:       `${(col  / COLS) * 100}%`,
+                    top:        `${(row  / ROWS) * 100}%`,
+                    width:      `${(1   / COLS) * 100 + 0.2}%`,
+                    height:     `${(1   / ROWS) * 100 + 0.2}%`,
+                    background: even ? '#fafaf9' : '#f3f0fe',
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </>
   );
 }

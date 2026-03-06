@@ -132,6 +132,9 @@ export default function LearningCenter() {
 
   const publishedActivities = activities.filter(a => a.status === "published");
 
+  // Show InitialLoader until the loader animation calls onComplete
+  const showInitialLoader = !loaderDone;
+
   // ── ACTIVITY HANDLERS ────────────────────────────────────────────────────────
   const handleActivitySave = async (activity: Activity, saveAs: "draft" | "published") => {
     const updatedActivity = { ...activity, status: saveAs };
@@ -385,13 +388,12 @@ export default function LearningCenter() {
   };
 
   // ── INITIAL LOADER ───────────────────────────────────────────────────────────
-  // The loader renders on top (z-index 99999). The dashboard renders underneath
-  // it the whole time — hidden but fully painted. When onComplete fires the
-  // dashboard is already ready so there is zero flash on reveal.
-  const showLoader = !loaderDone;
+  // Loader sits on top at z-index 200. Dashboard renders underneath it always —
+  // fully painted and ready. When the loader shatters, the dashboard is revealed.
+  // No black screen, no flash, nothing to load after the animation ends.
 
   // ── Course Overview ──────────────────────────────────────────────────────────
-  if (loaderDone && showOverview && viewerIdx !== null && fullCourse) {
+  if (showOverview && viewerIdx !== null && fullCourse) {
     return (
       <>
         <CourseOverview
@@ -413,7 +415,7 @@ export default function LearningCenter() {
   }
 
   // ── Course Viewer ────────────────────────────────────────────────────────────
-  if (loaderDone && viewerOpen && viewerIdx !== null && fullCourse) {
+  if (viewerOpen && viewerIdx !== null && fullCourse) {
     return (
       <>
         <CourseViewer
@@ -446,7 +448,7 @@ export default function LearningCenter() {
   }
 
   // ── Course Creation Wizard ───────────────────────────────────────────────────
-  if (loaderDone && wizardOpen) {
+  if (wizardOpen) {
     return (
       <>
         <CourseCreationWizard
@@ -465,16 +467,21 @@ export default function LearningCenter() {
   // ── Main Learning Center ─────────────────────────────────────────────────────
   return (
     <>
-      {/* Loader sits on top. Dashboard renders underneath it fully painted
-          so when the loader exits there is nothing left to load. */}
-      {showLoader && (
+      {/* Loader sits on top while loading. Shatters to reveal dashboard below. */}
+      {!loaderDone && (
         <InitialLoader
           stage={loadStage}
           onComplete={() => setLoaderDone(true)}
         />
       )}
 
-      <div style={{ visibility: showLoader ? 'hidden' : 'visible' }}>
+      {/* Dashboard — always mounted so it fully paints while loader is showing.
+          Background ensures no black shows through the gaps as shards fly apart. */}
+      <div style={{
+        position: 'relative', zIndex: 0,
+        background: '#fafaf9',
+        minHeight: '100vh',
+      }}>
       <style>{`
         @keyframes lc-fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         .lc-main-enter { animation: lc-fadeIn 0.35s ease both; }
@@ -596,7 +603,7 @@ export default function LearningCenter() {
 
       <Toast msg={msg} visible={visible} />
       <LoadingPopup visible={serverLoading} message={serverLoadingMsg} />
-    </div>
+      </div>
     </>
   );
 }
