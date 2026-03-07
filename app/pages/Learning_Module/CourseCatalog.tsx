@@ -5,6 +5,7 @@ import CreateCourseModal from "../../Components/CreateCourseModal";
 import EditCourseModal from "./EditCourseModal";
 import CourseModuleModal from "./CourseModuleModal";
 import LoadingPopup from "../../Components/LoadingPopup";
+import EnrollWizard from "../../Components/EnrollWizard";
 
 import type { CourseCatalogProps } from "../Logic/CourseCatalogLogic";
 import { useCourseCatalog, THUMB_GRADIENTS, THUMB_PATTERNS, CAT_ICONS, CARD_STYLES } from "../Logic/CourseCatalogLogic";
@@ -37,6 +38,8 @@ export default function CourseCatalog({
 
   const [saving, setSaving] = useState(false);
   const [savingMsg, setSavingMsg] = useState("Saving...");
+  const [enrollWizardOpen, setEnrollWizardOpen] = useState(false);
+  const [enrollTargetCourse, setEnrollTargetCourse] = useState<typeof courses[0] | null>(null);
 
   const withLoader = (msg: string, fn: () => void, duration = 1000) => {
     setSavingMsg(msg);
@@ -238,7 +241,7 @@ export default function CourseCatalog({
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="white"><path d="M6 3.5l9 5.5-9 5.5V3.5z"/></svg>
                       </div>
                       <span style={{ color:"#fff", fontSize:11.5, fontWeight:700, letterSpacing:".05em", textShadow:"0 1px 4px rgba(0,0,0,0.4)" }}>
-                        {isCompleted ? "Review Course" : progPct > 0 ? `Continue • ${progPct}%` : "Enroll"}
+                        {isCompleted ? "Review Course" : progPct > 0 ? `Continue • ${progPct}%` : "Preview Course"}
                       </span>
                       {timeLabel && (
                         <span style={{ color:"rgba(255,255,255,0.7)", fontSize:10, fontWeight:600, letterSpacing:".04em" }}>
@@ -279,9 +282,14 @@ export default function CourseCatalog({
                     </button>
                     <button className="cc3-btn"
                       style={{ flex:1, padding:"6px 0", borderRadius:8, border:"1px solid rgba(109,40,217,0.15)", background:"#f5f3ff", color:"#6d28d9", fontSize:10.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}
+                      onClick={() => { setEnrollTargetCourse(c); setEnrollWizardOpen(true); }}>
+                      <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="5.5" cy="4" r="2.5"/><path d="M1 12c0-2.5 2-4.5 4.5-4.5S10 9.5 10 12"/><path d="M11 5.5v4M13 7.5h-4"/></svg>
+                      Enroll
+                    </button>
+                    <button className="cc3-btn"
+                      style={{ width:30, height:30, borderRadius:8, border:"1px solid rgba(124,58,237,0.15)", background:"#f5f3ff", color:"#6d28d9", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
                       onClick={() => withLoader("Loading editor...", () => openEdit(realIdx), 800)}>
                       <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z"/></svg>
-                      Edit
                     </button>
                     <button className="cc3-btn"
                       style={{ width:30, height:30, borderRadius:8, border:"1px solid rgba(220,38,38,0.15)", background:"#fff5f5", color:"#dc2626", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
@@ -361,6 +369,14 @@ export default function CourseCatalog({
       )}
 
       <LoadingPopup visible={saving} message={savingMsg} />
+
+      {enrollWizardOpen && enrollTargetCourse && (
+        <EnrollWizard
+          course={enrollTargetCourse}
+          onClose={() => { setEnrollWizardOpen(false); setEnrollTargetCourse(null); }}
+          toast={toast}
+        />
+      )}
     </>
   );
 }
