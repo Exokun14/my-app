@@ -391,6 +391,14 @@ const S = `
 }
 `;
 
+// ─── Validation ───────────────────────────────────────────────────────────────
+type WarnIssue = {
+  mi: number; ci: number;
+  modTitle: string; chTitle: string;
+  kind: "empty_chapter" | "empty_block" | "broken_media" | "empty_question";
+  detail: string;
+};
+
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
 export default function CourseModuleModal({ 
   open, 
@@ -409,6 +417,7 @@ export default function CourseModuleModal({
   const [activityPanelOpen, setActivityPanelOpen] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [warnModal, setWarnModal] = useState<{ issues: WarnIssue[]; onConfirm: () => void } | null>(null);
 
   useEffect(()=>{ 
     if(open&&course){ 
@@ -434,6 +443,70 @@ export default function CourseModuleModal({
   const titledCh = modules.reduce((s,m)=>s+m.chapters.filter(c=>c.title.trim()).length,0);
   const progressPct = totalCh>0?Math.round((titledCh/totalCh)*100):0;
   const step0done = modules.every(m=>m.title.trim()&&m.chapters.every(c=>c.title.trim()));
+
+  // Collect all content issues across all modules
+  const collectIssues = (): WarnIssue[] => {
+    const issues: WarnIssue[] = [];
+    modules.forEach((mod, mi) => {
+      const modTitle = mod.title || `Module ${mi + 1}`;
+      mod.chapters.forEach((ch, ci) => {
+        const chTitle = ch.title || `Chapter ${ci + 1}`;
+        const base = { mi, ci, modTitle, chTitle };
+
+        if (ch.type === "lesson") {
+          const blocks = (ch.content.blocks || []) as UnifiedBlock[];
+          // Entire chapter empty
+          if (blocks.length === 0) {
+            issues.push({ ...base, kind: "empty_chapter", detail: "No content blocks added" });
+            return;
+          }
+          blocks.forEach((block, bi) => {
+            if (block.type === "content") {
+              const emptyTitle = !block.title?.trim();
+              const emptyBody  = !block.body?.trim();
+              if (emptyTitle && emptyBody) {
+                issues.push({ ...base, kind: "empty_block", detail: `Content block ${bi + 1}: title and body are both empty` });
+              } else if (emptyBody) {
+                issues.push({ ...base, kind: "empty_block", detail: `Content block ${bi + 1}: body text is empty` });
+              }
+            } else if (block.type === "media") {
+              const url = block.mediaUrl?.trim() || "";
+              if (!url) {
+                issues.push({ ...base, kind: "broken_media", detail: `Media block ${bi + 1}: no URL provided` });
+              } else {
+                const embedFn = block.mediaType === "video" ? videoEmbed : presentationEmbed;
+                if (!embedFn(url)) {
+                  issues.push({ ...base, kind: "broken_media", detail: `Media block ${bi + 1}: URL could not be embedded` });
+                }
+              }
+            }
+          });
+        } else {
+          // Quiz / Assessment
+          const questions = ch.content.questions || [];
+          questions.forEach((q, qi) => {
+            if (!q.q?.trim()) {
+              issues.push({ ...base, kind: "empty_question", detail: `Question ${qi + 1}: question text is empty` });
+            }
+            const emptyOpts = q.opts.filter(o => !o.trim()).length;
+            if (emptyOpts > 0) {
+              issues.push({ ...base, kind: "empty_question", detail: `Question ${qi + 1}: ${emptyOpts} option${emptyOpts > 1 ? "s are" : " is"} empty` });
+            }
+          });
+        }
+      });
+    });
+    return issues;
+  };
+
+  const checkAndProceed = (onConfirm: () => void) => {
+    const issues = collectIssues();
+    if (issues.length > 0) {
+      setWarnModal({ issues, onConfirm });
+    } else {
+      onConfirm();
+    }
+  };
 
   // Footer
   let footerNote = "";
@@ -1198,12 +1271,16 @@ export default function CourseModuleModal({
             </button>
           )}
           {step<2 ? (
-            <button className="btn btn-p btn-sm" onClick={()=>{if(step===0&&!step0done){toast("Complete titles first");return;}setStep((step+1) as 0|1|2);}}>
+            <button className="btn btn-p btn-sm" onClick={()=>{
+              if(step===0&&!step0done){toast("Complete titles first");return;}
+              if(step===1){checkAndProceed(()=>setStep(2));return;}
+              setStep((step+1) as 0|1|2);
+            }}>
               Next
               <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 1l4 4-4 4"/></svg>
             </button>
           ) : (
-            <button className="btn btn-p btn-sm" onClick={save}>
+            <button className="btn btn-p btn-sm" onClick={()=>checkAndProceed(save)}>
               <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 7L5.5 12 2 8.7"/></svg>
               Save Modules
             </button>
@@ -1247,6 +1324,144 @@ export default function CourseModuleModal({
         )}
 
       </div>{/* /cmm-fs */}
+
+      {/* ── Content Issues Warning Modal ── */}
+      {warnModal && (() => {
+        const { issues, onConfirm } = warnModal;
+        const groups: { kind: WarnIssue["kind"]; label: string; icon: string; color: string; bg: string; border: string }[] = [
+          { kind: "empty_chapter",  label: "Empty Chapters",       icon: "📭", color: "#d97706", bg: "rgba(217,119,6,0.06)",  border: "rgba(217,119,6,0.22)"  },
+          { kind: "empty_block",    label: "Incomplete Content",   icon: "📝", color: "#0284c7", bg: "rgba(2,132,199,0.06)",  border: "rgba(2,132,199,0.22)"  },
+          { kind: "broken_media",   label: "Broken Media",         icon: "🎥", color: "#dc2626", bg: "rgba(220,38,38,0.06)",  border: "rgba(220,38,38,0.22)"  },
+          { kind: "empty_question", label: "Incomplete Questions", icon: "❓", color: "#7c3aed", bg: "rgba(124,58,237,0.06)", border: "rgba(124,58,237,0.22)" },
+        ];
+        return (
+          <div style={{
+            position:"fixed", inset:0, zIndex:1003,
+            background:"rgba(24,16,58,0.5)", backdropFilter:"blur(4px)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            animation:"cmm-in .2s ease both",
+          }} onClick={()=>setWarnModal(null)}>
+            <div style={{
+              background:"var(--surface,#fff)",
+              borderRadius:16,
+              width:"90%", maxWidth:520,
+              maxHeight:"85vh",
+              display:"flex", flexDirection:"column",
+              boxShadow:"0 20px 60px rgba(124,58,237,0.28)",
+              animation:"cmm-up .3s cubic-bezier(.16,1,.3,1) both",
+              overflow:"hidden",
+            }} onClick={e=>e.stopPropagation()}>
+
+              {/* Header */}
+              <div style={{padding:"20px 24px 16px", borderBottom:"1px solid var(--border,rgba(124,58,237,0.1))", flexShrink:0}}>
+                <div style={{display:"flex", alignItems:"center", gap:12}}>
+                  <div style={{
+                    width:42, height:42, borderRadius:12, flexShrink:0,
+                    background:"linear-gradient(135deg,#fef3c7,#fde68a)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize:22, border:"1.5px solid rgba(217,119,6,0.2)",
+                  }}>⚠️</div>
+                  <div>
+                    <div style={{fontSize:15, fontWeight:800, color:"var(--t1,#18103a)", letterSpacing:"-.02em"}}>
+                      {issues.length} Issue{issues.length!==1?"s":""} Found
+                    </div>
+                    <div style={{fontSize:11.5, color:"var(--t3,#a89dc8)", marginTop:2}}>
+                      Review before saving — students may encounter empty or broken content
+                    </div>
+                  </div>
+                  {/* Issue type pills */}
+                  <div style={{marginLeft:"auto", display:"flex", gap:5, flexShrink:0}}>
+                    {groups.filter(g=>issues.some(i=>i.kind===g.kind)).map(g=>(
+                      <div key={g.kind} style={{
+                        padding:"3px 8px", borderRadius:20,
+                        background:g.bg, border:`1.5px solid ${g.border}`,
+                        fontSize:10, fontWeight:700, color:g.color,
+                      }}>
+                        {g.icon} {issues.filter(i=>i.kind===g.kind).length}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Body — scrollable issue list grouped by kind */}
+              <div style={{flex:1, overflowY:"auto", padding:"14px 24px"}}>
+                {groups.filter(g=>issues.some(i=>i.kind===g.kind)).map(g=>{
+                  const groupIssues = issues.filter(i=>i.kind===g.kind);
+                  return (
+                    <div key={g.kind} style={{marginBottom:16}}>
+                      <div style={{
+                        display:"flex", alignItems:"center", gap:7,
+                        marginBottom:8,
+                        fontSize:10.5, fontWeight:800, textTransform:"uppercase",
+                        letterSpacing:".07em", color:g.color,
+                      }}>
+                        <span>{g.icon}</span>
+                        <span>{g.label}</span>
+                        <span style={{
+                          marginLeft:4, padding:"1px 7px", borderRadius:10,
+                          background:g.bg, border:`1.5px solid ${g.border}`,
+                          fontSize:9.5,
+                        }}>{groupIssues.length}</span>
+                      </div>
+                      <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                        {groupIssues.map((issue, i)=>(
+                          <div key={i} style={{
+                            display:"flex", alignItems:"center", gap:10,
+                            padding:"9px 12px", borderRadius:9,
+                            background:g.bg, border:`1.5px solid ${g.border}`,
+                          }}>
+                            <div style={{flex:1, minWidth:0}}>
+                              <div style={{fontSize:12, fontWeight:700, color:"var(--t1,#18103a)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                                {issue.chTitle}
+                              </div>
+                              <div style={{fontSize:10, color:"var(--t3,#a89dc8)", marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                                {issue.modTitle} · {issue.detail}
+                              </div>
+                            </div>
+                            <button
+                              onClick={()=>{ setWarnModal(null); setSelMod(issue.mi); setSelCh(issue.ci); setStep(1); }}
+                              style={{
+                                padding:"4px 10px", borderRadius:6, flexShrink:0,
+                                border:`1.5px solid ${g.border}`,
+                                background:"var(--surface,#fff)", color:g.color,
+                                fontSize:10.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                                transition:"all .12s",
+                              }}>
+                              Fix →
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer */}
+              <div style={{
+                padding:"14px 24px", flexShrink:0,
+                borderTop:"1px solid var(--border,rgba(124,58,237,0.1))",
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                background:"rgba(124,58,237,0.02)",
+              }}>
+                <div style={{fontSize:11, color:"var(--t3,#a89dc8)"}}>
+                  {issues.length} issue{issues.length!==1?"s":""} across {new Set(issues.map(i=>`${i.mi}-${i.ci}`)).size} chapter{new Set(issues.map(i=>`${i.mi}-${i.ci}`)).size!==1?"s":""}
+                </div>
+                <div style={{display:"flex", gap:8}}>
+                  <button className="btn btn-s btn-sm" onClick={()=>setWarnModal(null)}>
+                    Go Back &amp; Fix
+                  </button>
+                  <button className="btn btn-p btn-sm" onClick={()=>{ const fn=onConfirm; setWarnModal(null); fn(); }}>
+                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 7L5.5 12 2 8.7"/></svg>
+                    Save Anyway
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }

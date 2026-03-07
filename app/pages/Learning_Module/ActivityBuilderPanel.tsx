@@ -102,9 +102,10 @@ const STYLES = `
   box-shadow:0 1px 6px rgba(124,58,237,0.04);
 }
 .abp-hdr-ico {
-  width:40px; height:40px; border-radius:12px; flex-shrink:0;
-  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
-  display:flex; align-items:center; justify-content:center; font-size:20px;
+  width:42px; height:42px; border-radius:12px; flex-shrink:0;
+  background:linear-gradient(145deg,#7c3aed 0%,#5b21b6 50%,#0d9488 100%);
+  box-shadow:0 0 0 1px rgba(255,255,255,0.12) inset, 0 4px 14px rgba(109,40,217,0.4);
+  display:flex; align-items:center; justify-content:center;
 }
 .abp-hdr-text { flex:1; }
 .abp-hdr-title { font-size:16px; font-weight:800; color:var(--t1,#18103a); line-height:1.2; }
@@ -291,6 +292,235 @@ textarea.f-in { resize:vertical; min-height:70px; line-height:1.5; }
 .btn-p:active { transform:translateY(0); }
 .btn-sm { padding:7px 14px; font-size:11.5px; }
 .btn-sm svg { width:12px; height:12px; }
+
+/* ── View toggle ── */
+.abp-toggle-bar {
+  display:flex; align-items:center;
+  padding:10px 24px;
+  background:var(--surface,#fff);
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.1));
+  gap:6px;
+}
+.abp-toggle-track {
+  display:flex; align-items:center;
+  background:var(--bg,#faf9ff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.12));
+  border-radius:10px; padding:3px; gap:2px; flex:1;
+}
+.abp-toggle-btn {
+  flex:1; padding:7px 14px; border-radius:7px; border:none;
+  font-size:12px; font-weight:600; cursor:pointer;
+  font-family:inherit; transition:all .15s;
+  display:flex; align-items:center; justify-content:center; gap:7px;
+  color:var(--t3,#a89dc8); background:transparent;
+}
+.abp-toggle-btn.active {
+  background:var(--surface,#fff);
+  color:var(--t1,#18103a);
+  box-shadow:0 1px 6px rgba(124,58,237,0.1), 0 0 0 1px rgba(124,58,237,0.08);
+}
+.abp-toggle-btn.active.lib { color:var(--purple,#7c3aed); }
+.abp-toggle-count {
+  padding:1px 7px; border-radius:20px; font-size:10px; font-weight:700;
+  background:rgba(124,58,237,0.1); color:var(--purple,#7c3aed);
+  transition:all .15s;
+}
+.abp-toggle-btn.active .abp-toggle-count {
+  background:linear-gradient(135deg,var(--purple,#7c3aed),var(--teal,#0d9488));
+  color:#fff;
+}
+
+/* ── Library header ── */
+.abp-lib-hdr {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:18px; flex-shrink:0;
+}
+.abp-lib-title { font-size:15px; font-weight:800; color:var(--t1,#18103a); letter-spacing:-0.01em; }
+.abp-lib-sub   { font-size:11.5px; color:var(--t3,#a89dc8); margin-top:3px; }
+.abp-lib-stats { display:flex; align-items:center; gap:6px; }
+.abp-lib-stat-pill {
+  display:flex; align-items:center; gap:5px;
+  padding:4px 10px; border-radius:20px;
+  border:1.5px solid var(--border,rgba(124,58,237,0.12));
+  background:var(--bg,#faf9ff);
+  font-size:11px; font-weight:600; color:var(--t2,#4a3870);
+}
+.abp-lib-stat-pill.pub {
+  border-color:rgba(13,148,136,0.2);
+  background:rgba(13,148,136,0.05);
+  color:var(--teal,#0d9488);
+}
+.abp-lib-stat-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:currentColor; opacity:0.6;
+}
+
+/* ── Library filter chips ── */
+.abp-lib-filters {
+  display:flex; align-items:center; gap:6px;
+  margin-bottom:16px; flex-wrap:wrap; flex-shrink:0;
+}
+.abp-lib-chip {
+  padding:4px 12px; border-radius:20px;
+  border:1.5px solid var(--border,rgba(124,58,237,0.12));
+  background:var(--bg,#faf9ff);
+  font-size:11px; font-weight:600; color:var(--t2,#4a3870);
+  cursor:pointer; transition:all .15s; font-family:inherit;
+}
+.abp-lib-chip:hover { border-color:rgba(124,58,237,0.25); color:var(--purple,#7c3aed); }
+.abp-lib-chip.on {
+  background:var(--purple,#7c3aed); border-color:var(--purple,#7c3aed); color:#fff;
+}
+
+/* ── Library grid ── */
+.abp-lib-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+  gap:10px;
+}
+
+/* ── Library card ── */
+.abp-lib-card {
+  border-radius:12px; cursor:pointer;
+  border:1.5px solid var(--border,rgba(124,58,237,0.1));
+  background:var(--surface,#fff);
+  transition:all .18s; overflow:hidden;
+  display:flex; flex-direction:column;
+}
+.abp-lib-card:hover {
+  border-color:rgba(124,58,237,0.28);
+  transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(124,58,237,0.11);
+}
+.abp-lib-card-top {
+  padding:14px 14px 10px;
+  display:flex; align-items:flex-start; gap:10px;
+}
+.abp-lib-card-ico {
+  width:38px; height:38px; border-radius:10px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:18px;
+  border:1.5px solid transparent;
+}
+.abp-lib-card-body { flex:1; min-width:0; }
+.abp-lib-card-title {
+  font-size:12.5px; font-weight:700; color:var(--t1,#18103a);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  margin-bottom:3px;
+}
+.abp-lib-card-meta {
+  font-size:10px; color:var(--t3,#a89dc8);
+  text-transform:uppercase; letter-spacing:.04em; font-weight:600;
+}
+.abp-lib-card-media {
+  padding:0 14px 8px;
+  font-size:10px; color:var(--teal,#0d9488); font-weight:600;
+  display:flex; align-items:center; gap:4px;
+}
+.abp-lib-card-foot {
+  margin-top:auto;
+  padding:8px 14px;
+  border-top:1px solid var(--border,rgba(124,58,237,0.07));
+  display:flex; align-items:center; justify-content:space-between;
+}
+.abp-lib-status {
+  padding:3px 9px; border-radius:20px;
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+}
+.abp-lib-status.pub  { background:rgba(13,148,136,0.1);  color:var(--teal,#0d9488); }
+.abp-lib-status.dft  { background:rgba(245,158,11,0.1);   color:#b45309; }
+.abp-lib-arrow {
+  width:22px; height:22px; border-radius:6px;
+  background:rgba(124,58,237,0.07);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--purple,#7c3aed); transition:all .15s;
+}
+.abp-lib-card:hover .abp-lib-arrow {
+  background:var(--purple,#7c3aed); color:#fff;
+}
+
+/* ── Library sub-tabs (Published / Drafts) ── */
+.abp-lib-tabs {
+  display:flex; align-items:center; gap:0;
+  border-bottom:1px solid var(--border,rgba(124,58,237,0.1));
+  margin-bottom:18px; flex-shrink:0; position:relative;
+}
+.abp-lib-tab {
+  display:flex; align-items:center; gap:7px;
+  padding:10px 18px 9px; border:none; background:transparent;
+  font-family:inherit; font-size:12px; font-weight:600;
+  color:var(--t3,#a89dc8); cursor:pointer;
+  border-bottom:2px solid transparent; margin-bottom:-1px;
+  transition:all .15s; white-space:nowrap;
+}
+.abp-lib-tab:hover { color:var(--t2,#4a3870); }
+.abp-lib-tab.pub.active { color:var(--teal,#0d9488); border-bottom-color:var(--teal,#0d9488); }
+.abp-lib-tab.dft.active { color:#d97706; border-bottom-color:#d97706; }
+.abp-lib-tab-count {
+  padding:1px 7px; border-radius:20px; font-size:10px; font-weight:700;
+  background:rgba(124,58,237,0.08); color:var(--t3,#a89dc8);
+  transition:all .2s;
+}
+.abp-lib-tab.pub.active .abp-lib-tab-count {
+  background:rgba(13,148,136,0.12); color:var(--teal,#0d9488);
+}
+.abp-lib-tab.dft.active .abp-lib-tab-count {
+  background:rgba(217,119,6,0.1); color:#d97706;
+}
+
+/* ── Page counter pill (matches CourseCatalog) ── */
+.abp-page-pill {
+  margin-left:auto;
+  display:flex; align-items:center; gap:5px;
+  padding:4px 10px; border-radius:20px;
+  background:var(--surface,#fff);
+  border:1.5px solid var(--border,rgba(124,58,237,0.12));
+  font-size:11px; font-weight:600; color:var(--t2,#4a3870);
+  user-select:none;
+}
+.abp-page-pill-dot {
+  width:5px; height:5px; border-radius:50%;
+}
+.abp-page-pill.pub .abp-page-pill-dot { background:var(--teal,#0d9488); box-shadow:0 0 4px var(--teal,#0d9488); }
+.abp-page-pill.dft .abp-page-pill-dot { background:#d97706; box-shadow:0 0 4px #d97706; }
+
+/* ── Swipe container ── */
+.abp-lib-swipe-wrap {
+  flex:1; overflow:hidden; position:relative; min-height:0;
+}
+.abp-lib-swipe-track {
+  display:flex; height:100%;
+  transition:transform .3s cubic-bezier(.16,1,.3,1);
+  will-change:transform;
+}
+.abp-lib-swipe-pane {
+  min-width:100%; height:100%; overflow-y:auto; padding-right:2px;
+}
+.abp-lib-swipe-pane::-webkit-scrollbar { width:4px; }
+.abp-lib-swipe-pane::-webkit-scrollbar-thumb { background:rgba(124,58,237,0.15); border-radius:4px; }
+
+.abp-lib-empty-section {
+  display:flex; flex-direction:column; align-items:center;
+  padding:40px 0; gap:8px; text-align:center;
+}
+.abp-lib-empty-section-ico {
+  width:52px; height:52px; border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; margin-bottom:4px;
+}
+.abp-lib-empty-section-title { font-size:13px; font-weight:700; color:var(--t1,#18103a); }
+.abp-lib-empty-section-sub   { font-size:11.5px; color:var(--t3,#a89dc8); line-height:1.5; max-width:220px; }
+
+/* Zero-state (no activities at all) */
+.abp-lib-empty {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:64px 24px; text-align:center; gap:10px;
+}
+.abp-lib-empty-ico {
+  width:64px; height:64px; border-radius:18px; background:rgba(124,58,237,0.07);
+  display:flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:4px;
+}
+.abp-lib-empty-title { font-size:14px; font-weight:700; color:var(--t1,#18103a); }
+.abp-lib-empty-sub   { font-size:12px; color:var(--t3,#a89dc8); max-width:260px; line-height:1.5; }
 `;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -327,6 +557,8 @@ export default function ActivityBuilderPanel({
 
   const [mediaUploading, setMediaUploading] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const [libFilter, setLibFilter] = useState("All");
+  const [libTab, setLibTab]       = useState<"published" | "draft">("published");
 
   useEffect(() => {
     if (!open) return;
@@ -433,7 +665,14 @@ export default function ActivityBuilderPanel({
 
         {/* Header */}
         <div className="abp-hdr">
-          <div className="abp-hdr-ico">🧩</div>
+          <div className="abp-hdr-ico">
+            <svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="6" height="6" rx="1.5"/>
+              <rect x="13" y="3" width="6" height="6" rx="1.5"/>
+              <rect x="3" y="13" width="6" height="6" rx="1.5"/>
+              <path d="M16 13v6M13 16h6"/>
+            </svg>
+          </div>
           <div className="abp-hdr-text">
             <div className="abp-hdr-title">{isEdit || isUpdate ? "Edit Activity" : "Create New Activity"}</div>
             <div className="abp-hdr-sub">
@@ -444,30 +683,22 @@ export default function ActivityBuilderPanel({
 
         {/* View Toggle */}
         {!isEdit && (
-          <div style={{
-            display:"flex", alignItems:"center", gap:4,
-            padding:"12px 24px", background:"var(--bg,#f8f7ff)",
-            borderBottom:"1px solid var(--border,rgba(124,58,237,0.1))",
-          }}>
-            {(["create","library"] as const).map(mode => (
-              <button key={mode} onClick={() => setViewMode(mode)} style={{
-                flex:1, padding:"8px 16px", borderRadius:8, border:"none",
-                background: viewMode === mode ? "var(--purple,#7c3aed)" : "transparent",
-                color: viewMode === mode ? "#fff" : "var(--t2,#4a3870)",
-                fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-              }}>
-                {mode === "create" ? "Create New" : "Library"}
-                {mode === "library" && allActivities.length > 0 && (
-                  <span style={{
-                    padding:"2px 6px", borderRadius:4, fontSize:10, fontWeight:700,
-                    background: viewMode === "library" ? "rgba(255,255,255,0.2)" : "rgba(124,58,237,0.1)",
-                  }}>
-                    {allActivities.length}
-                  </span>
-                )}
-              </button>
-            ))}
+          <div className="abp-toggle-bar">
+            <div className="abp-toggle-track">
+              {(["create","library"] as const).map(mode => (
+                <button key={mode}
+                  className={`abp-toggle-btn${viewMode === mode ? (" active" + (mode === "library" ? " lib" : "")) : ""}`}
+                  onClick={() => setViewMode(mode)}
+                >
+                  {mode === "create"
+                    ? <><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 1v10M1 6h10"/></svg>Create New</>
+                    : <><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1" y="1" width="5" height="5" rx="1"/><rect x="8" y="1" width="5" height="5" rx="1"/><rect x="1" y="8" width="5" height="5" rx="1"/><rect x="8" y="8" width="5" height="5" rx="1"/></svg>Library</>}
+                  {mode === "library" && allActivities.length > 0 && (
+                    <span className="abp-toggle-count">{allActivities.length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -475,74 +706,166 @@ export default function ActivityBuilderPanel({
         <div className="abp-body">
           {/* ── LIBRARY VIEW ── */}
           {viewMode === "library" ? (
-            <div className="abp-main">
-              <div style={{ marginBottom:4 }}>
-                <div style={{ fontSize:14, fontWeight:700, color:"var(--t1,#18103a)", marginBottom:4 }}>Activity Library</div>
-                <div style={{ fontSize:11.5, color:"var(--t3,#a89dc8)" }}>
-                  {allActivities.length} activit{allActivities.length === 1 ? "y" : "ies"} ·{" "}
-                  {allActivities.filter(a => a.status === "published").length} published
+            <div className="abp-main" style={{ display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+              {/* Header row */}
+              <div className="abp-lib-hdr">
+                <div>
+                  <div className="abp-lib-title">Activity Library</div>
+                  <div className="abp-lib-sub">{allActivities.length} activit{allActivities.length === 1 ? "y" : "ies"}</div>
+                </div>
+                <div className="abp-lib-stats">
+                  <div className="abp-lib-stat-pill">
+                    <span className="abp-lib-stat-dot" />
+                    {allActivities.length} total
+                  </div>
+                  {allActivities.filter(a => a.status === "published").length > 0 && (
+                    <div className="abp-lib-stat-pill pub">
+                      <span className="abp-lib-stat-dot" />
+                      {allActivities.filter(a => a.status === "published").length} published
+                    </div>
+                  )}
                 </div>
               </div>
 
+              {/* Type filter chips */}
+              {allActivities.length > 0 && (() => {
+                const types = ["All", ...Array.from(new Set(allActivities.map(a => ACT_META[a.type].label)))];
+                return types.length > 2 ? (
+                  <div className="abp-lib-filters">
+                    {types.map(t => (
+                      <button key={t} className={"abp-lib-chip" + (libFilter === t ? " on" : "")} onClick={() => setLibFilter(t)}>{t}</button>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Published / Drafts sub-tabs with page counter pill */}
+              {(() => {
+                const pubCount = allActivities.filter(a => (a.status === "published") && (libFilter === "All" || ACT_META[a.type].label === libFilter)).length;
+                const dftCount = allActivities.filter(a => (a.status !== "published") && (libFilter === "All" || ACT_META[a.type].label === libFilter)).length;
+                return (
+                  <div className="abp-lib-tabs">
+                    <button className={"abp-lib-tab pub" + (libTab === "published" ? " active" : "")} onClick={() => setLibTab("published")}>
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 6l3 3 5-5"/></svg>
+                      Published
+                      <span className="abp-lib-tab-count">{pubCount}</span>
+                    </button>
+                    <button className={"abp-lib-tab dft" + (libTab === "draft" ? " active" : "")} onClick={() => setLibTab("draft")}>
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="6" cy="6" r="4.5"/><path d="M6 4v2.5l1.5 1"/></svg>
+                      Drafts
+                      <span className="abp-lib-tab-count">{dftCount}</span>
+                    </button>
+                    {/* Page counter pill — matches CourseCatalog admin style */}
+                    <div className={"abp-page-pill " + libTab}>
+                      <span className="abp-page-pill-dot" />
+                      {libTab === "published" ? pubCount : dftCount}
+                      {" "}{libTab === "published" ? "published" : "draft"}{(libTab === "published" ? pubCount : dftCount) !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Swipe container */}
               {allActivities.length === 0 ? (
-                <div style={{ textAlign:"center", padding:"60px 20px", color:"var(--t3,#a89dc8)" }}>
-                  <div style={{ fontSize:48, marginBottom:12 }}>🧩</div>
-                  <div style={{ fontSize:14, fontWeight:600, marginBottom:6 }}>No activities yet</div>
-                  <div style={{ fontSize:12 }}>Switch to "Create New" to build your first activity</div>
+                <div className="abp-lib-empty">
+                  <div className="abp-lib-empty-ico">🧩</div>
+                  <div className="abp-lib-empty-title">No activities yet</div>
+                  <div className="abp-lib-empty-sub">Switch to "Create New" to build your first activity</div>
                 </div>
               ) : (
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:12 }}>
-                  {allActivities.map(act => {
-                    const meta = ACT_META[act.type];
-                    const itemCount = getActivityItemCount(act);
-                    return (
-                      <div key={act.id}
-                        onClick={() => handleLibrarySelect(act)}
-                        style={{
-                          padding:14, borderRadius:10, cursor:"pointer",
-                          border:"1.5px solid var(--border,rgba(124,58,237,0.1))",
-                          background:"var(--bg,#faf9ff)", transition:"all 0.15s",
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = "rgba(124,58,237,0.3)";
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.boxShadow = "0 4px 12px rgba(124,58,237,0.12)";
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = "rgba(124,58,237,0.1)";
-                          e.currentTarget.style.transform = "translateY(0)";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                      >
-                        <div style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:10 }}>
-                          <div style={{ width:38, height:38, borderRadius:9, background:meta.bg, color:meta.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
-                            {meta.icon}
+                <div className="abp-lib-swipe-wrap">
+                  <div className="abp-lib-swipe-track" style={{ transform: `translateX(${libTab === "published" ? "0%" : "-100%"})` }}>
+
+                    {/* ── PANE 1: Published ── */}
+                    <div className="abp-lib-swipe-pane">
+                      {(() => {
+                        const pubs = allActivities.filter(a => a.status === "published" && (libFilter === "All" || ACT_META[a.type].label === libFilter));
+                        return pubs.length === 0 ? (
+                          <div className="abp-lib-empty-section">
+                            <div className="abp-lib-empty-section-ico" style={{ background:"rgba(13,148,136,0.08)" }}>✅</div>
+                            <div className="abp-lib-empty-section-title">No published activities</div>
+                            <div className="abp-lib-empty-section-sub">Activities you publish will appear here.</div>
                           </div>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:12.5, fontWeight:700, color:"var(--t1,#18103a)", marginBottom:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                              {act.title || "Untitled"}
-                            </div>
-                            <div style={{ fontSize:10, color:"var(--t3,#a89dc8)", textTransform:"uppercase", letterSpacing:"0.04em", fontWeight:600 }}>
-                              {meta.label} · {itemCount} items
-                            </div>
+                        ) : (
+                          <div className="abp-lib-grid">
+                            {pubs.map(act => {
+                              const meta = ACT_META[act.type];
+                              const itemCount = getActivityItemCount(act);
+                              return (
+                                <div key={act.id} className="abp-lib-card" onClick={() => handleLibrarySelect(act)}>
+                                  <div className="abp-lib-card-top">
+                                    <div className="abp-lib-card-ico" style={{ background:meta.bg, borderColor:meta.border, color:meta.color }}>{meta.icon}</div>
+                                    <div className="abp-lib-card-body">
+                                      <div className="abp-lib-card-title">{act.title || "Untitled"}</div>
+                                      <div className="abp-lib-card-meta">{meta.label} · {itemCount} item{itemCount === 1 ? "" : "s"}</div>
+                                    </div>
+                                  </div>
+                                  {act.media && (
+                                    <div className="abp-lib-card-media">
+                                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 2H2a1 1 0 00-1 1v7a1 1 0 001 1h8a1 1 0 001-1V7"/><path d="M8 1h3v3M11 1L6 6"/></svg>
+                                      {act.media.name}
+                                    </div>
+                                  )}
+                                  <div className="abp-lib-card-foot">
+                                    <span className="abp-lib-status pub">published</span>
+                                    <div className="abp-lib-arrow">
+                                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M3 2l4 3-4 3"/></svg>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
-                        {act.media && (
-                          <div style={{ fontSize:10, color:"var(--teal,#0d9488)", fontWeight:600, marginBottom:6 }}>
-                            📎 {act.media.name}
+                        );
+                      })()}
+                    </div>
+
+                    {/* ── PANE 2: Drafts ── */}
+                    <div className="abp-lib-swipe-pane">
+                      {(() => {
+                        const drafts = allActivities.filter(a => a.status !== "published" && (libFilter === "All" || ACT_META[a.type].label === libFilter));
+                        return drafts.length === 0 ? (
+                          <div className="abp-lib-empty-section">
+                            <div className="abp-lib-empty-section-ico" style={{ background:"rgba(217,119,6,0.08)" }}>📝</div>
+                            <div className="abp-lib-empty-section-title">No drafts</div>
+                            <div className="abp-lib-empty-section-sub">Activities saved as drafts will appear here.</div>
                           </div>
-                        )}
-                        <div style={{
-                          padding:"4px 8px", borderRadius:5, fontSize:9.5, fontWeight:700,
-                          textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"center",
-                          background: act.status === "published" ? "#d1fae5" : "#fef3c7",
-                          color: act.status === "published" ? "#065f46" : "#92400e",
-                        }}>
-                          {act.status}
-                        </div>
-                      </div>
-                    );
-                  })}
+                        ) : (
+                          <div className="abp-lib-grid">
+                            {drafts.map(act => {
+                              const meta = ACT_META[act.type];
+                              const itemCount = getActivityItemCount(act);
+                              return (
+                                <div key={act.id} className="abp-lib-card" onClick={() => handleLibrarySelect(act)}>
+                                  <div className="abp-lib-card-top">
+                                    <div className="abp-lib-card-ico" style={{ background:meta.bg, borderColor:meta.border, color:meta.color }}>{meta.icon}</div>
+                                    <div className="abp-lib-card-body">
+                                      <div className="abp-lib-card-title">{act.title || "Untitled"}</div>
+                                      <div className="abp-lib-card-meta">{meta.label} · {itemCount} item{itemCount === 1 ? "" : "s"}</div>
+                                    </div>
+                                  </div>
+                                  {act.media && (
+                                    <div className="abp-lib-card-media">
+                                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 2H2a1 1 0 00-1 1v7a1 1 0 001 1h8a1 1 0 001-1V7"/><path d="M8 1h3v3M11 1L6 6"/></svg>
+                                      {act.media.name}
+                                    </div>
+                                  )}
+                                  <div className="abp-lib-card-foot">
+                                    <span className="abp-lib-status dft">draft</span>
+                                    <div className="abp-lib-arrow">
+                                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M3 2l4 3-4 3"/></svg>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                  </div>
                 </div>
               )}
             </div>
