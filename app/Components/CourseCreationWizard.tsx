@@ -29,7 +29,7 @@ const STEPS = [
   { id: 1, label: "Identity",  icon: "✦", desc: "Name & describe your course" },
   { id: 2, label: "Details",   icon: "◈", desc: "Category, duration & media" },
   { id: 3, label: "Audience",  icon: "◉", desc: "Assign to companies" },
-  { id: 4, label: "Launch",    icon: "◆", desc: "Review & publish" },
+  { id: 4, label: "Publish",    icon: "◆", desc: "Review & publish" },
 ];
 
 const WIZARD_STYLES = `
@@ -223,6 +223,8 @@ export default function CourseCreationWizard({
   // Step 4 — Launch
   const [launchMode,  setLaunchMode]  = useState<LaunchMode>("publish");
   const [launched,    setLaunched]    = useState(false);
+  const [showModulesPrompt, setShowModulesPrompt] = useState(false);
+  const pendingCourseData = useRef<Course | null>(null);
 
   const confettiRef = useRef<ReturnType<typeof setTimeout>|null>(null);
 
@@ -293,9 +295,10 @@ export default function CourseCreationWizard({
   };
 
   const handleLaunch = () => {
+    // Store course data but do NOT save yet — show modules prompt first
     const companies = CLIENTS.filter(c => selectedCos.has(c.id)).map(c => c.name);
     const isActive = launchMode === "publish";
-    onSave({
+    pendingCourseData.current = {
       title: title.trim(),
       desc: desc.trim() || "No description provided.",
       time: duration.trim(),
@@ -306,17 +309,25 @@ export default function CourseCreationWizard({
       progress: 0,
       active: isActive,
       companies: companies.length ? companies : null,
-    } as Course);
-    setLaunched(true);
-    const msgs: Record<LaunchMode, string> = {
-      draft:    "Saved as Draft",
-      template: "Saved as Template",
-      publish:  "Course Published! 🎉",
-    };
-    toast(msgs[launchMode]);
+    } as Course;
+    setShowModulesPrompt(true);
   };
 
-  // Completion redirect after animation
+  const handleDismissPrompt = () => {
+    // Course is created HERE — after user sees the prompt
+    if (pendingCourseData.current) {
+      onSave(pendingCourseData.current);
+      const msgs: Record<LaunchMode, string> = {
+        draft:    "Saved as Draft",
+        template: "Saved as Template",
+        publish:  "Course Published! 🎉",
+      };
+      toast(msgs[launchMode]);
+    }
+    setShowModulesPrompt(false);
+    onCancel();
+  };
+
   useEffect(() => {
     if (launched) {
       const t = setTimeout(onCancel, 1400);
@@ -330,6 +341,7 @@ export default function CourseCreationWizard({
   const progressPct = ((step - 1) / 3) * 100;
 
   return (
+    <>
     <div className="wiz-wrap" style={{
       position: "fixed", inset: 0, zIndex: 600,
       background: "#faf9ff",
@@ -758,7 +770,7 @@ export default function CourseCreationWizard({
                     Back
                   </button>
                   <button className="wiz-btn-next" onClick={() => goStep(4)}>
-                    Review & Launch
+                    Review & Publish
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M3 7h8M8 4l3 3-3 3"/></svg>
                   </button>
                 </div>
@@ -771,7 +783,7 @@ export default function CourseCreationWizard({
                 <div style={{ marginBottom:36 }}>
                   <div style={{ fontSize:11, fontWeight:700, letterSpacing:".12em", textTransform:"uppercase", color:"rgba(236,72,153,0.8)", marginBottom:8 }}>Step 4 of 4</div>
                   <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>
-                    Ready to <em style={{ color:"#ec4899" }}>launch?</em>
+                    Ready to <em style={{ color:"#ec4899" }}>publish?</em>
                   </h2>
                   <p style={{ fontSize:13.5, color:"#7c65a8", lineHeight:1.6 }}>
                     Review your course and choose how you'd like to save it.
@@ -909,5 +921,41 @@ export default function CourseCreationWizard({
         </div>
       </div>
     </div>
+
+      {/* Modules prompt — overlays wizard, user must act before course is created */}
+      {showModulesPrompt && (
+        <div style={{ position:"fixed", inset:0, zIndex:700, background:"rgba(18,10,40,0.72)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", animation:"wiz-in 0.22s ease both" }}>
+          <div style={{ background:"#fff", borderRadius:20, width:"92%", maxWidth:440, overflow:"hidden", boxShadow:"0 24px 80px rgba(124,58,237,0.38)", border:"1.5px solid rgba(124,58,237,0.15)" }}>
+            <div style={{ height:5, background:"linear-gradient(90deg,#dc2626,#d97706,#7c3aed)" }} />
+            <div style={{ padding:"28px 28px 26px", textAlign:"center" as const }}>
+              <div style={{ width:64, height:64, borderRadius:"50%", background:"rgba(220,38,38,0.08)", border:"2px solid rgba(220,38,38,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, margin:"0 auto 16px" }}>🚫</div>
+              <div style={{ fontSize:18, fontWeight:900, color:"#18103a", letterSpacing:"-.03em", marginBottom:8 }}>Modules Required to Publish</div>
+              <div style={{ fontSize:12.5, color:"#4a3870", lineHeight:1.65, marginBottom:20 }}>
+                <span style={{ fontWeight:700, color:"#dc2626" }}>"{title}"</span> has no modules yet. You must add at least one module and chapter before this course can be published to learners.
+              </div>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:22, background:"rgba(124,58,237,0.04)", borderRadius:10, padding:"12px 16px", border:"1.5px solid rgba(124,58,237,0.1)" }}>
+                {[{icon:"📝",label:"Add Modules"},{icon:"→",label:""},{icon:"📄",label:"Add Chapters"},{icon:"→",label:""},{icon:"🚀",label:"Publish!"}].map((s,i) =>
+                  s.icon === "→"
+                    ? <span key={i} style={{ color:"#c4bdd8", fontSize:14 }}>→</span>
+                    : <div key={i} style={{ display:"flex", flexDirection:"column" as const, alignItems:"center", gap:3 }}>
+                        <span style={{ fontSize:20 }}>{s.icon}</span>
+                        <span style={{ fontSize:9, fontWeight:700, color:"#a89dc8", textTransform:"uppercase" as const, letterSpacing:".05em" }}>{s.label}</span>
+                      </div>
+                )}
+              </div>
+              <div style={{ display:"flex", flexDirection:"column" as const, gap:9 }}>
+                <button onClick={handleDismissPrompt} style={{ width:"100%", padding:"13px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:13.5, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 18px rgba(124,58,237,0.35)", fontFamily:"inherit" }}>
+                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg>
+                  Add Modules Now
+                </button>
+                <button onClick={handleDismissPrompt} style={{ width:"100%", padding:"10px", borderRadius:10, border:"1.5px solid rgba(124,58,237,0.15)", background:"transparent", color:"#4a3870", fontSize:12.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+                  Not Now
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

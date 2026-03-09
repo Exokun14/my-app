@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import CreateCourseModal from "../../Components/CreateCourseModal";
 import EditCourseModal from "./EditCourseModal";
 import CourseModuleModal from "./CourseModuleModal";
@@ -12,7 +12,7 @@ import { useCourseCatalog, THUMB_GRADIENTS, THUMB_PATTERNS, CAT_ICONS, CARD_STYL
 import "../../globals.css";
 
 export default function CourseCatalog({
-  courses, setCourses, categories, setCategories, toast, onOpenCourse, publishedActivities,
+  courses, setCourses, categories, setCategories, toast, onOpenCourse, publishedActivities, onCourseCreated, newCoursePromptIdx: externalPromptIdx, onNewCoursePromptConsumed,
 }: CourseCatalogProps) {
   const {
     search, setSearch,
@@ -43,20 +43,8 @@ export default function CourseCatalog({
 
   // ── Add Modules Prompt (shown after course creation OR blocked publish) ──
   const [addModulesPromptIdx, setAddModulesPromptIdx] = useState<number | null>(null);
-  const [prevCourseCount, setPrevCourseCount] = useState(courses.length);
   // Full-screen interstitial while transitioning into module editor
   const [moduleLoadingIdx, setModuleLoadingIdx] = useState<number | null>(null);
-
-  // Detect when a brand-new course is added (length increases) → show the prompt
-  useEffect(() => {
-    if (courses.length > prevCourseCount) {
-      const newIdx = courses.length - 1;
-      if ((courses[newIdx]?.modules?.length ?? 0) === 0) {
-        setAddModulesPromptIdx(newIdx);
-      }
-    }
-    setPrevCourseCount(courses.length);
-  }, [courses.length]);
 
   // ── Launch / Publish flow ──
   // launched = has gone through the rocket ceremony; active = published to catalog

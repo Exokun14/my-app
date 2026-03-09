@@ -69,6 +69,7 @@ export default function LearningCenter() {
   const [activityBuilderOpen, setActivityBuilderOpen] = useState<boolean>(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [wizardOpen, setWizardOpen] = useState<boolean>(false);
+  const [newCoursePromptIdx, setNewCoursePromptIdx] = useState<number | null>(null);
 
   const [viewerIdx, setViewerIdx] = useState<number | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -175,7 +176,11 @@ export default function LearningCenter() {
       setServerLoading(false);
       if (response.success && response.data) {
         const newCourse = { ...data, id: response.data.id };
-        setCourses(prev => [...prev, newCourse]);
+        setCourses(prev => {
+          const updated = [...prev, newCourse];
+          setNewCoursePromptIdx(updated.length - 1);
+          return updated;
+        });
         toast('Course created successfully!');
       } else {
         toast(`Error: ${response.error || 'Failed to create course'}`);
@@ -543,6 +548,8 @@ export default function LearningCenter() {
                   categories={categories} setCategories={setCategories}
                   toast={toast} onOpenCourse={openViewer}
                   publishedActivities={publishedActivities}
+                  newCoursePromptIdx={newCoursePromptIdx}
+                  onNewCoursePromptConsumed={() => setNewCoursePromptIdx(null)}
                 />
               </div>
               <div className="swipe-panel" style={{ width:"100%" }}>

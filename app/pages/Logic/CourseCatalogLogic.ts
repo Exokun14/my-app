@@ -11,6 +11,9 @@ export interface CourseCatalogProps {
   toast:         (msg: string) => void;
   onOpenCourse:  (idx: number) => void;
   publishedActivities: Activity[];
+  onCourseCreated?: (newCourseIdx: number) => void;
+  newCoursePromptIdx?: number | null;
+  onNewCoursePromptConsumed?: () => void;
 }
 
 export const THUMB_GRADIENTS = [
