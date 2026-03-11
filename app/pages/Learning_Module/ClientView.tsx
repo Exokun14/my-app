@@ -89,10 +89,13 @@ const S = `
 
 /* ── Shell ──────────────────────────────────────────────────────────────── */
 .lv-shell {
-  flex:1; min-height:0;
-  display:flex; flex-direction:column;
-  overflow:hidden;
-  background:var(--token-page);
+  flex: 1 1 0;
+  height: 100%;        /* ← FIXED: claim full parent height */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--token-page);
 }
 
 /* ── Tab bar — editorial bottom-border style ────────────────────────────── */
@@ -125,7 +128,7 @@ const S = `
   white-space:nowrap; color:var(--token-ink3);
   background:transparent; transition:color .16s;
   border-bottom:2px solid transparent;
-  margin-bottom:-1.5px; /* align with bar border */
+  margin-bottom:-1.5px;
   position:relative;
 }
 .lv-tab.on {
@@ -137,8 +140,11 @@ const S = `
 
 /* ── Slide container ────────────────────────────────────────────────────── */
 .lv-outer {
-  flex:1 1 0; min-height:0; min-width:0;
-  overflow:hidden; position:relative;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
 }
 .lv-track {
   display:flex; width:300%; height:100%;
@@ -312,7 +318,7 @@ export default function ClientView({
             </div>
 
             <div className="lv-panel">
-              <ProgressPanel toast={toast} />
+              <ProgressPanel toast={toast} courses={courses} onOpenCourse={onOpenCourse} />
             </div>
 
           </div>

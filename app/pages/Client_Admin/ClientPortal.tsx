@@ -1,7 +1,7 @@
 /* ==============================================================
    app/pages/Client_Admin/ClientPortal.tsx
 
-   Thin router: receives the user's industry from root page.tsx
+   Thin router: receives the user's industry + role from root page.tsx
    and renders the matching overview portal.
 
    Add new industry branches here as you build them.
@@ -16,29 +16,29 @@ import RetailOverviewPage from "../Retail_Admin/RetailOverviewPage";
 import TicketsPage        from "./TicketsPage";
 import UsersPage          from "./UsersPage";
 import SettingsPage       from "./SettingsPage";
-import LearningCenter     from "../Learning_Module/page";   // ← your Learning Center
+import LearningCenter     from "../Learning_Module/page";
 
-import type { UserIndustry } from "../../page";
+import type { UserIndustry, UserRole } from "../../page";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types
 export type CPView = "overview" | "tickets" | "users" | "settings" | "learning";
 
 interface ClientPortalProps {
   industry: UserIndustry;
+  role?: UserRole;       // "admin" | "user" -- passed from root page.tsx
   onLogout?: () => void;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-export default function ClientPortal({ industry, onLogout }: ClientPortalProps) {
+export default function ClientPortal({ industry, role = "user", onLogout }: ClientPortalProps) {
   const [view, setView] = useState<CPView>("overview");
 
-  // ── Shared pages (same for all industries) ──
-  if (view === "tickets")  return <TicketsPage     onNavigate={setView} onLogout={onLogout} />;
-  if (view === "users")    return <UsersPage        onNavigate={setView} onLogout={onLogout} />;
-  if (view === "settings") return <SettingsPage     onNavigate={setView} onLogout={onLogout} />;
-  if (view === "learning") return <LearningCenter onBack={() => setView("overview")} />;
+  // Shared pages (same for all industries)
+  if (view === "tickets")  return <TicketsPage  onNavigate={setView} onLogout={onLogout} />;
+  if (view === "users")    return <UsersPage     onNavigate={setView} onLogout={onLogout} />;
+  if (view === "settings") return <SettingsPage  onNavigate={setView} onLogout={onLogout} />;
+  if (view === "learning") return <LearningCenter role={role}         onBack={() => setView("overview")} />;
 
-  // ── Overview — pick by industry ──
+  // Overview -- pick by industry
   switch (industry) {
     case "retail":
       return <RetailOverviewPage onNavigate={setView} onLogout={onLogout} />;

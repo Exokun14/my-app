@@ -57,6 +57,17 @@ export interface UserProgress {
   assessment_score?: number;
 }
 
+export interface Company {
+  id: number;
+  name: string;
+  industry?: string;
+  contact_email?: string;
+  active: boolean;
+  courses?: Course[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -72,6 +83,7 @@ async function apiRequest<T>(
         'X-User-Id': '1',
         ...options.headers,
       },
+      credentials: 'include', // needed for Sanctum session cookies
       ...options,
     });
 
@@ -124,13 +136,19 @@ export const coursesAPI = {
     stage?: 'draft' | 'review_ready' | 'published' | 'unpublished' | 'template';
   }): Promise<ApiResponse<Course[]>> => {
     const params = new URLSearchParams();
-    if (filters?.category)   params.append('category',  filters.category);
-    if (filters?.active !== undefined) params.append('active', String(filters.active));
-    if (filters?.client_id)  params.append('client_id', String(filters.client_id));
-    if (filters?.stage)      params.append('stage',     filters.stage);
+    if (filters?.category)            params.append('category',  filters.category);
+    if (filters?.active !== undefined) params.append('active',   String(filters.active));
+    if (filters?.client_id)           params.append('client_id', String(filters.client_id));
+    if (filters?.stage)               params.append('stage',     filters.stage);
 
     const query = params.toString();
     return apiRequest<Course[]>(`/courses${query ? `?${query}` : ''}`, { method: 'GET' });
+  },
+
+  // Returns only the courses assigned to the authenticated user's company.
+  // Used by ClientLearningDashboard — never shows unassigned courses to clients.
+  getUserCourses: async (): Promise<ApiResponse<Course[]>> => {
+    return apiRequest<Course[]>('/user/courses', { method: 'GET' });
   },
 
   getById: async (id: number): Promise<ApiResponse<Course>> => {
@@ -178,8 +196,6 @@ export const coursesAPI = {
     });
   },
 
-  // Clone a template (or any course) into a new draft.
-  // Returns the new course object so the frontend can append it immediately.
   clone: async (id: number): Promise<ApiResponse<{ id: number; course: Course; message: string }>> => {
     return apiRequest<{ id: number; course: Course; message: string }>(`/courses/${id}/clone`, {
       method: 'POST',
@@ -251,6 +267,43 @@ export const progressAPI = {
   },
 };
 
+// ── Companies API ─────────────────────────────────────────────────────────────
+// Used by the admin panel to manage course assignments per company.
+export const companiesAPI = {
+  // Get all companies (with their assigned courses)
+  getAll: async (): Promise<ApiResponse<Company[]>> => {
+    return apiRequest<Company[]>('/companies', { method: 'GET' });
+  },
+
+  // Get one company with its courses
+  getById: async (id: number): Promise<ApiResponse<Company>> => {
+    return apiRequest<Company>(`/companies/${id}`, { method: 'GET' });
+  },
+
+  // Assign a single course to a company
+  assignCourse: async (companyId: number, courseId: number): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/companies/${companyId}/courses`, {
+      method: 'POST',
+      body: JSON.stringify({ course_id: courseId }),
+    });
+  },
+
+  // Remove a single course from a company
+  removeCourse: async (companyId: number, courseId: number): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/companies/${companyId}/courses/${courseId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Replace all courses for a company at once (bulk save)
+  syncCourses: async (companyId: number, courseIds: number[]): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/companies/${companyId}/courses`, {
+      method: 'PUT',
+      body: JSON.stringify({ course_ids: courseIds }),
+    });
+  },
+};
+
 export const clientsAPI = {
   getAll: async (): Promise<ApiResponse<any[]>> => {
     return apiRequest<any[]>('/clients', { method: 'GET' });
@@ -305,6 +358,7 @@ export const uploadAPI = {
         method: 'POST',
         body: formData,
         headers: { 'X-User-Id': '1' },
+        credentials: 'include',
       });
 
       const text = await response.text();
@@ -331,6 +385,7 @@ export const api = {
   courses:    coursesAPI,
   activities: activitiesAPI,
   progress:   progressAPI,
+  companies:  companiesAPI,  // NEW
   clients:    clientsAPI,
   settings:   settingsAPI,
   upload:     uploadAPI,
