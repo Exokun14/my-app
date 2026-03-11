@@ -1,8 +1,13 @@
 /* ==============================================================
-   dashboard_overview_users.tsx  ·  Company Client Overview — Front End
-   UPDATED: Accepts initialClient prop (pre-selects the client
-   clicked from the Company Database) and onBack prop (returns
-   to the Company Database page via the ← back button).
+   dashboard_overview_users.tsx  ·  Company Client Overview
+
+   FIXES:
+   1. Accepts onLogout prop and wires it to <Sidebar onLogout>
+      and <Header onLogout> so Sign Out works here too.
+   2. Wires <Sidebar onNavigate> so Learning Center and other
+      nav items work correctly from this view.
+   3. Uses useAuthUser() to show the real logged-in user in the
+      Header instead of the hardcoded "John Doe" placeholder.
    ============================================================== */
 
 'use client';
@@ -28,6 +33,8 @@ import { EditInfoFormState } from './popup_shared';
 import Sidebar from '../Sidebar_Web/sidebar';
 import Header  from '../Header_Web/header';
 
+import { useAuthUser } from '../../Hooks/useAuthUser';
+
 /* ═══════════════════════════════════════════════════════════════
    SWIPE HOOK
 ═══════════════════════════════════════════════════════════════ */
@@ -49,16 +56,28 @@ function useSwipe(onSwipeLeft: () => void, onSwipeRight: () => void, threshold =
    PROPS
 ═══════════════════════════════════════════════════════════════ */
 interface DashboardAdminProps {
-  /** Pre-select a client (passed from Company Database card click) */
   initialClient?: Client;
-  /** Navigate back to the Company Database */
   onBack?: () => void;
+  onLogout?: () => void;   // ← wired from root page.tsx / parent shell
 }
 
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════════════ */
-export default function DashboardAdmin({ initialClient, onBack }: DashboardAdminProps = {}) {
+export default function DashboardAdmin({ initialClient, onBack, onLogout }: DashboardAdminProps = {}) {
+
+  /* ── Real user data from the API ── */
+  const { headerUser } = useAuthUser();
+
+  /* ── Navigation handler for Sidebar ── */
+  const handleNavigate = useCallback((view: string) => {
+    // In this context (standalone overview page), we just use the
+    // router for named views that have their own routes. For state-
+    // machine contexts the parent wraps this and passes onNavigate
+    // down further; here a no-op is safe — the sidebar's href
+    // fallback will handle route-based navigation automatically.
+  }, []);
+
   const [currentClient, setCurrentClient] = useState<Client>(initialClient ?? CLIENTS[0]);
   const [clients,        setClients]       = useState<Client[]>(CLIENTS);
   const [ovPanel,        setOvPanel]       = useState(0);
@@ -70,12 +89,10 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
   const [users,  setUsers]  = useState<GlobalUser[]>(GLOBAL_USERS);
   const [userSearch, setUserSearch] = useState('');
 
-  /* ── Pending filter state (inside panel, not yet applied) ── */
   const [pendingRoles,     setPendingRoles]     = useState<Set<string>>(new Set());
   const [pendingStatuses,  setPendingStatuses]  = useState<Set<string>>(new Set());
   const [pendingCompanies, setPendingCompanies] = useState<Set<string>>(new Set());
 
-  /* ── Applied filter state (drives the table) ── */
   const [userRoleFilters,    setUserRoleFilters]    = useState<Set<string>>(new Set());
   const [userStatusFilters,  setUserStatusFilters]  = useState<Set<string>>(new Set());
   const [userCompanyFilters, setUserCompanyFilters] = useState<Set<string>>(new Set());
@@ -109,7 +126,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     return () => clearInterval(t);
   }, []);
 
-  /* ── When initialClient changes, update the view ── */
   useEffect(() => {
     if (initialClient) {
       setCurrentClient(initialClient);
@@ -120,7 +136,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     }
   }, [initialClient]);
 
-  /* ── Close filter panel on outside click ── */
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (filterPanelRef.current && !filterPanelRef.current.contains(e.target as Node)) {
@@ -131,7 +146,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     return () => document.removeEventListener('mousedown', handler);
   }, [showUserFilterPanel]);
 
-  /* ── Open filter panel: sync pending from applied ── */
   const openFilterPanel = () => {
     setPendingRoles(new Set(userRoleFilters));
     setPendingStatuses(new Set(userStatusFilters));
@@ -139,7 +153,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     setShowUserFilterPanel(true);
   };
 
-  /* ── Apply & Close ── */
   const applyFilters = () => {
     setUserRoleFilters(new Set(pendingRoles));
     setUserStatusFilters(new Set(pendingStatuses));
@@ -150,14 +163,12 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
   const totalActiveFilters = userRoleFilters.size + userStatusFilters.size + userCompanyFilters.size;
   const pendingTotal = pendingRoles.size + pendingStatuses.size + pendingCompanies.size;
 
-  /* ── Toast ── */
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg); setToastVisible(true);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToastVisible(false), 2800);
   }, []);
 
-  /* ── Open Edit Info modal ── */
   const openEditInfoModal = (client: Client) => {
     const alts = client.altContact
       ? [{ name: client.altContact, email: client.altEmail || '', phone: client.altPhone || '' }]
@@ -172,7 +183,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     setEditInfoModalOpen(true);
   };
 
-  /* ── Save Edit Info ── */
   const handleSaveEditInfo = () => {
     if (!editInfoForm || !currentClient) return;
     const alt0 = editInfoForm.altContacts[0];
@@ -195,7 +205,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     showToast('Client information updated successfully!');
   };
 
-  /* ── Add Branch ── */
   const handleAddBranch = () => {
     if (!addBranchName.trim() || !currentClient) return;
     const updated: Client = { ...currentClient, branches: [...(currentClient.branches || []), addBranchName.trim()] };
@@ -205,7 +214,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     showToast(`Branch "${addBranchName.trim()}" added!`);
   };
 
-  /* ── POS CRUD ── */
   const handleAddPOSFromBranch = (branch: string, posData: any) => {
     if (!currentClient) return;
     const newPOS: POSDevice = {
@@ -242,14 +250,12 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
   const filteredUsers   = filterUsers(users, userRoleFilters, userStatusFilters, userCompanyFilters, userSearch);
   const uniqueCompanies = Array.from(new Set(users.map(u => u.company))).sort();
 
-  /* ── Category badge style ── */
   const catBadgeStyle = (cat: string): React.CSSProperties => {
     if (cat === 'F&B')    return { background: 'rgba(217,119,6,0.18)',   color: '#92400e', border: '1px solid rgba(217,119,6,0.28)' };
     if (cat === 'Retail') return { background: 'rgba(2,132,199,0.15)',   color: '#075985', border: '1px solid rgba(2,132,199,0.25)' };
     return                       { background: 'rgba(124,58,237,0.14)', color: '#4c1d95', border: '1px solid rgba(124,58,237,0.24)' };
   };
 
-  /* ── Group POS by branch ── */
   const posByBranch = (() => {
     const q = posSearch.toLowerCase().trim();
     const filtered = posDevices.filter(d => {
@@ -265,17 +271,22 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     return groups;
   })();
 
-  /* ════════════════════════════════════════════════════════
-     RENDER
-  ════════════════════════════════════════════════════════ */
   return (
     <>
-      <Sidebar />
+      {/* Sidebar: onNavigate + onLogout both wired */}
+      <Sidebar
+        activePage="customers"
+        onNavigate={handleNavigate}
+        onLogout={onLogout}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', marginLeft: 'var(--gxh-sw, 220px)', minHeight: '100vh', marginTop: 54, transition: 'margin-left 0.28s cubic-bezier(0.4,0,0.2,1)' }}>
-        <Header />
+        {/* Header: real user from API + onLogout wired */}
+        <Header
+          user={headerUser}
+          onLogout={onLogout}
+        />
 
-        {/* Ambient background */}
         <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', background: `radial-gradient(ellipse 60% 50% at 0% 0%, rgba(124,58,237,0.06) 0%, transparent 60%), radial-gradient(ellipse 50% 50% at 100% 100%, rgba(13,148,136,0.05) 0%, transparent 60%), #f8f7ff` }} />
         <canvas id="rc" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
 
@@ -286,7 +297,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
               {/* ── Page Header ── */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexShrink: 0 }}>
 
-                {/* ← Back button (only shown when navigated from Company Database) */}
                 {onBack && (
                   <button
                     onClick={onBack}
@@ -309,7 +319,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                   </button>
                 )}
 
-                {/* Client logo thumbnail */}
                 {currentClient.logo && (
                   <div style={{
                     width: 28, height: 28, borderRadius: 7, overflow: 'hidden', flexShrink: 0,
@@ -330,7 +339,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                   {currentClient.name}
                 </h1>
 
-                {/* Panel indicator dots */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
                   <span style={{ fontSize: 9.5, fontWeight: 600, color: '#8e7ec0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     {['Overview', 'Tickets', 'Users'][ovPanel]}
@@ -342,7 +350,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
 
                 <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right,rgba(124,58,237,0.15),transparent)' }} />
 
-                {/* Category badge */}
                 <span style={{ ...catBadgeStyle(currentClient.cat), fontSize: 10, padding: '4px 12px', borderRadius: 20, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                   {currentClient.cat}
                 </span>
@@ -532,8 +539,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
 
                   {/* ══ PANEL 2 — USERS ══ */}
                   <div style={{ width: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
-
-                    {/* Title + Add User */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 600, color: '#18103a' }}>{currentClient.name} Users</div>
@@ -545,7 +550,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                       </button>
                     </div>
 
-                    {/* Search + Filters button */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f2f0fb', border: '1px solid rgba(124,58,237,0.1)', borderRadius: 9, padding: '6px 12px', flex: 1, maxWidth: 280 }}>
                         <svg viewBox="0 0 16 16" fill="none" stroke="#8e7ec0" strokeWidth="1.6" width="12" height="12"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M11 11l3 3"/></svg>
@@ -556,16 +560,7 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                       <div ref={filterPanelRef} style={{ position: 'relative' }}>
                         <button
                           onClick={() => showUserFilterPanel ? setShowUserFilterPanel(false) : openFilterPanel()}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 6,
-                            padding: '7px 14px', borderRadius: 9, cursor: 'pointer',
-                            fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600,
-                            transition: 'all 0.16s',
-                            background: showUserFilterPanel ? '#7c3aed' : '#f2f0fb',
-                            color: showUserFilterPanel ? '#fff' : '#4a3870',
-                            border: showUserFilterPanel ? 'none' : '1px solid rgba(124,58,237,0.16)',
-                            boxShadow: showUserFilterPanel ? '0 2px 10px rgba(124,58,237,0.3)' : 'none',
-                          }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, transition: 'all 0.16s', background: showUserFilterPanel ? '#7c3aed' : '#f2f0fb', color: showUserFilterPanel ? '#fff' : '#4a3870', border: showUserFilterPanel ? 'none' : '1px solid rgba(124,58,237,0.16)', boxShadow: showUserFilterPanel ? '0 2px 10px rgba(124,58,237,0.3)' : 'none' }}
                         >
                           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.7" width="12" height="12"><path d="M1.5 3.5h11M3.5 7h7M5.5 10.5h3"/></svg>
                           Filters
@@ -580,43 +575,30 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                         </button>
 
                         {showUserFilterPanel && (
-                          <div style={{
-                            position: 'absolute', top: 'calc(100% + 8px)', left: 0,
-                            zIndex: 200, minWidth: 520,
-                            background: '#fff', borderRadius: 14,
-                            border: '1px solid rgba(124,58,237,0.13)',
-                            boxShadow: '0 8px 32px rgba(124,58,237,0.14)',
-                            overflow: 'hidden',
-                          }}>
+                          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 200, minWidth: 520, background: '#fff', borderRadius: 14, border: '1px solid rgba(124,58,237,0.13)', boxShadow: '0 8px 32px rgba(124,58,237,0.14)', overflow: 'hidden' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 18px', borderBottom: '1px solid rgba(124,58,237,0.09)', background: '#faf9ff' }}>
                               <svg viewBox="0 0 14 14" fill="none" stroke="#7c3aed" strokeWidth="1.7" width="13" height="13"><path d="M1.5 3.5h11M3.5 7h7M5.5 10.5h3"/></svg>
                               <span style={{ fontSize: 11, fontWeight: 800, color: '#18103a', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Filter Users</span>
                             </div>
-
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.8fr', gap: 0 }}>
                               <div style={{ padding: '14px 18px 10px', borderRight: '1px solid rgba(124,58,237,0.08)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                                  <svg viewBox="0 0 12 12" fill="none" stroke="#7c3aed" strokeWidth="1.5" width="11" height="11"><path d="M6 1l1.5 3h3l-2.5 2 1 3L6 7.5 3 9l1-3L1.5 4h3z"/></svg>
                                   <span style={{ fontSize: 9.5, fontWeight: 800, color: '#8e7ec0', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Role</span>
                                 </div>
                                 {['System Admin', 'Manager', 'User'].map(r => (
                                   <FilterCheckRow key={r} label={r} checked={pendingRoles.has(r)} onChange={() => setPendingRoles(prev => { const n = new Set(prev); n.has(r) ? n.delete(r) : n.add(r); return n; })} />
                                 ))}
                               </div>
-
                               <div style={{ padding: '14px 18px 10px', borderRight: '1px solid rgba(124,58,237,0.08)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                                  <svg viewBox="0 0 12 12" fill="none" stroke="#7c3aed" strokeWidth="1.5" width="11" height="11"><circle cx="6" cy="6" r="4.5"/></svg>
                                   <span style={{ fontSize: 9.5, fontWeight: 800, color: '#8e7ec0', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Status</span>
                                 </div>
                                 {[{ label: 'Active', dot: '#22c55e' }, { label: 'Inactive', dot: '#ef4444' }].map(({ label, dot }) => (
                                   <FilterCheckRow key={label} label={label} dot={dot} checked={pendingStatuses.has(label)} onChange={() => setPendingStatuses(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; })} />
                                 ))}
                               </div>
-
                               <div style={{ padding: '14px 18px 10px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                                  <svg viewBox="0 0 12 12" fill="none" stroke="#7c3aed" strokeWidth="1.5" width="11" height="11"><rect x="1.5" y="3" width="9" height="7.5" rx="1"/><path d="M4 3V2a2 2 0 014 0v1"/></svg>
                                   <span style={{ fontSize: 9.5, fontWeight: 800, color: '#8e7ec0', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Company</span>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
@@ -626,7 +608,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                                 </div>
                               </div>
                             </div>
-
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 18px 12px', borderTop: '1px solid rgba(124,58,237,0.09)', background: '#faf9ff' }}>
                               <span style={{ fontSize: 11, color: pendingTotal > 0 ? '#8e7ec0' : '#b8aed8', fontStyle: pendingTotal === 0 ? 'italic' : 'normal', fontWeight: pendingTotal > 0 ? 600 : 400 } as React.CSSProperties}>
                                 {pendingTotal === 0 ? 'No filters active' : `${pendingTotal} filter${pendingTotal !== 1 ? 's' : ''} selected`}
@@ -651,7 +632,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                       <span style={{ fontSize: 11, color: '#8e7ec0' }}>{filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}</span>
                     </div>
 
-                    {/* Users table */}
                     <div style={{ background: '#fff', border: '1px solid rgba(124,58,237,0.1)', borderRadius: 12, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                       <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: 'rgba(124,58,237,0.15) transparent' } as React.CSSProperties}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -706,13 +686,11 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
         </div>
       </div>
 
-      {/* ════ POPUP MODALS ════ */}
       {addUserModalOpen && <AddUserPopup clients={clients} onAdd={user => setUsers(prev => [user, ...prev])} onClose={() => setAddUserModalOpen(false)} showToast={showToast} />}
       {editInfoModalOpen && editInfoForm && currentClient && <EditInfoPopup client={currentClient} form={editInfoForm} onChange={setEditInfoForm} onSave={handleSaveEditInfo} onClose={() => setEditInfoModalOpen(false)} />}
       {branchDetailModal && <BranchDetailPopup branch={branchDetailModal.branch} client={branchDetailModal.client} posDevices={posDevices} onClose={() => setBranchDetailModal(null)} onAddPOS={handleAddPOSFromBranch} onEditPOS={handleEditPOS} onRemovePOS={handleRemovePOS} />}
       {posDetailModal && <POSDetailPopup pos={posDetailModal.pos} client={posDetailModal.client} posIndex={posDevices.findIndex(p => p.id === posDetailModal.pos.id) + 1} onClose={() => setPosDetailModal(null)} />}
 
-      {/* Toast */}
       <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: `translateX(-50%) translateY(${toastVisible ? '0' : '20px'})`, display: 'flex', alignItems: 'center', gap: 8, background: '#18103a', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 12.5, fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 30px rgba(0,0,0,0.25)', whiteSpace: 'nowrap', pointerEvents: 'none', opacity: toastVisible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)', fontFamily: "'DM Sans',sans-serif" }}>
         <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#0d9488', flexShrink: 0 }} />
         <span>{toastMessage}</span>
@@ -733,9 +711,6 @@ const GridIcon     = () => <svg width="18" height="18" viewBox="0 0 16 16" fill=
 const EditPenIcon  = () => <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" width="11" height="11"><path d="M9 2l3 3L4 13H1v-3z"/></svg>;
 const PlusIcon     = () => <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" width="9" height="9"><path d="M6 1v10M1 6h10"/></svg>;
 
-/* ═══════════════════════════════════════════════════════════
-   SHARED UI COMPONENTS
-═══════════════════════════════════════════════════════════ */
 function StatCard({ icon, iconBg, iconColor, value, label }: { icon: React.ReactNode; iconBg: string; iconColor: string; value: string | number; label: string }) {
   return (
     <div style={{ flex: 1, minWidth: 100, display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, background: '#fff', border: '1px solid rgba(124,58,237,0.1)', transition: 'all 0.15s', cursor: 'default' }} onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(124,58,237,0.22)'; el.style.boxShadow = '0 3px 12px rgba(124,58,237,0.07)'; }} onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(124,58,237,0.1)'; el.style.boxShadow = 'none'; }}>
@@ -828,18 +803,3 @@ function MiniChart() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

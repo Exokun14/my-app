@@ -14,6 +14,10 @@
    refresh doesn't drop the user back to the login screen.
    sessionStorage clears automatically when the browser tab
    is closed, so it's safe — no stale tokens sitting around.
+
+   FIX: handleLogout now calls POST /logout on the Laravel
+   backend (Sanctum session) before clearing local state,
+   so the server-side session is properly invalidated.
    ============================================================== */
 
 'use client';
@@ -34,12 +38,34 @@ interface AuthState {
 }
 
 const SESSION_KEY = "gx_auth";
+const API_BASE    = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// ─── Laravel Sanctum logout ───────────────────────────────────────────────────
+function getXsrfToken(): string {
+  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+async function fortifyLogout(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/logout`, {
+      method:      "POST",
+      credentials: "include",
+      headers: {
+        "Accept":            "application/json",
+        "X-Requested-With":  "XMLHttpRequest",
+        "X-XSRF-TOKEN":      getXsrfToken(),
+      },
+    });
+  } catch (err) {
+    // Log but don't block — still clear local session below
+    console.error("[Auth] Logout request failed:", err);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Home() {
 
-  // Rehydrate from sessionStorage on first render — survives refresh,
-  // but clears automatically when the browser tab is closed.
   const [auth, setAuth] = useState<AuthState | null>(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -57,8 +83,9 @@ export default function Home() {
     setAuth(next);
   };
 
-  // Called by any Sign Out button in any portal / dashboard
-  const handleLogout = () => {
+  // Called by any Sign Out button — hits Laravel first, then clears local state
+  const handleLogout = async () => {
+    await fortifyLogout();
     sessionStorage.removeItem(SESSION_KEY);
     setAuth(null);
   };

@@ -2,8 +2,12 @@
 
 // ============================================================
 //  ClientLearningDashboard.tsx
-//  Client-facing learning portal — Dashboard, Catalog,
-//  Progress. No course creation or admin tools.
+//  CHANGE: Replaced static "My Learning" text in the top bar
+//  with a live UserMenu dropdown that fetches the authenticated
+//  user from GET /api/user (Laravel Fortify + Sanctum).
+//
+//  Displays: avatar initials, name, role (formatted),
+//  company name (from companies table), and Sign Out button.
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
@@ -17,6 +21,8 @@ import LoadingPopup from "../../Components/LoadingPopup";
 import ClientView from "./ClientView";
 import type { Course } from "../../Data/types";
 import type { Activity } from "./ActivityBuilderPanel";
+import type { AuthUser } from "../../Services/api.service";
+import { formatRole } from "../../Services/api.service";
 import constants from "../../Data/test_data.json";
 import api from "../../Services/api.service";
 import "../../globals.css";
@@ -26,15 +32,196 @@ const INITIAL_ACTIVITIES = constants.ACTIVITIES as Activity[];
 const DEFAULT_CATEGORIES = constants.DEFAULT_CATEGORIES;
 
 // ─────────────────────────────────────────────────────────────────────────────
-
-interface ClientLearningDashboardProps {
-  onBack?: () => void;
+// Derive two-letter initials from a full name  ("John Doe" → "JD")
+// ─────────────────────────────────────────────────────────────────────────────
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export default function ClientLearningDashboard({ onBack }: ClientLearningDashboardProps) {
+// ─────────────────────────────────────────────────────────────────────────────
+// UserMenu — mirrors the OverviewPage header dropdown
+// Props:
+//   user     — AuthUser from GET /api/user, or null while loading
+//   onLogout — called when user clicks Sign Out
+// ─────────────────────────────────────────────────────────────────────────────
+interface UserMenuProps {
+  user: AuthUser | null;
+  onLogout?: () => void;
+}
+
+function UserMenu({ user, onLogout }: UserMenuProps) {
+  const [open, setOpen] = useState(false);
+  const ref             = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Derived display values — safe to render while user is still null (loading)
+  const initials    = user ? getInitials(user.name) : "··";
+  const displayName = user?.name         ?? "Loading...";
+  const displayRole = formatRole(user?.role);         // 'admin' → 'System Admin'
+  const company     = user?.company_name ?? "";       // from companies.name
+
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+
+      {/* ── Trigger button ── */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "4px 10px 4px 4px",
+          borderRadius: 10,
+          border: `1px solid ${open ? "rgba(108,61,214,0.35)" : "rgba(108,61,214,0.18)"}`,
+          background: open ? "rgba(108,61,214,0.07)" : "#fff",
+          cursor: "pointer",
+          fontFamily: "'DM Sans', sans-serif",
+          transition: "all .18s",
+        }}
+        onMouseEnter={e => { if (!open) e.currentTarget.style.background = "rgba(108,61,214,0.05)"; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.background = open ? "rgba(108,61,214,0.07)" : "#fff"; }}
+      >
+        {/* Avatar */}
+        <div style={{
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          background: "linear-gradient(135deg, #6c3dd6, #4a3870)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", letterSpacing: ".02em" }}>
+            {initials}
+          </span>
+        </div>
+
+        {/* Name + role */}
+        <div style={{ textAlign: "left", lineHeight: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#18103a", marginBottom: 2 }}>
+            {displayName}
+          </div>
+          <div style={{ fontSize: 10, color: "#7c6b9e", fontWeight: 500 }}>
+            {displayRole}
+          </div>
+        </div>
+
+        {/* Chevron */}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+          stroke="#9b7fd4" strokeWidth="1.8" strokeLinecap="round"
+          style={{ marginLeft: 2, flexShrink: 0, transition: "transform .18s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        >
+          <path d="M2 3.5l3 3 3-3" />
+        </svg>
+      </button>
+
+      {/* ── Dropdown panel ── */}
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 9999,
+          background: "#fff",
+          borderRadius: 14,
+          border: "1px solid rgba(108,61,214,0.13)",
+          boxShadow: "0 8px 32px rgba(108,61,214,0.18)",
+          minWidth: 224,
+          paddingBottom: 6,
+          animation: "ldFadeDown .15s ease",
+        }}>
+
+          {/* Header row */}
+          <div style={{
+            padding: "12px 16px 14px",
+            borderBottom: "1px solid rgba(108,61,214,0.08)",
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              background: "linear-gradient(135deg, #6c3dd6, #4a3870)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{initials}</span>
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#18103a", lineHeight: 1.3 }}>
+                {displayName}
+              </div>
+              <div style={{ fontSize: 10.5, color: "#9b7fd4", fontWeight: 500 }}>
+                {displayRole}
+              </div>
+            </div>
+          </div>
+
+          {/* Company + Role rows */}
+          <div style={{ padding: "10px 16px 8px", borderBottom: "1px solid rgba(108,61,214,0.07)" }}>
+            {company && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                <span style={{ fontSize: 11, color: "rgba(0,0,0,0.38)", fontWeight: 500 }}>Company</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: "#18103a" }}>{company}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "rgba(0,0,0,0.38)", fontWeight: 500 }}>Role</span>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: "#18103a" }}>{displayRole}</span>
+            </div>
+          </div>
+
+          {/* Sign Out */}
+          <div style={{ padding: "6px 8px 0" }}>
+            <button
+              onClick={() => { setOpen(false); onLogout?.(); }}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 8,
+                padding: "9px 12px", borderRadius: 9,
+                border: "1px solid rgba(220,38,38,0.15)",
+                background: "rgba(254,242,242,0.7)",
+                color: "#dc2626", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit", transition: "background .15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(220,38,38,0.1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(254,242,242,0.7)"; }}
+            >
+              {/* Sign-out icon */}
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"
+                stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <path d="M10 8H3M6 5l-3 3 3 3" />
+                <path d="M6 3h6a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6" />
+              </svg>
+              Sign Out
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Dropdown animation */}
+      <style>{`
+        @keyframes ldFadeDown {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ClientLearningDashboardProps {
+  onBack?:    () => void;
+  onLogout?:  () => void;   // wired to Sign Out in UserMenu
+}
+
+export default function ClientLearningDashboard({ onBack, onLogout }: ClientLearningDashboardProps) {
   const [courses, setCourses]       = useState<Course[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+
+  // ── Authenticated user (fetched from GET /api/user) ────────────────────────
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
   const [loadStage, setLoadStage]   = useState<'courses'|'activities'|'categories'|'done'>('courses');
   const [loaderDone, setLoaderDone] = useState(false);
@@ -44,12 +231,12 @@ export default function ClientLearningDashboard({ onBack }: ClientLearningDashbo
 
   const { msg, visible, toast } = useToast();
 
-  const [viewerIdx, setViewerIdx]                 = useState<number | null>(null);
-  const [viewerOpen, setViewerOpen]               = useState(false);
-  const [viewerExiting, setViewerExiting]         = useState(false);
-  const [showOverview, setShowOverview]           = useState(false);
+  const [viewerIdx, setViewerIdx]                     = useState<number | null>(null);
+  const [viewerOpen, setViewerOpen]                   = useState(false);
+  const [viewerExiting, setViewerExiting]             = useState(false);
+  const [showOverview, setShowOverview]               = useState(false);
   const [showCompletionStats, setShowCompletionStats] = useState(false);
-  const [fullCourse, setFullCourse]               = useState<Course | null>(null);
+  const [fullCourse, setFullCourse]                   = useState<Course | null>(null);
 
   const [courseProgress, setCourseProgress] = useState<Record<number, {
     progress: number; timeSpent: number; lastAccessed: string;
@@ -58,40 +245,40 @@ export default function ClientLearningDashboard({ onBack }: ClientLearningDashbo
     assessmentScores: Array<{ score: number; passed: boolean; passingScore: number }>;
   }>>({});
 
-  // ── Guard against double-invocation from SSR hydration remount ────────────
   const hasFetched = useRef(false);
 
   // ── Load on mount ──────────────────────────────────────────────────────────
   useEffect(() => {
-    // Prevent double-fetch from SSR hydration remount.
-    // NOTE: we do NOT set cancelled=true in cleanup when the second mount is
-    // blocked — otherwise the cleanup from mount #1 cancels the in-flight fetch.
     console.log('[LOADER] useEffect fired, hasFetched:', hasFetched.current);
     if (hasFetched.current) { console.log('[LOADER] blocked by hasFetched guard'); return; }
     hasFetched.current = true;
-    console.log('[LOADER] mount — starting data fetch sequence');
 
-    // Safety net: if the loader animation never calls onComplete (e.g. due to
-    // a shatter animation bug), force-dismiss the loader after 6 seconds so
-    // the user is never permanently stuck on the loading screen.
     const loaderTimeout = setTimeout(() => setLoaderDone(true), 6000);
+    const cancelledRef  = { current: false };
 
-    // Use an object ref for cancelled so the cleanup from mount #1 (which fires
-    // before mount #2 is blocked) does NOT cancel the still-running fetch.
-    const cancelledRef = { current: false };
     (async () => {
       try {
+        // ── Fetch authenticated user (parallel, non-blocking) ─────────────
+        // GET /api/user returns:
+        //   { id, name, email, role, industry, company_id, company_name }
+        // company_name comes from the companies table via eager-load.
+        // See api_routes_snippet.php for the updated route.
+        api.auth.getUser().then(ur => {
+          if (ur.success && ur.data) {
+            setAuthUser(ur.data);
+            console.log('[AUTH] user loaded:', ur.data.name, '/', ur.data.company_name);
+          } else {
+            console.warn('[AUTH] Could not fetch auth user:', ur.error);
+          }
+        });
+
         // ── Courses ──────────────────────────────────────────────────────────
-        console.log('[LOADER] 1/4 — fetching courses...');
         setLoadStage('courses');
         const cr = await api.courses.getUserCourses();
-        console.log('[LOADER] 1/4 — courses response:', { success: cr.success, count: Array.isArray(cr.data) ? cr.data.length : 'not array', error: cr.error });
-        if (cancelledRef.current) { console.log('[LOADER] cancelled after courses'); return; }
-
+        if (cancelledRef.current) return;
         if (cr.success && Array.isArray(cr.data) && cr.data.length > 0) {
           setCourses(cr.data);
         } else if (cr.success && Array.isArray(cr.data) && cr.data.length === 0) {
-          console.warn('[LOADER] No courses assigned to this company yet.');
           setCourses([]);
         } else {
           console.warn('[LOADER] Course fetch failed, using test data:', cr.error);
@@ -99,29 +286,19 @@ export default function ClientLearningDashboard({ onBack }: ClientLearningDashbo
         }
 
         // ── Activities ───────────────────────────────────────────────────────
-        console.log('[LOADER] 2/4 — fetching activities...');
         setLoadStage('activities');
         const ar = await api.activities.getAll();
-        console.log('[LOADER] 2/4 — activities response:', { success: ar.success, count: Array.isArray(ar.data) ? ar.data.length : 'not array', error: ar.error });
-        if (cancelledRef.current) { console.log('[LOADER] cancelled after activities'); return; }
+        if (cancelledRef.current) return;
         setActivities(ar.success && Array.isArray(ar.data) && ar.data.length > 0
-          ? ar.data
-          : INITIAL_ACTIVITIES
-        );
+          ? ar.data : INITIAL_ACTIVITIES);
 
         // ── Categories ───────────────────────────────────────────────────────
-        console.log('[LOADER] 3/4 — fetching categories...');
         setLoadStage('categories');
         const cat = await api.settings.getCategories();
-        console.log('[LOADER] 3/4 — categories response:', { success: cat.success, data: cat.data, error: cat.error });
-        if (cancelledRef.current) { console.log('[LOADER] cancelled after categories'); return; }
+        if (cancelledRef.current) return;
         setCategories(cat.success && Array.isArray(cat.data) && cat.data.length > 0
-          ? cat.data
-          : DEFAULT_CATEGORIES
-        );
+          ? cat.data : DEFAULT_CATEGORIES);
 
-        // ── All done — advance loader to 100% and let it animate out ─────────
-        console.log('[LOADER] 4/4 — all done, setting stage to done');
         setLoadStage('done');
         clearTimeout(loaderTimeout);
 
@@ -136,11 +313,7 @@ export default function ClientLearningDashboard({ onBack }: ClientLearningDashbo
       }
     })();
 
-    return () => {
-      // Do NOT set cancelledRef.current = true here — the fetch must keep
-      // running even after React's cleanup fires during the hydration remount.
-      clearTimeout(loaderTimeout);
-    };
+    return () => { clearTimeout(loaderTimeout); };
   }, []);
 
   const publishedActivities = activities.filter(a => a.status === "published");
@@ -187,7 +360,7 @@ export default function ClientLearningDashboard({ onBack }: ClientLearningDashbo
     } catch { /* silent */ }
   };
 
-  // ── Viewer ─────────────────────────────────────────────────────────────────
+  // ── Viewer helpers ─────────────────────────────────────────────────────────
   const openViewer = async (idx: number) => {
     const course = courses[idx];
     if (!course.id) {
@@ -261,37 +434,56 @@ export default function ClientLearningDashboard({ onBack }: ClientLearningDashbo
     );
   }
 
-  // ── Main ───────────────────────────────────────────────────────────────────
+  // ── Main layout ────────────────────────────────────────────────────────────
   return (
     <>
       {!loaderDone && (
-        <InitialLoader
-          stage={loadStage}
-          onComplete={() => setLoaderDone(true)}
-        />
+        <InitialLoader stage={loadStage} onComplete={() => setLoaderDone(true)} />
       )}
 
       <div style={{ display:"flex", height:"100vh", overflow:"hidden", flexDirection:"column", background:"#f7f6fe" }}>
+
+        {/* ── Top bar ── */}
         {onBack && (
-          <div style={{ display:"flex", alignItems:"center", padding:"10px 20px", borderBottom:"1.5px solid rgba(108,61,214,0.1)", background:"#fff", flexShrink:0 }}>
+          <div style={{
+            display: "flex", alignItems: "center",
+            padding: "8px 16px",
+            borderBottom: "1.5px solid rgba(108,61,214,0.1)",
+            background: "#fff",
+            flexShrink: 0,
+            gap: 12,
+          }}>
+            {/* Back to Dashboard */}
             <button
               onClick={onBack}
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px 5px 9px", borderRadius:8, border:"1px solid rgba(108,61,214,0.18)", background:"#fff", color:"#4a3870", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .18s" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(108,61,214,0.07)"; e.currentTarget.style.color = "#6c3dd6"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#4a3870"; }}
+              style={{
+                display:"flex", alignItems:"center", gap:6,
+                padding:"5px 12px 5px 9px", borderRadius:8,
+                border:"1px solid rgba(108,61,214,0.18)", background:"#fff",
+                color:"#4a3870", fontSize:11, fontWeight:600,
+                cursor:"pointer", fontFamily:"'DM Sans',sans-serif", transition:"all .18s",
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background="rgba(108,61,214,0.07)"; e.currentTarget.style.color="#6c3dd6"; }}
+              onMouseLeave={e => { e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#4a3870"; }}
             >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8 2L4 6l4 4"/>
               </svg>
               Dashboard
             </button>
-            <div style={{ flex:1 }} />
-            <span style={{ fontFamily:"'DM Serif Display',Georgia,serif", fontSize:16, fontStyle:"italic", color:"#18103a" }}>
-              My <span style={{ color:"#6c3dd6", fontStyle:"normal" }}>Learning</span>
-            </span>
+
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
+
+            {/* ── User menu (replaces "My Learning" text) ── */}
+            {/* Fetches from GET /api/user → { id, name, email, role, industry, company_id, company_name } */}
+            <UserMenu user={authUser} onLogout={onLogout} />
           </div>
         )}
 
+        {/* ── Content ── */}
         <div style={{ flex:1, minHeight:0, overflow:"hidden", padding:"0 20px 20px" }}>
           <ClientView
             courses={courses}

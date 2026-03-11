@@ -3,6 +3,9 @@
 //  FIX: Added onLogout prop to OverviewPageProps and passed
 //  it into <Header onLogout={onLogout} /> so the Sign Out
 //  button in the header calls back up to root page.tsx.
+//
+//  UPDATE: Header user object now fetched from GET /api/user
+//  instead of being hardcoded as "John Doe / System Admin".
 // ============================================================
 
 'use client'
@@ -12,6 +15,9 @@ import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "../Sidebar_Client/sidebar_client";
 import Header from "../Header_Client/header_client";
 import "../../globals.css";
+import api from "../../Services/api.service";
+import type { AuthUser } from "../../Services/api.service";
+import { formatRole } from "../../Services/api.service";
 
 type CPView = "overview" | "tickets" | "users" | "settings";
 
@@ -89,6 +95,13 @@ function useClickOutside<T extends HTMLElement>(cb: () => void) {
     document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
   }, [cb]);
   return ref;
+}
+
+// Derive two-letter initials from a full name ("John Doe" → "JD")
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -434,7 +447,7 @@ const NotifPanel: React.FC<{ notifs: Notification[]; onRead: (id: number) => voi
 // ─────────────────────────────────────────────────────────────────────────────
 interface OverviewPageProps {
   onNavigate: (view: CPView) => void;
-  onLogout?: () => void;  // FIX: added onLogout prop
+  onLogout?: () => void;
 }
 
 const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onLogout }) => {
@@ -449,6 +462,22 @@ const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onLogout }) => 
   const [notifs, setNotifs]                 = useState<Notification[]>(NOTIFS_INIT);
   const [notifOpen, setNotifOpen]           = useState(false);
 
+  // ── Fetch authenticated user from GET /api/user ───────────────────────────
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    api.auth.getUser().then(r => {
+      if (r.success && r.data) setAuthUser(r.data);
+    });
+  }, []);
+
+  // Derived header values — fall back to safe defaults while loading
+  const headerUser = {
+    initials: authUser ? getInitials(authUser.name) : "··",
+    name:     authUser?.name         ?? "Loading...",
+    role:     formatRole(authUser?.role),              // 'admin' → 'System Admin'
+  };
+
   const unread      = notifs.filter(n => !n.read).length;
   const readNotif   = (id: number) => setNotifs(ns => ns.map(n => n.id === id ? { ...n, read: true } : n));
   const markAllRead = () => setNotifs(ns => ns.map(n => ({ ...n, read: true })));
@@ -457,9 +486,9 @@ const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onLogout }) => 
     <div style={{ display:"flex", height:"100vh", overflow:"hidden" }}>
       <Sidebar activePage="overview" onNavigate={onNavigate as (view: string) => void} />
       <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, minHeight:0, overflow:"hidden" }}>
-        {/* FIX: pass onLogout into Header so Sign Out works */}
+        {/* Header now receives live user data from /api/user */}
         <Header
-          user={{ initials:"JD", name:"John Doe", role:"System Admin" }}
+          user={headerUser}
           notificationCount={unread}
           onNotificationClick={() => setNotifOpen(o => !o)}
           onLogout={onLogout}
@@ -512,7 +541,7 @@ const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onLogout }) => 
                   <InfoRow label="Phone">{info.altPhone}</InfoRow>
                   <SL>Account Details</SL>
                   <InfoRow label="Acct Manager"><span style={{ color: "var(--p)", fontWeight: 600 }}>Maria Santos</span></InfoRow>
-                  <InfoRow label="User Role">System Admin</InfoRow>
+                  <InfoRow label="User Role"><span style={{ fontWeight: 600 }}>{headerUser.role}</span></InfoRow>
                   <SL>Keys</SL>
                   <InfoRow label="Keys No. per Store">{info.keyNo}</InfoRow>
                   <div className="gx-lic-card">

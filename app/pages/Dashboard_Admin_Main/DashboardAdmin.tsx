@@ -1,9 +1,17 @@
 /* ==============================================================
    DashboardAdmin.tsx  ·  Company Database — Front End
-   UPDATED: Accepts onClientSelect prop; ClientCard click
-   navigates to the Client Overview page.
-   ============================================================== */
 
+   FIXES:
+   1. Accepts onLogout prop from root page.tsx and wires it to
+      both <Sidebar onLogout> and <Header onLogout> so Sign Out
+      actually works from either location.
+   2. Wires <Sidebar onNavigate> so "Learning Center" click opens
+      AdminLearningDashboard inside the same shell via local state.
+   3. Uses useAuthUser() hook to fetch the real logged-in user and
+      passes the result to <Header user={headerUser}> — fixes the
+      "John Doe / System Admin" placeholder showing instead of the
+      actual user's name, role, and company.
+   ============================================================== */
 
 'use client';
 
@@ -20,7 +28,11 @@ import {
 import AddCompanyPopup from './add_company_popup';
 
 import Sidebar from '../Sidebar_Web/sidebar';
-import Header from '../Header_Web/header';
+import Header  from '../Header_Web/header';
+
+import AdminLearningDashboard from '../Learning_Module/AdminLearningDashboard';
+
+import { useAuthUser } from '../../Hooks/useAuthUser';
 
 /* ─── Keyframe animations + font + scrollbar injected once ─────────────────── */
 const GLOBAL_STYLES = `
@@ -41,9 +53,29 @@ const CAT_LABEL: Record<string, string> = {
 /* ── Props ── */
 interface DashboardAdminProps {
   onClientSelect?: (client: Client) => void;
+  onLogout?: () => void;   // ← wired from root page.tsx
 }
 
-export default function DashboardAdmin({ onClientSelect }: DashboardAdminProps) {
+/* ── View type ── */
+type AdminView = 'overview' | 'learning';
+
+export default function DashboardAdmin({ onClientSelect, onLogout }: DashboardAdminProps) {
+
+  /* ── Real user data from the API ── */
+  const { headerUser } = useAuthUser();
+
+  /* ── Local navigation state (Company DB ↔ Learning Center) ── */
+  const [currentView, setCurrentView] = useState<AdminView>('overview');
+
+  /* ── Navigation handler passed to <Sidebar onNavigate> ── */
+  const handleNavigate = useCallback((view: string) => {
+    if (view === 'learning') {
+      setCurrentView('learning');
+    } else {
+      setCurrentView('overview');
+    }
+  }, []);
+
   const [cdbPanel, setCdbPanel]     = useState(0);
   const [clients, setClients]       = useState<Client[]>(CLIENTS);
   const [activeCats, setActiveCats] = useState<Set<string>>(new Set());
@@ -97,142 +129,172 @@ export default function DashboardAdmin({ onClientSelect }: DashboardAdminProps) 
     upcoming: licItems.filter(c => c._status === 'upcoming').length,
   };
 
-  return (
+  /* ────────────────────────────────────────────────────────
+     Shared chrome: Sidebar + Header always rendered the same
+     way regardless of which content view is active.
+  ──────────────────────────────────────────────────────── */
+  const renderShell = (activePage: string, children: React.ReactNode) => (
     <>
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_STYLES }} />
 
-      <Sidebar />
+      {/* Sidebar: onNavigate drives view switching; onLogout from root page.tsx */}
+      <Sidebar
+        activePage={activePage}
+        onNavigate={handleNavigate}
+        onLogout={onLogout}
+      />
+
       <div
         style={{ marginLeft: 'var(--gxh-sw, 220px)', marginTop: 54 }}
         className="flex flex-col min-h-screen transition-[margin-left] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
-        <Header />
-
-        <div
-          className="fixed inset-0 z-0 pointer-events-none"
-          style={{
-            background: `
-              radial-gradient(ellipse 60% 50% at 0% 0%,   rgba(124,58,237,0.06) 0%, transparent 60%),
-              radial-gradient(ellipse 50% 50% at 100% 100%, rgba(13,148,136,0.05) 0%, transparent 60%),
-              #f8f7ff
-            `,
-          }}
+        {/* Header: real user from API; onLogout from root page.tsx */}
+        <Header
+          user={headerUser}
+          onLogout={onLogout}
         />
-        <canvas id="rc" className="fixed inset-0 z-0 pointer-events-none" />
 
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative z-[1] h-screen">
-          <div className="flex-1 overflow-hidden relative">
-            <div className="absolute inset-0 flex flex-col overflow-hidden z-[2]" style={{ padding: '20px 28px 50px' }}>
+        {children}
+      </div>
+    </>
+  );
 
-              {/* ── Page header ── */}
-              <div className="flex items-center gap-[10px] mb-4 flex-shrink-0">
-                <h1
-                  className="text-[21px] font-normal text-[#18103a] whitespace-nowrap"
-                  style={{ fontFamily: "'DM Serif Display', serif" }}
-                >
-                  Company <em className="italic text-[#7c3aed]">Database</em>
-                </h1>
+  /* ── Learning Center view ── */
+  if (currentView === 'learning') {
+    return renderShell(
+      'learning',
+      <AdminLearningDashboard onBack={() => setCurrentView('overview')} />,
+    );
+  }
 
-                <div className="flex items-center gap-[5px] ml-2">
-                  <span className="text-[9.5px] font-semibold text-[#8e7ec0] uppercase tracking-[0.08em]">
-                    {cdbPanel === 0 ? 'Company Database' : 'License Expiry'}
-                  </span>
-                  {[0, 1].map(i => (
-                    <div
-                      key={i}
-                      onClick={() => setCdbPanel(i)}
-                      className="cursor-pointer transition-all duration-[220ms]"
-                      style={{
-                        width:        i === cdbPanel ? 18 : 6,
-                        height:       6,
-                        borderRadius: i === cdbPanel ? 3 : '50%',
-                        background:   i === cdbPanel ? '#7c3aed' : 'rgba(124,58,237,0.2)',
-                      }}
-                    />
-                  ))}
-                </div>
+  /* ── Company Database view (default) ── */
+  return renderShell(
+    'customers',
+    <>
+      <div
+        className="fixed inset-0 z-0 pointer-events-none"
+        style={{
+          background: `
+            radial-gradient(ellipse 60% 50% at 0% 0%,   rgba(124,58,237,0.06) 0%, transparent 60%),
+            radial-gradient(ellipse 50% 50% at 100% 100%, rgba(13,148,136,0.05) 0%, transparent 60%),
+            #f8f7ff
+          `,
+        }}
+      />
+      <canvas id="rc" className="fixed inset-0 z-0 pointer-events-none" />
 
-                <div className="flex-1 h-px" style={{ background: 'linear-gradient(to right,rgba(124,58,237,0.15),transparent)' }} />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative z-[1] h-screen">
+        <div className="flex-1 overflow-hidden relative">
+          <div className="absolute inset-0 flex flex-col overflow-hidden z-[2]" style={{ padding: '20px 28px 50px' }}>
 
-                <div className="flex gap-2 flex-shrink-0">
-                  {cdbPanel === 0 && (
-                    <button
-                      onClick={() => setModalOpen(true)}
-                      className="inline-flex items-center gap-[7px] text-white font-semibold border-none cursor-pointer whitespace-nowrap transition-all duration-[160ms] hover:-translate-y-px"
-                      style={{ padding: '8px 18px', fontSize: 12, borderRadius: 10, background: 'linear-gradient(135deg,#7c3aed,#0d9488)', boxShadow: '0 3px 14px rgba(124,58,237,0.32)', marginBottom: 20 }}
-                    >
-                      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M7 1v12M1 7h12" /></svg>
-                      Add Company
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Swipe container ── */}
-              <div
-                className="flex-1 overflow-hidden relative"
-                onTouchStart={e => onDragStart(e.touches[0].clientX)}
-                onTouchMove={e  => onDragMove(e.touches[0].clientX)}
-                onTouchEnd={onDragEnd}
-                onMouseDown={e  => onDragStart(e.clientX)}
-                onMouseMove={e  => { if (dragStartX.current !== null) onDragMove(e.clientX); }}
-                onMouseUp={onDragEnd}
-                onMouseLeave={onDragEnd}
-                style={{ cursor: 'default' }}
+            {/* ── Page header ── */}
+            <div className="flex items-center gap-[10px] mb-4 flex-shrink-0">
+              <h1
+                className="text-[21px] font-normal text-[#18103a] whitespace-nowrap"
+                style={{ fontFamily: "'DM Serif Display', serif" }}
               >
-                <div
-                  className="flex h-full"
-                  style={{
-                    transform:  `translateX(calc(-${cdbPanel * 100}% + ${dragOffset}px))`,
-                    transition: dragOffset !== 0 ? 'none' : 'transform 0.38s cubic-bezier(0.4,0,0.2,1)',
-                  }}
-                >
-                  {/* Panel 0 — Company Database */}
-                  <div className="w-full flex-shrink-0 flex flex-col overflow-hidden" style={{ gap: 0 }}>
-                    <StatsBar data={stats} onCategoryClick={toggleCat} />
-                    <FilterBar
-                      activeCats={activeCats} activeHealth={activeHealth}
-                      onToggleCat={toggleCat} onToggleHealth={toggleHealth}
-                      stats={stats} search={search} onSearch={setSearch}
-                      totalVisible={filtered.length}
-                    />
-                    <div className="flex-1 overflow-y-auto min-h-0">
-                      <div className="grid grid-cols-3 gap-[10px] content-start pb-3">
-                        {filtered.map((c, i) => (
-                          <ClientCard
-                            key={c.id}
-                            client={c}
-                            index={i}
-                            onClick={() => onClientSelect?.(c)}
-                          />
-                        ))}
-                      </div>
-                      {filtered.length === 0 && (
-                        <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                          <div className="text-[28px] opacity-50">🔍</div>
-                          <div className="text-[13px] font-semibold text-[#4a3870]">No companies found</div>
-                          <div className="text-[11px] text-[#8e7ec0]">Try adjusting your filters or search query</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                Company <em className="italic text-[#7c3aed]">Database</em>
+              </h1>
 
-                  {/* Panel 1 — License Expiry */}
-                  <div className="w-full flex-shrink-0 flex flex-col overflow-hidden" style={{ gap: 12 }}>
-                    <LicensePanel
-                      items={licFiltered} stats={licStats} period={licPeriod}
-                      onPeriodChange={(p: LicPeriod) => { setLicPeriod(p); setLicFilters(new Set()); }}
-                      search={licSearch} onSearch={setLicSearch}
-                      filters={licFilters}
-                      onToggleFilter={(s: string) => setLicFilters(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n; })}
-                      onRemoveFilter={(s: string) => setLicFilters(p => { const n = new Set(p); n.delete(s); return n; })}
-                      onDndStart={cancelSwipe}
-                    />
-                  </div>
-                </div>
+              <div className="flex items-center gap-[5px] ml-2">
+                <span className="text-[9.5px] font-semibold text-[#8e7ec0] uppercase tracking-[0.08em]">
+                  {cdbPanel === 0 ? 'Company Database' : 'License Expiry'}
+                </span>
+                {[0, 1].map(i => (
+                  <div
+                    key={i}
+                    onClick={() => setCdbPanel(i)}
+                    className="cursor-pointer transition-all duration-[220ms]"
+                    style={{
+                      width:        i === cdbPanel ? 18 : 6,
+                      height:       6,
+                      borderRadius: i === cdbPanel ? 3 : '50%',
+                      background:   i === cdbPanel ? '#7c3aed' : 'rgba(124,58,237,0.2)',
+                    }}
+                  />
+                ))}
               </div>
 
+              <div className="flex-1 h-px" style={{ background: 'linear-gradient(to right,rgba(124,58,237,0.15),transparent)' }} />
+
+              <div className="flex gap-2 flex-shrink-0">
+                {cdbPanel === 0 && (
+                  <button
+                    onClick={() => setModalOpen(true)}
+                    className="inline-flex items-center gap-[7px] text-white font-semibold border-none cursor-pointer whitespace-nowrap transition-all duration-[160ms] hover:-translate-y-px"
+                    style={{ padding: '8px 18px', fontSize: 12, borderRadius: 10, background: 'linear-gradient(135deg,#7c3aed,#0d9488)', boxShadow: '0 3px 14px rgba(124,58,237,0.32)', marginBottom: 20 }}
+                  >
+                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M7 1v12M1 7h12" /></svg>
+                    Add Company
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* ── Swipe container ── */}
+            <div
+              className="flex-1 overflow-hidden relative"
+              onTouchStart={e => onDragStart(e.touches[0].clientX)}
+              onTouchMove={e  => onDragMove(e.touches[0].clientX)}
+              onTouchEnd={onDragEnd}
+              onMouseDown={e  => onDragStart(e.clientX)}
+              onMouseMove={e  => { if (dragStartX.current !== null) onDragMove(e.clientX); }}
+              onMouseUp={onDragEnd}
+              onMouseLeave={onDragEnd}
+              style={{ cursor: 'default' }}
+            >
+              <div
+                className="flex h-full"
+                style={{
+                  transform:  `translateX(calc(-${cdbPanel * 100}% + ${dragOffset}px))`,
+                  transition: dragOffset !== 0 ? 'none' : 'transform 0.38s cubic-bezier(0.4,0,0.2,1)',
+                }}
+              >
+                {/* Panel 0 — Company Database */}
+                <div className="w-full flex-shrink-0 flex flex-col overflow-hidden" style={{ gap: 0 }}>
+                  <StatsBar data={stats} onCategoryClick={toggleCat} />
+                  <FilterBar
+                    activeCats={activeCats} activeHealth={activeHealth}
+                    onToggleCat={toggleCat} onToggleHealth={toggleHealth}
+                    stats={stats} search={search} onSearch={setSearch}
+                    totalVisible={filtered.length}
+                  />
+                  <div className="flex-1 overflow-y-auto min-h-0">
+                    <div className="grid grid-cols-3 gap-[10px] content-start pb-3">
+                      {filtered.map((c, i) => (
+                        <ClientCard
+                          key={c.id}
+                          client={c}
+                          index={i}
+                          onClick={() => onClientSelect?.(c)}
+                        />
+                      ))}
+                    </div>
+                    {filtered.length === 0 && (
+                      <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                        <div className="text-[28px] opacity-50">🔍</div>
+                        <div className="text-[13px] font-semibold text-[#4a3870]">No companies found</div>
+                        <div className="text-[11px] text-[#8e7ec0]">Try adjusting your filters or search query</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Panel 1 — License Expiry */}
+                <div className="w-full flex-shrink-0 flex flex-col overflow-hidden" style={{ gap: 12 }}>
+                  <LicensePanel
+                    items={licFiltered} stats={licStats} period={licPeriod}
+                    onPeriodChange={(p: LicPeriod) => { setLicPeriod(p); setLicFilters(new Set()); }}
+                    search={licSearch} onSearch={setLicSearch}
+                    filters={licFilters}
+                    onToggleFilter={(s: string) => setLicFilters(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n; })}
+                    onRemoveFilter={(s: string) => setLicFilters(p => { const n = new Set(p); n.delete(s); return n; })}
+                    onDndStart={cancelSwipe}
+                  />
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -254,7 +316,7 @@ export default function DashboardAdmin({ onClientSelect }: DashboardAdminProps) 
         <div className="w-[6px] h-[6px] rounded-full flex-shrink-0 bg-[#0d9488]" />
         <span>{toastMsg}</span>
       </div>
-    </>
+    </>,
   );
 }
 
@@ -410,7 +472,7 @@ function FilterBar({ activeCats, activeHealth, onToggleCat, onToggleHealth, stat
       <div className="flex-1" />
 
       <div
-        className="flex items-center bg-[#f2f0fb] border border-[rgba(124,58,237,0.1)] transition-all duration-[180ms] focus-within:bg-white focus-within:border-[rgba(124,58,237,0.22)] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.07)] focus-within:w-[300px]"
+        className="flex items-center bg-[#f2f0fb] border border-[rgba(124,58,237,0.1)] transition-all duration-[180ms] focus-within:bg-white focus-within:border-[rgba(124,58,237,0.22)] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.07)]"
         style={{ gap: 8, padding: '7px 12px', borderRadius: 9, width: 260 }}
       >
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" className="flex-shrink-0" style={{ width: 12, height: 12, color: '#8e7ec0' }}>
@@ -475,7 +537,6 @@ function ClientCard({ client, index, onClick }: { client: Client; index: number;
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Hover subtle arrow indicator */}
       <div style={{
         position: 'absolute', top: 10, right: 10, zIndex: 10,
         width: 22, height: 22, borderRadius: '50%',
@@ -587,7 +648,6 @@ function LicensePanel({ items, stats, period, onPeriodChange, search, onSearch, 
 
   return (
     <>
-      {/* ── Toolbar: period toggle + search ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginTop: 25 }}>
         <div style={{ display: 'flex', gap: 2, background: '#f2f0fb', border: '1px solid rgba(124,58,237,0.1)', borderRadius: 9, padding: 3, flexShrink: 0 }}>
           {(['all','3m','6m','1y'] as const).map(id => {
@@ -606,7 +666,6 @@ function LicensePanel({ items, stats, period, onPeriodChange, search, onSearch, 
         </div>
       </div>
 
-      {/* ── Draggable stat cards ── */}
       <div className="flex flex-shrink-0" style={{ gap: 8, marginBottom: 10 }}>
         {pills.map(p => {
           const isActive   = filters.has(p.id);
@@ -665,7 +724,6 @@ function LicensePanel({ items, stats, period, onPeriodChange, search, onSearch, 
         })}
       </div>
 
-      {/* ── Drop zone — active-filter strip + table ── */}
       <div
         style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, borderRadius: 12, border: isDragOver ? '2px dashed #7c3aed' : '1px solid rgba(124,58,237,0.1)', boxShadow: isDragOver ? '0 0 0 4px rgba(124,58,237,0.08)' : undefined, background: isDragOver ? 'rgba(124,58,237,0.02)' : '#fff', transition: 'border 0.15s, box-shadow 0.15s, background 0.15s', position: 'relative', overflow: 'hidden' }}
         onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
