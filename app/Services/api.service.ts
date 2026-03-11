@@ -87,28 +87,51 @@ export function formatRole(role: AuthUser['role'] | null | undefined): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Core request — every call goes through here, all logs in one place
+// CSRF helper
+// ─────────────────────────────────────────────────────────────────────────────
+function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+const CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core request
 // ─────────────────────────────────────────────────────────────────────────────
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   const fullUrl = `${API_BASE_URL}${endpoint}`;
-  const method  = options.method ?? 'GET';
+  const method  = (options.method ?? 'GET').toUpperCase();
 
-  console.groupCollapsed(`[API] ${method} ${endpoint}`);
+  const logGroup = CSRF_METHODS.has(method) ? console.group : console.groupCollapsed;
+  logGroup(`[API] ${method} ${endpoint}`);
   console.log('🔵 URL:', fullUrl);
   if (options.body) {
     try   { console.log('📤 Body:', JSON.parse(options.body as string)); }
     catch { console.log('📤 Body (raw):', options.body); }
   }
 
+  const csrfHeaders: Record<string, string> = {};
+  if (CSRF_METHODS.has(method)) {
+    const token = getCsrfToken();
+    if (token) {
+      csrfHeaders['X-XSRF-TOKEN'] = token;
+      console.log('🔐 CSRF token attached');
+    } else {
+      console.warn('⚠️ XSRF-TOKEN cookie not found — request may be rejected by Laravel');
+    }
+  }
+
   try {
-    const response    = await fetch(fullUrl, {
+    const response = await fetch(fullUrl, {
       headers: {
         'Content-Type': 'application/json',
         'Accept':       'application/json',
         'X-User-Id':    '1',
+        ...csrfHeaders,
         ...options.headers,
       },
       credentials: 'include',
@@ -124,7 +147,6 @@ async function apiRequest<T>(
 
     if (!contentType.includes('application/json')) {
       console.error('❌ Expected JSON but got:', contentType);
-      console.error('❌ Route missing or not in api middleware group — check routes/api.php');
       console.groupEnd();
       return { success: false, error: `Server returned ${contentType} instead of JSON. Check routes/api.php.` };
     }
@@ -150,7 +172,6 @@ async function apiRequest<T>(
 
   } catch (error) {
     console.error('❌ Network error:', error);
-    console.error('💡 Causes: Laravel not running | CORS blocked | wrong API_BASE_URL');
     console.groupEnd();
     return { success: false, error: error instanceof Error ? error.message : 'Request failed' };
   }
@@ -159,16 +180,26 @@ async function apiRequest<T>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const coursesAPI = {
+
+  // FIX: added include_templates to the type AND to the URLSearchParams builder.
+  // Previously the param was accepted by callers but silently dropped here,
+  // so GET /courses never included ?include_templates=true and the server
+  // always filtered out stage='template' rows on every page load.
   getAll: async (filters?: {
-    category?: string; active?: boolean; client_id?: number;
+    category?: string;
+    active?: boolean;
+    client_id?: number;
     stage?: 'draft' | 'review_ready' | 'published' | 'unpublished' | 'template';
+    include_templates?: boolean;
   }): Promise<ApiResponse<Course[]>> => {
     const params = new URLSearchParams();
-    if (filters?.category)            params.append('category',  filters.category);
-    if (filters?.active !== undefined) params.append('active',   String(filters.active));
-    if (filters?.client_id)           params.append('client_id', String(filters.client_id));
-    if (filters?.stage)               params.append('stage',     filters.stage);
+    if (filters?.category)             params.append('category',          filters.category);
+    if (filters?.active !== undefined) params.append('active',            String(filters.active));
+    if (filters?.client_id)            params.append('client_id',         String(filters.client_id));
+    if (filters?.stage)                params.append('stage',             filters.stage);
+    if (filters?.include_templates)    params.append('include_templates', 'true');
     const query = params.toString();
+    console.log('[courses] getAll →', query ? `?${query}` : '(no params — templates excluded by server)');
     return apiRequest<Course[]>(`/courses${query ? `?${query}` : ''}`, { method: 'GET' });
   },
 
@@ -287,7 +318,10 @@ export const uploadAPI = {
     try {
       const fullUrl  = `${API_BASE_URL}/upload`;
       console.log('[upload] uploading', file.name, 'size=', file.size);
-      const response = await fetch(fullUrl, { method: 'POST', body: formData, headers: { 'X-User-Id': '1' }, credentials: 'include' });
+      const token = getCsrfToken();
+      const headers: Record<string, string> = { 'X-User-Id': '1' };
+      if (token) headers['X-XSRF-TOKEN'] = token;
+      const response = await fetch(fullUrl, { method: 'POST', body: formData, headers, credentials: 'include' });
       const text        = await response.text();
       const contentType = response.headers.get('content-type') ?? '';
       if (!contentType.includes('application/json')) return { success: false, error: 'Upload returned HTML not JSON' };
@@ -302,7 +336,6 @@ export const uploadAPI = {
   },
 };
 
-// ── Auth API ──────────────────────────────────────────────────────────────────
 export const authAPI = {
   getUser: async (): Promise<ApiResponse<AuthUser>> => {
     console.log('[auth] getUser → GET /api/user');
@@ -313,7 +346,6 @@ export const authAPI = {
         '| company:', result.data.company_name ?? '(none)');
     } else {
       console.warn('[auth] ❌ failed:', result.error);
-      console.warn('[auth] 💡 Is the user logged in? Does /api/user include company_name?');
     }
     return result;
   },

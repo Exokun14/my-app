@@ -1,12 +1,19 @@
+// ============================================================
+//  CourseCatalogLogic.ts
+//  UI state, filtering, CRUD, stage helpers.
+//  Publish/unpublish validation lives in CoursePublishLogic.ts
+// ============================================================
+
 import { useState } from "react";
 import type { Course, Module } from "../../Data/types";
 import type { Activity } from "../Learning_Module/ActivityBuilderPanel";
 import api from "../../Services/api.service";
+import { computeReadiness, getPublishBlockReasons } from "./CoursePublishLogic";
+
+// Re-export so existing imports of computeReadiness from this file keep working
+export { computeReadiness } from "./CoursePublishLogic";
 
 // ── Stage system ──────────────────────────────────────────────────────────────
-// draft | review_ready | unpublished  →  Workspace tab
-// published                           →  Catalog tab
-// template                            →  Templates tab
 export type CourseStage =
   | "draft"
   | "review_ready"
@@ -88,41 +95,11 @@ export const CARD_STYLES = `
 @keyframes cc3-up { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
 `;
 
-// ── Readiness score ───────────────────────────────────────────────────────────
-export function computeReadiness(c: Course): {
-  score: number;
-  canPromote: boolean;
-  checks: { label: string; ok: boolean; warn?: boolean; detail: string }[];
-} {
-  const modCount     = c.modules?.length ?? 0;
-  const chCount      = c.modules?.reduce((s, m) => s + m.chapters.length, 0) ?? 0;
-  const hasTitle     = !!c.title?.trim();
-  const hasDesc      = !!c.desc?.trim();
-  const hasCat       = !!c.cat?.trim();
-  const hasDur       = !!c.time?.trim();
-  const hasMods      = modCount > 0;
-  const hasChaps     = chCount > 0;
-  const hasCompanies = (c.companies?.length ?? 0) > 0;
-
-  const checks = [
-    { label:"Title",              ok: hasTitle,     detail: hasTitle     ? c.title  : "Missing title" },
-    { label:"Category",           ok: hasCat,       detail: hasCat       ? c.cat    : "No category" },
-    { label:"Modules",            ok: hasMods,      detail: hasMods      ? `${modCount} module${modCount!==1?"s":""}` : "No modules added" },
-    { label:"Chapters",           ok: hasChaps,     detail: hasChaps     ? `${chCount} chapter${chCount!==1?"s":""}` : "No chapters in modules" },
-    { label:"Description",        ok: hasDesc,      warn:true, detail: hasDesc      ? "Provided"  : "No description" },
-    { label:"Duration",           ok: hasDur,       warn:true, detail: hasDur       ? c.time      : "Duration not set" },
-    { label:"Companies assigned", ok: hasCompanies, warn:true, detail: hasCompanies ? `${c.companies!.length} assigned` : "No companies yet" },
-  ];
-
-  const canPromote = checks.filter(ch => !ch.warn).every(ch => ch.ok);
-  const score      = Math.round((checks.filter(ch => ch.ok).length / checks.length) * 100);
-  return { score, canPromote, checks };
-}
-
 // ── Stage helpers ─────────────────────────────────────────────────────────────
+
 export function getCourseStage(c: Course): CourseStage {
   if ((c as any).stage) return (c as any).stage as CourseStage;
-  return c.active ? "published" : "draft";          // backwards-compat
+  return c.active ? "published" : "draft";
 }
 
 export function isWorkspaceCourse(c: Course): boolean {
@@ -130,13 +107,8 @@ export function isWorkspaceCourse(c: Course): boolean {
   return s === "draft" || s === "review_ready" || s === "unpublished";
 }
 
-export function isCatalogCourse(c: Course): boolean {
-  return getCourseStage(c) === "published";
-}
-
-export function isTemplateCourse(c: Course): boolean {
-  return getCourseStage(c) === "template";
-}
+export function isCatalogCourse(c: Course):  boolean { return getCourseStage(c) === "published"; }
+export function isTemplateCourse(c: Course): boolean { return getCourseStage(c) === "template"; }
 
 export function stageBadge(stage: CourseStage) {
   switch (stage) {
@@ -149,6 +121,7 @@ export function stageBadge(stage: CourseStage) {
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
+
 export function useCourseCatalog({
   courses,
   setCourses,
@@ -183,10 +156,7 @@ export function useCourseCatalog({
     return stageOk && srch(c);
   });
 
-  const catalogCourses = courses.filter(c =>
-    isCatalogCourse(c) && (activeCat === "All" || c.cat === activeCat) && srch(c)
-  );
-
+  const catalogCourses  = courses.filter(c => isCatalogCourse(c)  && (activeCat === "All" || c.cat === activeCat) && srch(c));
   const templateCourses = courses.filter(c => isTemplateCourse(c) && srch(c));
 
   // ── Edit / save ───────────────────────────────────────────────────────────
@@ -216,17 +186,47 @@ export function useCourseCatalog({
   };
 
   // ── Promote (workspace → catalog) ────────────────────────────────────────
-  const openPromote    = (idx: number) => setPromoteIdx(idx);
+  // Guard: block if course doesn't meet hard requirements
+  const openPromote = (idx: number) => {
+    const { canPublish } = computeReadiness(courses[idx]);
+    if (!canPublish) {
+      const reasons = getPublishBlockReasons(courses[idx]);
+      toast(`Cannot publish — missing: ${reasons.join(", ")}.`);
+      return;
+    }
+    setPromoteIdx(idx);
+  };
   const cancelPromote  = () => setPromoteIdx(null);
   const confirmPromote = async () => {
     if (promoteIdx === null) return;
     const course = courses[promoteIdx];
+    console.group("[Promote] confirmPromote course:" + course?.title + " id:" + course?.id);
+    const { canPublish } = computeReadiness(course);
+    if (!canPublish) {
+      const reasons = getPublishBlockReasons(course);
+      console.warn("[Promote] blocked — missing:", reasons);
+      toast(`Cannot publish — missing: ${reasons.join(", ")}.`);
+      setPromoteIdx(null);
+      console.groupEnd();
+      return;
+    }
     try {
-      if (course.id) await api.courses.update(course.id, { ...course, active: true, stage: "published" });
+      if (course.id) {
+        console.log("[Promote] calling update id:", course.id, "stage -> published");
+        const res = await api.courses.update(course.id, { ...course, active: true, stage: "published" });
+        console.log("[Promote] API response:", res);
+      } else {
+        console.warn("[Promote] no course.id — local state only");
+      }
       setCourses(prev => prev.map((c, i) => i === promoteIdx ? { ...c, active: true, stage: "published" } : c));
       toast(`"${course.title}" is now live in the Catalog!`);
       setPromoteIdx(null);
-    } catch { toast('Failed to publish'); }
+    } catch (err) {
+      console.error("[Promote] exception:", err);
+      toast('Failed to publish');
+    } finally {
+      console.groupEnd();
+    }
   };
 
   // ── Unpublish (catalog → workspace as "unpublished") ─────────────────────
@@ -235,35 +235,62 @@ export function useCourseCatalog({
   const confirmUnpublish = async () => {
     if (unpublishIdx === null) return;
     const course = courses[unpublishIdx];
+    console.group("[Unpublish] confirmUnpublish course:" + course?.title + " id:" + course?.id);
     try {
-      if (course.id) await api.courses.update(course.id, { ...course, active: false, stage: "unpublished" });
+      if (course.id) {
+        console.log("[Unpublish] calling update id:", course.id, "stage -> unpublished");
+        const res = await api.courses.update(course.id, { ...course, active: false, stage: "unpublished" });
+        console.log("[Unpublish] API response:", res);
+      } else {
+        console.warn("[Unpublish] no course.id — local state only");
+      }
       setCourses(prev => prev.map((c, i) => i === unpublishIdx ? { ...c, active: false, stage: "unpublished" } : c));
       toast(`"${course.title}" moved back to Workspace.`);
       setUnpublishIdx(null);
-    } catch { toast('Failed to unpublish'); }
+    } catch (err) {
+      console.error("[Unpublish] exception:", err);
+      toast('Failed to unpublish');
+    } finally {
+      console.groupEnd();
+    }
   };
 
   // ── Clone template → new draft ───────────────────────────────────────────
   const cloneTemplate = async (idx: number) => {
     const course = courses[idx];
-    if (!course.id) { toast('Cannot clone: no ID'); return; }
+    console.group("[Clone] cloneTemplate idx:" + idx + " course:" + course?.title + " id:" + course?.id);
+    if (!course.id) {
+      console.error("[Clone] no course.id — cannot clone");
+      toast('Cannot clone: no ID');
+      console.groupEnd();
+      return;
+    }
     setCloningIdx(idx);
     try {
+      console.log("[Clone] calling clone id:", course.id);
       const res = await api.courses.clone(course.id);
+      console.log("[Clone] API response:", res);
       if (res.success && res.data) {
         const newCourse = res.data.course ?? { ...course, id: res.data.id, title: course.title + ' (Copy)', stage: 'draft', active: false };
+        console.log("[Clone] new course to add:", newCourse);
         setCourses(prev => [...prev, newCourse]);
         toast(`"${newCourse.title}" created as a Draft in Workspace.`);
       } else {
+        console.error("[Clone] failed:", res.error);
         toast(`Error: ${res.error || 'Clone failed'}`);
       }
-    } catch { toast('Failed to clone template'); }
-    finally { setCloningIdx(null); }
+    } catch (err) {
+      console.error("[Clone] exception:", err);
+      toast('Failed to clone template');
+    } finally {
+      setCloningIdx(null);
+      console.groupEnd();
+    }
   };
 
-  // ── Delete (name-confirmation, available from Workspace + Templates) ──────
-  const handleDelete = (idx: number) => { setDeleteTyped(""); setDeleteIdx(idx); setDeleteConfirmOpen(true); };
-  const cancelDelete = () => { setDeleteConfirmOpen(false); setDeleteIdx(null); setDeleteTyped(""); };
+  // ── Delete ────────────────────────────────────────────────────────────────
+  const handleDelete  = (idx: number) => { setDeleteTyped(""); setDeleteIdx(idx); setDeleteConfirmOpen(true); };
+  const cancelDelete  = () => { setDeleteConfirmOpen(false); setDeleteIdx(null); setDeleteTyped(""); };
   const confirmDelete = async () => {
     if (deleteIdx === null) return;
     const course = courses[deleteIdx];
@@ -281,18 +308,19 @@ export function useCourseCatalog({
     } catch { toast('Failed to delete'); }
   };
 
-  // ── Modules ───────────────────────────────────────────────────────────────
+  // Modules
   const handleModSave = async (idx: number, modules: Module[]) => {
     const course = courses[idx];
+    // Update state immediately so UI reflects changes
     setCourses(prev => prev.map((c, i) => i === idx ? { ...c, modules } : c));
     try {
-      if (course.id) {
-        const res = await api.courses.updateModules(course.id, modules);
-        toast(res.success ? 'Modules updated' : `Error: ${res.error}`);
-      }
-    } catch { toast('Failed to save modules'); }
+      if (!course.id) { toast('Modules saved locally (no server ID)'); return; }
+      const res = await api.courses.updateModules(course.id, modules);
+      toast(res.success ? 'Modules saved' : `Error: ${res.error}`);
+    } catch {
+      toast('Failed to save modules');
+    }
   };
-
   const handleCourseProgress = async (courseIdx: number, percent: number, timeSpent: number) => {
     const course = courses[courseIdx];
     if (!course?.id) return;
@@ -321,7 +349,28 @@ export function useCourseCatalog({
 
   const openViewer  = (idx: number) => onOpenCourse(idx);
   const openEdit    = (idx: number) => { setEditIdx(idx);  setEditOpen(true); };
-  const openModules = (idx: number) => { setModIdx(idx);   setModOpen(true); };
+
+  // FIX: fetch modules from server before opening the modal.
+  // Without this, after a refresh the course has modules:[] in local state
+  // (because getAll() intentionally returns empty modules for performance),
+  // so the modal always opened empty and any edits overwrote real DB data with [].
+  const openModules = async (idx: number) => {
+    const course = courses[idx];
+    if (course.id) {
+      try {
+        const res = await api.courses.getById(course.id);
+        if (res.success && res.data) {
+          // Hydrate local state with real modules from DB before opening
+          setCourses(prev => prev.map((c, i) =>
+            i === idx ? { ...c, modules: res.data!.modules ?? [] } : c
+          ));
+        }
+      } catch { /* non-fatal — open with whatever state we have */ }
+    }
+    setModIdx(idx);
+    setModOpen(true);
+  };
+
   const closeEdit   = () => { setEditOpen(false); setEditIdx(null); };
   const closeMod    = () => { setModOpen(false);  setModIdx(null); };
 

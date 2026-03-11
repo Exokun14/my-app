@@ -15,7 +15,7 @@
 
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 import {
   Client, StatsBarData, LicenseItem, LicPeriod,
@@ -58,6 +58,59 @@ interface DashboardAdminProps {
 
 /* ── View type ── */
 type AdminView = 'overview' | 'learning';
+
+/* ─── AppShell ──────────────────────────────────────────────────────────────
+   Extracted from DashboardAdmin.renderShell to be a stable component reference.
+   Previously defined as an inline `const` inside the component body, which
+   caused React to unmount/remount children (including AdminLearningDashboard)
+   on every parent re-render — triggering duplicate API fetches.
+   ─────────────────────────────────────────────────────────────────────────── */
+interface AppShellProps {
+  activePage:   string;
+  children:     React.ReactNode;
+  onNavigate:   (view: string) => void;
+  onLogout?:    () => void;
+  headerUser:   ReturnType<typeof useAuthUser>['headerUser'];
+}
+
+function AppShell({ activePage, children, onNavigate, onLogout, headerUser }: AppShellProps) {
+  // FIX: inject styles via useEffect so SSR and client render the same initial
+  // HTML, avoiding the hydration mismatch caused by dangerouslySetInnerHTML
+  // differing between server (login page styles) and client (dashboard styles).
+  useEffect(() => {
+    const id = 'dashboard-global-styles';
+    if (document.getElementById(id)) return;
+    const el = document.createElement('style');
+    el.id = id;
+    el.textContent = GLOBAL_STYLES;
+    document.head.appendChild(el);
+    return () => { document.getElementById(id)?.remove(); };
+  }, []);
+
+  return (
+    <>
+      {/* Sidebar: onNavigate drives view switching; onLogout from root page.tsx */}
+      <Sidebar
+        activePage={activePage}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+      />
+
+      <div
+        style={{ marginLeft: 'var(--gxh-sw, 220px)', marginTop: 54 }}
+        className="flex flex-col min-h-screen transition-[margin-left] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+      >
+        {/* Header: real user from API; onLogout from root page.tsx */}
+        <Header
+          user={headerUser}
+          onLogout={onLogout}
+        />
+
+        {children}
+      </div>
+    </>
+  );
+}
 
 export default function DashboardAdmin({ onClientSelect, onLogout }: DashboardAdminProps) {
 
@@ -133,43 +186,29 @@ export default function DashboardAdmin({ onClientSelect, onLogout }: DashboardAd
      Shared chrome: Sidebar + Header always rendered the same
      way regardless of which content view is active.
   ──────────────────────────────────────────────────────── */
-  const renderShell = (activePage: string, children: React.ReactNode) => (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: GLOBAL_STYLES }} />
-
-      {/* Sidebar: onNavigate drives view switching; onLogout from root page.tsx */}
-      <Sidebar
-        activePage={activePage}
-        onNavigate={handleNavigate}
-        onLogout={onLogout}
-      />
-
-      <div
-        style={{ marginLeft: 'var(--gxh-sw, 220px)', marginTop: 54 }}
-        className="flex flex-col min-h-screen transition-[margin-left] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-      >
-        {/* Header: real user from API; onLogout from root page.tsx */}
-        <Header
-          user={headerUser}
-          onLogout={onLogout}
-        />
-
-        {children}
-      </div>
-    </>
-  );
 
   /* ── Learning Center view ── */
   if (currentView === 'learning') {
-    return renderShell(
-      'learning',
-      <AdminLearningDashboard onBack={() => setCurrentView('overview')} />,
-    );
+    return (
+    <AppShell
+      activePage="learning"
+      onNavigate={handleNavigate}
+      onLogout={onLogout}
+      headerUser={headerUser}
+    >
+      <AdminLearningDashboard onBack={() => setCurrentView('overview')} />
+    </AppShell>
+  );
   }
 
   /* ── Company Database view (default) ── */
-  return renderShell(
-    'customers',
+  return (
+    <AppShell
+      activePage="customers"
+      onNavigate={handleNavigate}
+      onLogout={onLogout}
+      headerUser={headerUser}
+    >
     <>
       <div
         className="fixed inset-0 z-0 pointer-events-none"
@@ -317,6 +356,7 @@ export default function DashboardAdmin({ onClientSelect, onLogout }: DashboardAd
         <span>{toastMsg}</span>
       </div>
     </>,
+    </AppShell>
   );
 }
 

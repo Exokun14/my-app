@@ -13,6 +13,10 @@ import {
   THUMB_GRADIENTS, THUMB_PATTERNS, CAT_ICONS, CARD_STYLES,
   computeReadiness, getCourseStage, stageBadge,
 } from "../Logic/CourseCatalogLogic";
+
+import { usePublishGuard } from "../Logic/CoursePublishLogic";
+import api from "../../Services/api.service";
+
 import "../../globals.css";
 
 const DESIGN = `
@@ -55,14 +59,12 @@ const DESIGN = `
     box-shadow:0 2px 8px rgba(109,40,217,0.05);
     transition:box-shadow .2s,border-color .2s,transform .2s;
     will-change:transform;
-    /* Reserve space so translateY never shifts siblings */
     margin-bottom:0;
   }
   .ws-row:hover {
     border-color:rgba(109,40,217,0.22);
     box-shadow:0 6px 24px rgba(109,40,217,0.14);
     transform:translateY(-2px);
-    /* Pull the gap back so the next row doesnt move */
     margin-bottom:-2px;
   }
   .ws-spine {
@@ -118,14 +120,16 @@ const DESIGN = `
   .tpl-cloning { animation:tpl-spin 0.9s linear infinite; display:inline-block; }
 
   /* ── Overflow menu ─────────────────────────────────────────── */
-  @keyframes ov-in { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+  @keyframes ov-in-down { from{opacity:0;transform:translateY(4px)}  to{opacity:1;transform:none} }
+  @keyframes ov-in-up   { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
   .ov-menu {
     position:fixed; background:#fff;
     border:1.5px solid rgba(109,40,217,0.12); border-radius:12px;
     box-shadow:0 8px 32px rgba(109,40,217,0.18);
-    min-width:180px; padding:4px; z-index:9999;
-    animation:ov-in .14s ease both;
+    min-width:196px; padding:4px; z-index:9999;
   }
+  .ov-menu.ov-down { animation:ov-in-down .14s ease both; transform-origin:top right; }
+  .ov-menu.ov-up   { animation:ov-in-up   .14s ease both; transform-origin:bottom right; }
   .ov-item { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:7px; font-size:11.5px; font-weight:500; cursor:pointer; color:#18103a; transition:background .12s; border:none; background:transparent; font-family:'DM Sans',sans-serif; width:100%; text-align:left; white-space:nowrap; }
   .ov-item:hover { background:rgba(109,40,217,0.07); }
   .ov-item.tpl { color:#0369a1; }
@@ -141,14 +145,19 @@ const DESIGN = `
   .search-box input { border:none; outline:none; background:transparent; font-size:12px; font-family:'DM Sans',sans-serif; color:#18103a; width:155px; }
   .search-box input::placeholder { color:#c4b9e8; }
 
-  /* ── Save as Template confirm modal ───────────────────────── */
   @keyframes sat-in { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
 `;
+
+// FIX: add modulesHydrated to props so usePublishGuard can be gated
+interface CourseCatalogExtendedProps extends CourseCatalogProps {
+  modulesHydrated?: boolean;
+}
 
 export default function CourseCatalog({
   courses, setCourses, categories, setCategories, toast, onOpenCourse,
   publishedActivities,
-}: CourseCatalogProps) {
+  modulesHydrated = false,
+}: CourseCatalogExtendedProps) {
   const {
     activeView, setActiveView,
     search, setSearch,
@@ -167,55 +176,102 @@ export default function CourseCatalog({
     cloneTemplate,
   } = useCourseCatalog({ courses, setCourses, toast, onOpenCourse });
 
+  // FIX: pass modulesHydrated so the guard doesn't fire before modules are loaded
+  usePublishGuard(courses, setCourses, toast, modulesHydrated);
+
   const [saving,             setSaving]             = useState(false);
   const [savingMsg,          setSavingMsg]           = useState("Saving...");
   const [enrollWizardOpen,   setEnrollWizardOpen]   = useState(false);
   const [enrollTargetCourse, setEnrollTargetCourse] = useState<typeof courses[0] | null>(null);
   const [overflowOpenIdx,    setOverflowOpenIdx]    = useState<number | null>(null);
-  const [overflowPos,        setOverflowPos]        = useState<{top:number;left:number} | null>(null);
+  const [overflowPos,        setOverflowPos]        = useState<{top:number;left:number;openAbove?:boolean} | null>(null);
   const [moduleLoadingIdx,   setModuleLoadingIdx]   = useState<number | null>(null);
+  const [saveAsTplIdx,       setSaveAsTplIdx]       = useState<number | null>(null);
+  const [savingAsTpl,        setSavingAsTpl]        = useState(false);
 
-  // ── Save as Template state ──────────────────────────────────────────────────
-  const [saveAsTplIdx,  setSaveAsTplIdx]  = useState<number | null>(null);
-  const [savingAsTpl,   setSavingAsTpl]   = useState(false);
-
-  const withLoader = (msg: string, fn: () => void, duration = 1000) => {
+  const withLoader = (msg: string, fn: () => Promise<void> | void, duration = 1000) => {
+    console.log("[withLoader] 🔵 Starting:", msg);
     setSavingMsg(msg); setSaving(true);
-    setTimeout(() => { fn(); setTimeout(() => setSaving(false), duration); }, 400);
+    setTimeout(async () => {
+      try {
+        await fn();
+        console.log("[withLoader] ✅ Done:", msg);
+      } catch (err) {
+        console.error("[withLoader] ❌ Unhandled error in:", msg, err);
+      }
+      setTimeout(() => setSaving(false), duration);
+    }, 400);
   };
 
-  // ── Menu open helper ─────────────────────────────────────────────────────
-  // getBoundingClientRect() always returns true viewport coords regardless of
-  // any CSS transform on ancestors — safe inside the swipe track.
   const openMenu = (e: React.MouseEvent<HTMLElement>, idx: number) => {
     e.stopPropagation();
     if (overflowOpenIdx === idx) { setOverflowOpenIdx(null); setOverflowPos(null); return; }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const menuWidth = 188;
+    const menuWidth  = 196;
+    const menuHeight = 200;
     const left = Math.max(8, rect.right - menuWidth);
-    setOverflowPos({ top: rect.bottom + 6, left });
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openAbove  = spaceBelow < menuHeight + 8;
+    const top = openAbove ? rect.top - 6 : rect.bottom + 6;
+    setOverflowPos({ top, left, openAbove });
     setOverflowOpenIdx(idx);
   };
 
   const closeMenu = () => { setOverflowOpenIdx(null); setOverflowPos(null); };
 
-  // ── Save as Template handler ────────────────────────────────────────────────
   const handleSaveAsTemplate = (idx: number) => {
+    console.log("[SaveAsTemplate] 🖱 Menu clicked — idx:", idx, "| course:", courses[idx]?.title, "| id:", courses[idx]?.id, "| stage:", courses[idx]?.stage);
     setSaveAsTplIdx(idx);
     closeMenu();
   };
 
-  const confirmSaveAsTemplate = () => {
-    if (saveAsTplIdx === null) return;
+  const confirmSaveAsTemplate = async () => {
+    console.group("[SaveAsTemplate] ── confirmSaveAsTemplate");
+
+    if (saveAsTplIdx === null) {
+      console.warn("[SaveAsTemplate] ❌ Aborted — saveAsTplIdx is null");
+      console.groupEnd();
+      return;
+    }
+
+    const c = courses[saveAsTplIdx];
+    console.log("[SaveAsTemplate] 📋 Course object:", c);
+    console.log("[SaveAsTemplate] 📋 saveAsTplIdx:", saveAsTplIdx);
+    console.log("[SaveAsTemplate] 📋 course.id:", c?.id);
+    console.log("[SaveAsTemplate] 📋 course.stage (before):", c?.stage);
+
+    if (!c.id) {
+      console.error("[SaveAsTemplate] ❌ course.id is missing — cannot call API.");
+      toast("Cannot save as template: course has no server ID.");
+      console.groupEnd();
+      return;
+    }
+
     setSavingAsTpl(true);
-    setTimeout(() => {
-      setCourses((prev: typeof courses) => prev.map((c, i) =>
-        i === saveAsTplIdx ? { ...c, stage: "template" as any, active: false } : c
-      ));
+    console.log("[SaveAsTemplate] 🔵 Calling api.courses.update(", c.id, ", { stage: 'template', active: false })");
+
+    try {
+      const r = await api.courses.update(c.id, { stage: "template", active: false });
+      console.log("[SaveAsTemplate] 📥 API response:", r);
+
+      if (r.success) {
+        console.log("[SaveAsTemplate] ✅ API success — updating local state");
+        setCourses((prev: typeof courses) => prev.map((cur, i) =>
+          i === saveAsTplIdx ? { ...cur, stage: "template" as any, active: false } : cur
+        ));
+        toast("Course saved as Template — find it in the Templates tab.");
+      } else {
+        console.error("[SaveAsTemplate] ❌ API returned success:false —", r.error);
+        toast(`Error: ${r.error || "Failed to save as template"}`);
+      }
+    } catch (err) {
+      console.error("[SaveAsTemplate] ❌ Exception thrown during API call:", err);
+      toast("Failed to save as template — server error.");
+    } finally {
       setSavingAsTpl(false);
       setSaveAsTplIdx(null);
-      toast("Course saved as Template — find it in the Templates tab.");
-    }, 600);
+      console.groupEnd();
+    }
   };
 
   const heroIdx = (() => {
@@ -286,18 +342,14 @@ export default function CourseCatalog({
             <span className="vtab-sub">Blueprints</span>
           </button>
         </div>
-
         <div style={{ flex:1 }} />
-
         <div className="search-box">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M11 11l3 3"/></svg>
           <input type="text" placeholder={`Search ${activeView}…`} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════════════════
-          WORKSPACE VIEW
-      ════════════════════════════════════════════════════════════════════ */}
+      {/* ════ WORKSPACE VIEW ════ */}
       {activeView === "workspace" && (
         <>
           <div className="sf-bar">
@@ -323,7 +375,7 @@ export default function CourseCatalog({
                 const realIdx = courses.indexOf(c);
                 const stage   = getCourseStage(c);
                 const badge   = stageBadge(stage);
-                const { score, canPromote, checks } = computeReadiness(c);
+                const { score, canPublish, checks } = computeReadiness(c);
                 const modCount    = c.modules?.length ?? 0;
                 const chCount     = c.modules?.reduce((s, m) => s + m.chapters.length, 0) ?? 0;
                 const missingHard = checks.filter(ch => !ch.ok && !ch.warn).map(ch => ch.label);
@@ -375,21 +427,21 @@ export default function CourseCatalog({
 
                       {/* Actions */}
                       <div style={{ display:"flex", gap:5, alignItems:"center", flexShrink:0 }} onClick={e => e.stopPropagation()}>
+                        {canPublish && (
+                          <button className="ws-btn-promote" onClick={() => openPromote(realIdx)}>
+                            <svg width="9" height="9" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M7 1v8M4 6l3-5 3 5M3 11h8"/></svg>
+                            Publish
+                          </button>
+                        )}
+
                         <button className="ws-btn-mod" onClick={() => withLoader("Loading modules...", () => openModules(realIdx), 800)}>
                           <svg width="9" height="9" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg>
                           Modules
                         </button>
 
-                        {canPromote ? (
-                          <button className="ws-btn-promote" onClick={() => openPromote(realIdx)}>
-                            <svg width="9" height="9" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M7 1v8M4 6l3-5 3 5M3 11h8"/></svg>
-                            Promote
-                          </button>
-                        ) : (
-                          <button className="ws-btn-edit" onClick={() => withLoader("Loading editor...", () => openEdit(realIdx), 800)}>
-                            <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z"/></svg>
-                          </button>
-                        )}
+                        <button className="ws-btn-edit" onClick={() => withLoader("Loading editor...", () => openEdit(realIdx), 800)}>
+                          <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z"/></svg>
+                        </button>
 
                         <button className="ws-btn-more" onClick={e => openMenu(e, realIdx)}>⋯</button>
                       </div>
@@ -402,9 +454,7 @@ export default function CourseCatalog({
         </>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════
-          CATALOG VIEW
-      ════════════════════════════════════════════════════════════════════ */}
+      {/* ════ CATALOG VIEW ════ */}
       {activeView === "catalog" && (
         <>
           <div className="sf-bar">
@@ -517,9 +567,7 @@ export default function CourseCatalog({
         </>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════
-          TEMPLATES VIEW
-      ════════════════════════════════════════════════════════════════════ */}
+      {/* ════ TEMPLATES VIEW ════ */}
       {activeView === "templates" && (
         <>
           <div style={{ padding:"11px 16px", borderRadius:12, background:"rgba(14,165,233,0.06)", border:"1.5px solid rgba(14,165,233,0.18)", marginBottom:16, display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
@@ -599,28 +647,39 @@ export default function CourseCatalog({
       {/* ════ PROMOTE MODAL ════ */}
       {promoteIdx !== null && (() => {
         const c = courses[promoteIdx];
-        const { score, checks } = computeReadiness(c);
-        const passed   = checks.filter(ch => ch.ok);
-        const warnings = checks.filter(ch => !ch.ok && ch.warn);
+        const { score, checks, blocking, warnings, canPublish } = computeReadiness(c);
+        const passed = checks.filter(ch => ch.ok);
         return (
           <div style={{ position:"fixed", inset:0, zIndex:3500, background:"rgba(18,10,40,0.72)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center" }}>
             <style>{`@keyframes pm-in { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }`}</style>
             <div style={{ background:"#fff", borderRadius:20, width:"min(520px,94vw)", maxHeight:"80vh", overflow:"auto", animation:"pm-in .2s ease both", boxShadow:"0 32px 80px rgba(18,10,40,0.35)" }}>
               <div style={{ background:"linear-gradient(135deg,#1e1245,#4c1d95 60%,#064e3b)", padding:"22px 26px 20px", borderRadius:"18px 18px 0 0" }}>
-                <div style={{ fontSize:18, fontWeight:900, color:"#fff", letterSpacing:"-.02em" }}>Promote to Catalog</div>
+                <div style={{ fontSize:18, fontWeight:900, color:"#fff", letterSpacing:"-.02em" }}>Publish to Catalog</div>
                 <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginTop:4 }}>{c?.title}</div>
               </div>
               <div style={{ padding:"22px 26px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20, padding:"14px 16px", borderRadius:12, background:`${score>=100?"rgba(13,148,136,0.07)":"rgba(217,119,6,0.06)"}`, border:`1.5px solid ${score>=100?"rgba(13,148,136,0.2)":"rgba(217,119,6,0.2)"}` }}>
-                  <div style={{ fontSize:28, fontWeight:900, color:score>=100?"#0d9488":"#d97706", letterSpacing:"-.04em" }}>{score}%</div>
+                <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20, padding:"14px 16px", borderRadius:12, background:`${canPublish ? "rgba(13,148,136,0.07)" : "rgba(220,38,38,0.06)"}`, border:`1.5px solid ${canPublish ? "rgba(13,148,136,0.2)" : "rgba(220,38,38,0.2)"}` }}>
+                  <div style={{ fontSize:28, fontWeight:900, color:canPublish ? "#0d9488" : "#dc2626", letterSpacing:"-.04em" }}>{score}%</div>
                   <div>
-                    <div style={{ fontSize:12.5, fontWeight:700, color:"#18103a" }}>{score>=100?"Ready to publish!":"Almost ready"}</div>
+                    <div style={{ fontSize:12.5, fontWeight:700, color:"#18103a" }}>{canPublish ? "Ready to publish!" : "Not ready to publish"}</div>
                     <div style={{ fontSize:11, color:"#8e7ec0", marginTop:2 }}>{passed.length}/{checks.length} requirements met</div>
                   </div>
                 </div>
+                {blocking.length > 0 && (
+                  <div style={{ marginBottom:16, padding:"12px 14px", borderRadius:10, background:"rgba(220,38,38,0.05)", border:"1.5px solid rgba(220,38,38,0.18)" }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#dc2626", textTransform:"uppercase", letterSpacing:".06em", marginBottom:8 }}>Required before publishing</div>
+                    {blocking.map((ch, i) => (
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 0", borderBottom: i < blocking.length - 1 ? "1px solid rgba(220,38,38,0.08)" : "none" }}>
+                        <span style={{ color:"#dc2626", fontSize:13, flexShrink:0 }}>✕</span>
+                        <span style={{ fontSize:12, color:"#4a3870", fontWeight:600 }}>{ch.label}</span>
+                        <span style={{ fontSize:11, color:"#dc2626", marginLeft:"auto" }}>{ch.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {warnings.length > 0 && (
                   <div style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:11, fontWeight:700, color:"#92400e", textTransform:"uppercase" as const, letterSpacing:".06em", marginBottom:8 }}>Warnings</div>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#92400e", textTransform:"uppercase", letterSpacing:".06em", marginBottom:8 }}>Warnings</div>
                     {warnings.map((ch, i) => (
                       <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:"1px solid rgba(109,40,217,0.06)" }}>
                         <span style={{ color:"#d97706", fontSize:12 }}>⚠</span>
@@ -631,8 +690,12 @@ export default function CourseCatalog({
                 )}
                 <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:20 }}>
                   <button onClick={cancelPromote} style={{ padding:"9px 18px", borderRadius:9, border:"1.5px solid rgba(109,40,217,0.15)", background:"transparent", color:"#4a3870", fontSize:12.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-                  <button onClick={confirmPromote} style={{ padding:"9px 22px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 16px rgba(124,58,237,0.35)" }}>
-                    Publish to Catalog →
+                  <button
+                    onClick={confirmPromote}
+                    disabled={!canPublish}
+                    title={!canPublish ? `Fix required fields first: ${blocking.map(b => b.label).join(", ")}` : undefined}
+                    style={{ padding:"9px 22px", borderRadius:9, border:"none", background: canPublish ? "linear-gradient(135deg,#7c3aed,#0d9488)" : "rgba(109,40,217,0.2)", color: canPublish ? "#fff" : "#a594d4", fontSize:12.5, fontWeight:700, cursor: canPublish ? "pointer" : "not-allowed", fontFamily:"inherit", boxShadow: canPublish ? "0 4px 16px rgba(124,58,237,0.35)" : "none", transition:"all .15s" }}>
+                    {canPublish ? "Publish to Catalog →" : "Complete required fields first"}
                   </button>
                 </div>
               </div>
@@ -701,7 +764,6 @@ export default function CourseCatalog({
           <div style={{ position:"fixed", inset:0, zIndex:3500, background:"rgba(18,10,40,0.72)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center" }}>
             <style>{`@keyframes sat-in { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }`}</style>
             <div style={{ background:"#fff", borderRadius:20, width:"min(440px,94vw)", animation:"sat-in .2s ease both", boxShadow:"0 32px 80px rgba(18,10,40,0.35)", overflow:"hidden" }}>
-              {/* Header */}
               <div style={{ background:"linear-gradient(135deg,#0c4a6e,#0ea5e9 70%,#0369a1)", padding:"22px 26px 20px" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <div style={{ width:36, height:36, borderRadius:10, background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📋</div>
@@ -711,7 +773,6 @@ export default function CourseCatalog({
                   </div>
                 </div>
               </div>
-              {/* Body */}
               <div style={{ padding:"22px 26px" }}>
                 <div style={{ padding:"13px 15px", borderRadius:12, background:"rgba(14,165,233,0.06)", border:"1.5px solid rgba(14,165,233,0.18)", marginBottom:18 }}>
                   <div style={{ fontSize:12.5, color:"#0369a1", lineHeight:1.6 }}>
@@ -725,14 +786,8 @@ export default function CourseCatalog({
                   </span>
                 </div>
                 <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-                  <button
-                    onClick={() => setSaveAsTplIdx(null)}
-                    style={{ padding:"9px 18px", borderRadius:9, border:"1.5px solid rgba(109,40,217,0.15)", background:"transparent", color:"#4a3870", fontSize:12.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmSaveAsTemplate}
-                    disabled={savingAsTpl}
+                  <button onClick={() => setSaveAsTplIdx(null)} style={{ padding:"9px 18px", borderRadius:9, border:"1.5px solid rgba(109,40,217,0.15)", background:"transparent", color:"#4a3870", fontSize:12.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                  <button onClick={confirmSaveAsTemplate} disabled={savingAsTpl}
                     style={{ padding:"9px 22px", borderRadius:9, border:"none", background: savingAsTpl ? "rgba(14,165,233,0.4)" : "linear-gradient(135deg,#0ea5e9,#0284c7)", color:"#fff", fontSize:12.5, fontWeight:700, cursor: savingAsTpl ? "wait" : "pointer", fontFamily:"inherit", boxShadow:"0 4px 16px rgba(14,165,233,0.3)", display:"flex", alignItems:"center", gap:6 }}>
                     {savingAsTpl
                       ? <><span style={{ display:"inline-block", animation:"tpl-spin .8s linear infinite" }}>⟳</span> Saving…</>
@@ -772,54 +827,60 @@ export default function CourseCatalog({
         );
       })()}
 
-      {/* ── Overflow menu — rendered via portal to escape swipe-track transform ── */}
+      {/* ── Overflow menu portal ── */}
       {overflowOpenIdx !== null && overflowPos !== null && typeof document !== "undefined" && createPortal((() => {
-        const c = courses[overflowOpenIdx];
+        const menuIdx = overflowOpenIdx;
+        const c = courses[menuIdx];
         const stage = getCourseStage(c);
         const isWs = stage==="draft"||stage==="review_ready"||stage==="unpublished";
         const isTemplate = stage==="template";
-        const { canPromote } = computeReadiness(c);
+        const { canPublish } = computeReadiness(c);
         return (
           <>
             <div style={{ position:"fixed", inset:0, zIndex:9998 }} onClick={closeMenu} />
-            <div className="ov-menu" style={{ position:"fixed", top:overflowPos.top, left:overflowPos.left }} onClick={e => e.stopPropagation()}>
+            <div className={`ov-menu ${overflowPos.openAbove ? "ov-up" : "ov-down"}`}
+              style={{
+                top: overflowPos.openAbove ? undefined : overflowPos.top,
+                bottom: overflowPos.openAbove ? window.innerHeight - overflowPos.top : undefined,
+                left: overflowPos.left,
+              }}
+              onClick={e => e.stopPropagation()}>
               {isWs && <>
-                <button className="ov-item" onClick={() => { closeMenu(); withLoader("Loading editor...", () => openEdit(overflowOpenIdx), 800); }}>
+                <button className="ov-item" onClick={() => { closeMenu(); withLoader("Loading editor...", () => openEdit(menuIdx), 800); }}>
                   <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z"/></svg>
                   Edit details
                 </button>
-                <button className="ov-item" onClick={() => { closeMenu(); withLoader("Loading modules...", () => openModules(overflowOpenIdx), 800); }}>
+                <button className="ov-item" onClick={() => { closeMenu(); withLoader("Loading modules...", () => openModules(menuIdx), 800); }}>
                   <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg>
                   Edit modules
                 </button>
-                {canPromote && (
-                  <button className="ov-item" onClick={() => { closeMenu(); openPromote(overflowOpenIdx); }}>
-                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 1v8M4 6l3-5 3 5M3 11h8"/></svg>
-                    Promote to Catalog
+                {canPublish && (
+                  <button className="ov-item" style={{ color:"#7c3aed", fontWeight:700 }} onClick={() => { closeMenu(); openPromote(menuIdx); }}>
+                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M7 1v8M4 6l3-5 3 5M3 11h8"/></svg>
+                    Publish to Catalog
                   </button>
                 )}
-                <button className="ov-item" onClick={() => { closeMenu(); cloneTemplate(overflowOpenIdx); }}>
+                <button className="ov-item" onClick={() => { closeMenu(); cloneTemplate(menuIdx); }}>
                   <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V2h8"/></svg>
                   Clone course
                 </button>
-                {/* ── Save as Template — new ── */}
-                <button className="ov-item tpl" onClick={() => handleSaveAsTemplate(overflowOpenIdx)}>
+                <button className="ov-item tpl" onClick={() => handleSaveAsTemplate(menuIdx)}>
                   <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1.5" y="1.5" width="11" height="11" rx="2"/><path d="M4 5h6M4 7h6M4 9h4"/></svg>
                   Save as Template
                 </button>
               </>}
               {isTemplate && <>
-                <button className="ov-item" onClick={() => { closeMenu(); withLoader("Loading editor...", () => openEdit(overflowOpenIdx), 800); }}>
+                <button className="ov-item" onClick={() => { closeMenu(); withLoader("Loading editor...", () => openEdit(menuIdx), 800); }}>
                   <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z"/></svg>
                   Edit template
                 </button>
-                <button className="ov-item" onClick={() => { closeMenu(); cloneTemplate(overflowOpenIdx); }}>
+                <button className="ov-item" onClick={() => { closeMenu(); cloneTemplate(menuIdx); }}>
                   <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M2 10V2h8"/></svg>
                   Clone to Workspace
                 </button>
               </>}
               <div className="ov-sep" />
-              <button className="ov-item danger" onClick={() => { closeMenu(); handleDelete(overflowOpenIdx); }}>
+              <button className="ov-item danger" onClick={() => { closeMenu(); handleDelete(menuIdx); }}>
                 <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 3.5h10M5 3.5V2h4v1.5M5.5 6v4M8.5 6v4M3 3.5l.7 8h6.6l.7-8"/></svg>
                 Delete {isTemplate ? "template" : "course"}
               </button>

@@ -201,7 +201,7 @@ export default function InitialLoader({ onComplete, stage = 'courses' }: Initial
         @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
 
         .il-root {
-          position: fixed; inset: 0; z-index: 200;
+            position: fixed; inset: 0; z-index: 900;
           display: flex; flex-direction: column;
           align-items: center; justify-content: center;
           background: #fafaf9; overflow: hidden;
@@ -213,7 +213,7 @@ export default function InitialLoader({ onComplete, stage = 'courses' }: Initial
            This means it is NOT affected when we fade .il-root's content.
            It flies away independently, revealing the dashboard behind it. */
         .il-shard-layer {
-          position: fixed; inset: 0; z-index: 201; pointer-events: none;
+          position: fixed; inset: 0; z-index: 901; pointer-events: none;
         }
         .il-shard {
           position: absolute;
