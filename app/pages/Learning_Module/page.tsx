@@ -51,12 +51,14 @@ async function loadDataFromAPI() {
   }
 }
 
-export default function LearningCenter() {
-  const [appMode, setAppMode] = useState<'admin' | 'client'>('admin');
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // ── Wire this to your real auth role in production.
-  // Options: "admin" | "manager" | "client"
-  // A role switcher is rendered in the header when panel === 1 for easy testing.
+interface LearningCenterProps {
+  onBack?: () => void;  // called by Back to Dashboard button
+}
+
+export default function LearningCenter({ onBack }: LearningCenterProps) {
+  const [appMode, setAppMode] = useState<'admin' | 'client'>('admin');
   const [progressRole, setProgressRole] = useState<ProgressRole>("admin");
 
   const [panel, setPanel] = useState<number>(0);
@@ -106,14 +108,12 @@ export default function LearningCenter() {
         const courses = coursesResponse.success && coursesResponse.data && coursesResponse.data.length > 0
           ? coursesResponse.data : INITIAL_COURSES;
         setCourses(courses);
-        console.log('Loaded from API - Courses:', courses.length);
 
         setLoadStage('activities');
         const activitiesResponse = await api.activities.getAll();
         const activities = activitiesResponse.success && activitiesResponse.data && activitiesResponse.data.length > 0
           ? activitiesResponse.data : INITIAL_ACTIVITIES;
         setActivities(activities);
-        console.log('Loaded from API - Activities:', activities.length);
 
         setLoadStage('categories');
         const categoriesResponse = await api.settings.getCategories();
@@ -134,8 +134,6 @@ export default function LearningCenter() {
   }, []);
 
   const publishedActivities = activities.filter(a => a.status === "published");
-
-  const showInitialLoader = !loaderDone;
 
   // ── ACTIVITY HANDLERS ────────────────────────────────────────────────────────
   const handleActivitySave = async (activity: Activity, saveAs: "draft" | "published") => {
@@ -261,7 +259,6 @@ export default function LearningCenter() {
           time_spent: parseInt(String(safeTimeSpent), 10),
           completed:  isCompleted ? 1 : 0,
         };
-        console.log('📤 Sending progress payload:', JSON.stringify(payload), 'to course ID:', courseId);
         const response = await api.courses.updateProgress(courseId, payload);
         if (!response.success) { console.error('Failed to update progress:', response.error); }
       }
@@ -319,30 +316,20 @@ export default function LearningCenter() {
     setLoadingCourse(true);
     setServerLoading(true); setServerLoadingMsg("Opening course...");
     try {
-      console.log('🔵 Loading full course data for course ID:', course.id);
       const response = await api.courses.getFullCourse(course.id);
-
       if (response.success && response.data) {
-        console.log('✅ Loaded full course:', response.data);
-        response.data.modules?.forEach((mod: any, i: number) => {
-          console.log(`   Module ${i + 1}: ${mod.title} (${mod.chapters?.length || 0} chapters)`);
-        });
-
         if (!response.data.modules || response.data.modules.length === 0) {
           toast('⚠️ This course has no modules yet. Please add content first.');
           return;
         }
-
         setFullCourse(response.data);
         setViewerIdx(idx);
         setShowOverview(true);
         setViewerOpen(false);
       } else {
-        console.error('❌ Failed to load course:', response.error);
         toast(`Error loading course: ${response.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('❌ Exception loading course:', error);
       toast('Failed to load course from server');
     } finally {
       setLoadingCourse(false);
@@ -488,6 +475,8 @@ export default function LearningCenter() {
         .role-btn { padding:3px 9px; border-radius:5px; border:none; font-size:10px; font-weight:600; cursor:pointer; transition:all .15s; background:transparent; color:var(--t3); font-family:'DM Sans',sans-serif; letter-spacing:.02em; }
         .role-btn.active { background:var(--purple); color:#fff; box-shadow:0 1px 4px rgba(108,61,214,0.3); }
         .role-btn:not(.active):hover { color:var(--purple); }
+        .lc-back-btn { display:flex; align-items:center; gap:6px; padding:5px 12px 5px 9px; border-radius:8px; border:1px solid rgba(108,61,214,0.18); background:var(--surface); color:var(--t2); font-size:11px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .18s; flex-shrink:0; white-space:nowrap; }
+        .lc-back-btn:hover { background:var(--purple-lt); color:var(--purple); border-color:rgba(108,61,214,0.35); }
       `}</style>
 
       <div className="amb" />
@@ -495,6 +484,7 @@ export default function LearningCenter() {
 
         {/* ── Page Header ── */}
         <div className="ph">
+
           {appMode === 'admin' && (
             <>
               <h1 className="ph-title">Learning <em>Center</em></h1>
@@ -522,7 +512,6 @@ export default function LearningCenter() {
 
           {appMode === 'admin' && (
             <div className="ph-actions">
-              {/* Role switcher — visible on Client Progress panel for testing */}
               {panel === 1 && (
                 <div className="role-toggle">
                   {(["admin", "manager", "client"] as ProgressRole[]).map(r => (
@@ -563,10 +552,14 @@ export default function LearningCenter() {
                   <span style={{ fontSize:10, opacity:0.7 }}>Published</span>
                 </div>
               </div>
-              <button className="btn btn-s btn-sm" onClick={handleResetData} style={{ opacity:0.6 }}>
-                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 7a5 5 0 11-10 0 5 5 0 0110 0z"/><path d="M7 3v4l2 2"/></svg>
-                Reload
-              </button>
+              {onBack && (
+                <button className="lc-back-btn" onClick={onBack}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 2L4 6l4 4"/>
+                  </svg>
+                  Dashboard
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -584,7 +577,6 @@ export default function LearningCenter() {
                 />
               </div>
               <div className="swipe-panel" style={{ width:"100%" }}>
-                {/* role prop routes to AdminProgress / ManagerProgress / ClientLearnerProgress */}
                 <ClientProgress toast={toast} role={progressRole} />
               </div>
             </div>

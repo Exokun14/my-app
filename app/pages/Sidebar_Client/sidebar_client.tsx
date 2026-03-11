@@ -15,9 +15,10 @@ interface NavItem {
 }
 
 const CLIENT_PORTAL_NAV: NavItem[] = [
-  { label: "Overview", view: "overview", icon: "/icon-overview.png"          },
-  { label: "Tickets",  view: "tickets",  icon: "/icon-tickets.png",  badge: 8 },
-  { label: "Users",    view: "users",    icon: "/icon-users.png"             },
+  { label: "Overview",        view: "overview",        icon: "/icon-overview.png"          },
+  { label: "Tickets",         view: "tickets",         icon: "/icon-tickets.png",  badge: 8 },
+  { label: "Users",           view: "users",           icon: "/icon-users.png"             },
+  { label: "Learning Center", view: "learning",        icon: "/icon-learning.png"          },
 ];
 
 export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
@@ -34,7 +35,7 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
         {/* Brand */}
         <div className="gx-sb-brand">
           <img src="/geniex-logo.png" alt="genieX" className="gx-sb-logo" style={{ height: 35 }} />
-          {/* Burger Menu Toggle — no background, no shadow */}
+          {/* Burger Menu Toggle */}
           <button
             onClick={() => setCollapsed(c => !c)}
             title={collapsed ? "Expand" : "Collapse"}
