@@ -17,148 +17,66 @@ import RippleCanvas from "../../Effects/RippleCanvas";
 /* ── Laravel Fortify API ─────────────────────────────────── */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// ─── Debug helpers ────────────────────────────────────────
-function logOk(msg: string, data?: unknown)   { data !== undefined ? console.log(`%c✔ [Auth] ${msg}`, "color:#34d399", data)  : console.log(`%c✔ [Auth] ${msg}`, "color:#34d399");  }
-function logWarn(msg: string, data?: unknown) { data !== undefined ? console.warn(`%c⚠ [Auth] ${msg}`, "color:#fbbf24", data) : console.warn(`%c⚠ [Auth] ${msg}`, "color:#fbbf24"); }
-function logErr(msg: string, data?: unknown)  { data !== undefined ? console.error(`%c✖ [Auth] ${msg}`, "color:#f87171", data) : console.error(`%c✖ [Auth] ${msg}`, "color:#f87171"); }
-function logInfo(msg: string, data?: unknown) { data !== undefined ? console.log(`%c→ [Auth] ${msg}`, "color:#93c5fd", data)  : console.log(`%c→ [Auth] ${msg}`, "color:#93c5fd");  }
-
-function dumpCookies(label = "Cookie state") {
-  const all = document.cookie;
-  const hasXsrf    = /XSRF-TOKEN/.test(all);
-  const hasSession = /laravel_session|_session/.test(all);
-  logInfo(`${label} — all JS-visible cookies:`, all || "(none — either not set or all HttpOnly)");
-  if (!hasXsrf)    logWarn("XSRF-TOKEN not visible to JS → SameSite/domain/secure mismatch likely");
-  if (!hasSession) logInfo("Session cookie not visible to JS — normal if HttpOnly is true");
-}
-
 async function csrfCookie() {
-  console.group("%c[Auth] ── Step 1: Fetch CSRF cookie ──────────────────", "color:#a78bfa;font-weight:bold");
-  logInfo("Endpoint:", `${API_BASE}/sanctum/csrf-cookie`);
-  logInfo("Using credentials:include — browser must allow cross-origin cookies");
+  console.log("[Auth] Fetching CSRF cookie from:", `${API_BASE}/sanctum/csrf-cookie`);
   try {
-    const res = await fetch(`${API_BASE}/sanctum/csrf-cookie`, { credentials: "include" });
-    if (res.ok || res.status === 204) {
-      logOk(`CSRF cookie endpoint OK (HTTP ${res.status})`);
-    } else {
-      logWarn(`Unexpected status from /sanctum/csrf-cookie: ${res.status} — check CORS & Laravel is running`);
-    }
-    logInfo("Check Network tab → /sanctum/csrf-cookie → Response Headers → Set-Cookie");
-    dumpCookies("After CSRF fetch");
+    await fetch(`${API_BASE}/sanctum/csrf-cookie`, { credentials: "include" });
+    console.log("[Auth] CSRF cookie fetched successfully");
   } catch (err) {
-    logErr("CSRF fetch FAILED — is Sail up? Is CORS configured?", err);
-    logErr("Fix checklist:", ["sail up -d", `APP_URL=http://localhost:8000 in .env`, "supports_credentials=true in cors.php", "allowed_origins includes http://localhost:3000"]);
-    console.groupEnd();
+    console.error("[Auth] CSRF fetch FAILED — is Laravel running?", err);
     throw err;
   }
-  console.groupEnd();
 }
 
 function getXsrfToken(): string {
-  console.group("%c[Auth] ── Step 2: Read XSRF-TOKEN from cookie ────────", "color:#a78bfa;font-weight:bold");
   const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
   const token = match ? decodeURIComponent(match[1]) : "";
-  if (token) {
-    logOk("XSRF-TOKEN found: " + token.substring(0, 28) + "...");
-  } else {
-    logErr("XSRF-TOKEN NOT found — login will 419!");
-    logErr("Root causes:", [
-      "SESSION_SAME_SITE=lax blocks cross-port POST cookies → change to none",
-      "SESSION_DOMAIN mismatch → should be: localhost (no port)",
-      "SESSION_SECURE_COOKIE=true on plain HTTP → set to false",
-      "CORS supports_credentials not true",
-      "Cookie set on wrong domain/port by Laravel",
-    ]);
-    logInfo("Network tab check: /sanctum/csrf-cookie response must have 'Set-Cookie: XSRF-TOKEN=...' header");
-  }
-  console.groupEnd();
+  console.log("[Auth] XSRF Token found:", token ? "yes (" + token.substring(0, 20) + "...)" : "NO — cookie missing!");
   return token;
 }
 
 async function fortifyLogin(email: string, password: string, remember: boolean) {
-  console.group("%c[Auth] ── Step 3: POST /login ────────────────────────", "color:#a78bfa;font-weight:bold");
-  logInfo("Target:", `${API_BASE}/login`);
-  logInfo("Email:", email);
-
+  console.log("[Auth] Attempting login to:", `${API_BASE}/login`);
+  console.log("[Auth] Email:", email);
   await csrfCookie();
   const xsrfToken = getXsrfToken();
-
-  if (!xsrfToken) logWarn("Sending request with empty XSRF token — will almost certainly 419");
-
-  const headers = {
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-    "X-Requested-With": "XMLHttpRequest",
-    "X-XSRF-TOKEN": xsrfToken,
-  };
-  logInfo("Request headers:", headers);
-
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/login`, {
       method: "POST",
       credentials: "include",
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-XSRF-TOKEN": xsrfToken,
+      },
       body: JSON.stringify({ email, password, remember }),
     });
   } catch (err) {
-    logErr("Fetch threw — CORS preflight failure or network error", err);
-    logErr("Check Network tab for a failed OPTIONS preflight request");
-    console.groupEnd();
+    console.error("[Auth] Login fetch FAILED — CORS or network issue:", err);
     throw err;
   }
 
-  logInfo(`Response status: ${res.status}`);
-  logInfo("Response headers:", Object.fromEntries(res.headers.entries()));
+  console.log("[Auth] Login response status:", res.status);
 
-  if (res.status === 419) {
-    logErr("419 CSRF token mismatch — token was sent but Laravel rejected it");
-    logErr("Fix checklist:", [
-      "1. Set SESSION_SAME_SITE=none in .env",
-      "2. Set SESSION_SECURE_COOKIE=false in .env (none requires HTTPS in prod, false for local)",
-      "3. Set SESSION_DOMAIN=localhost in .env (no port number)",
-      "4. Set SANCTUM_STATEFUL_DOMAINS=localhost:3000 in .env",
-      "5. Run: sail artisan config:clear && sail artisan cache:clear",
-      "6. Hard-refresh browser and try again",
-    ]);
-    dumpCookies("Cookie state at 419");
-    console.groupEnd();
-    throw new Error("CSRF token mismatch (419). See console for fix checklist.");
-  }
-
+  // 204 or 200 = success, 422 = wrong credentials, 423 = 2FA required
   if (res.status === 204 || res.status === 200) {
     const data = await res.json().catch(() => ({}));
-    logOk("Login SUCCESS", data);
-    dumpCookies("After successful login");
-    console.groupEnd();
+    console.log("[Auth] Login success! Response:", data);
     if (data?.two_factor === true) { return { status: "2fa" }; }
     return { status: "ok" };
   }
-
-  if (res.status === 423) {
-    logOk("2FA required (423)");
-    console.groupEnd();
-    return { status: "2fa" };
-  }
-
-  if (res.status === 422) {
-    const data = await res.json().catch(() => ({}));
-    logWarn("422 Validation — wrong credentials or missing fields", data);
-    console.groupEnd();
-    throw new Error(data?.message || data?.errors?.email?.[0] || "Invalid credentials.");
-  }
+  if (res.status === 423) { console.log("[Auth] 2FA required"); return { status: "2fa" }; }
 
   const data = await res.json().catch(() => ({}));
-  logErr(`Unexpected status ${res.status}`, data);
-  console.groupEnd();
-  throw new Error(data?.message || data?.errors?.email?.[0] || "Login failed.");
+  console.error("[Auth] Login failed — server response:", data);
+  const message = data?.message || data?.errors?.email?.[0] || "Invalid credentials.";
+  throw new Error(message);
 }
 
-async function getAuthUser(): Promise<{ role: UserRole }> {
-  console.group("%c[Auth] ── Step 4: GET /api/user ──────────────────────", "color:#a78bfa;font-weight:bold");
-  logInfo("URL:", `${API_BASE}/api/user`);
-  dumpCookies("Cookies being sent with /api/user");
-
+async function getAuthUser(): Promise<{ role: UserRole; industry: UserIndustry }> {
+  console.log("[Auth] Fetching authenticated user from:", `${API_BASE}/api/user`);
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/user`, {
@@ -166,43 +84,25 @@ async function getAuthUser(): Promise<{ role: UserRole }> {
       headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
     });
   } catch (err) {
-    logErr("Fetch threw — CORS or network error on /api/user", err);
-    console.groupEnd();
+    console.error("[Auth] getAuthUser fetch FAILED:", err);
     throw err;
   }
-
-  logInfo(`Response status: ${res.status}`);
-
-  if (res.status === 401) {
-    logErr("401 Unauthenticated — session not persisted or cookie not sent back");
-    logErr("Fix checklist:", [
-      "Ensure session cookie is sent on /api/user (check Network tab → Request Headers → Cookie)",
-      "SESSION_DOMAIN=localhost and SESSION_SAME_SITE=none in .env",
-      "Ensure route uses auth:sanctum middleware in Laravel",
-      "Run: sail artisan config:clear",
-    ]);
-    console.groupEnd();
-    throw new Error("Could not fetch user — unauthenticated.");
-  }
-
+  console.log("[Auth] getAuthUser response status:", res.status);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    logErr(`getAuthUser failed — HTTP ${res.status}`, body);
-    console.groupEnd();
+    console.error("[Auth] getAuthUser failed — response body:", body);
     throw new Error("Could not fetch user.");
   }
-
   const user = await res.json();
-  logOk("Authenticated user:", user);
-  if (!user?.role) logWarn("No 'role' field on user object — ensure /api/user returns { role: 'admin'|'client' }", user);
-  console.groupEnd();
+  console.log("[Auth] Authenticated user:", user);
   return user;
 }
 
-export type UserRole = "admin" | "client";
+export type UserRole     = "admin" | "user";
+export type UserIndustry = "fnb" | "retail" | "warehouse" | null;
 
 interface LoginAdminProps {
-  onLoginSuccess: (role: UserRole) => void;
+  onLoginSuccess: (role: UserRole, industry: UserIndustry) => void;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -336,9 +236,9 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
         return;
       }
 
-      // Fetch the authenticated user's role from your Laravel API
+      // Fetch the authenticated user's role + industry from your Laravel API
       const user = await getAuthUser();
-      onLoginSuccess(user.role);
+      onLoginSuccess(user.role, user.industry ?? null);
     } catch (err: any) {
       showError(
         err?.message ||

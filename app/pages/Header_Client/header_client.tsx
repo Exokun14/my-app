@@ -1,7 +1,9 @@
 // ============================================================
 //  header_client.tsx
-//  Sign Out calls onLogout() → page.tsx clears loggedInUser
-//  → LoginAdmin re-renders automatically.
+//  Sign Out:
+//   1. POST /logout to Laravel Fortify (invalidates server session)
+//   2. Then calls onLogout() → page.tsx clears sessionStorage
+//      → LoginAdmin re-renders automatically.
 // ============================================================
 
 "use client";
@@ -23,8 +25,9 @@ export default function Header({
   onNotificationClick,
   onLogout,
 }: HeaderProps) {
-  const [now, setNow]           = useState(new Date());
-  const [userOpen, setUserOpen] = useState(false);
+  const [now, setNow]             = useState(new Date());
+  const [userOpen, setUserOpen]   = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const timer  = useRef<ReturnType<typeof setInterval> | null>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
@@ -41,9 +44,37 @@ export default function Header({
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const handleSignOut = () => {
+  // ── Sign Out ──────────────────────────────────────────────
+  // 1. GET /sanctum/csrf-cookie so Laravel accepts the POST
+  // 2. POST /logout  (Fortify's logout route)
+  // 3. Call onLogout() to clear React / sessionStorage state
+  const handleSignOut = async () => {
     setUserOpen(false);
-    onLogout?.();
+    setLoggingOut(true);
+
+    try {
+      // Refresh the CSRF cookie first (required for Sanctum SPA auth)
+      await fetch("/sanctum/csrf-cookie", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      // Hit Fortify's logout endpoint
+      await fetch("/logout", {
+        method: "POST",
+        credentials: "include",                          // send session cookie
+        headers: {
+          "Content-Type": "application/json",
+          "X-XSRF-TOKEN": getXsrfToken(),               // Laravel CSRF token
+        },
+      });
+    } catch (err) {
+      // Network error — still clear local state so the user isn't stuck
+      console.warn("Logout request failed, clearing local state anyway:", err);
+    } finally {
+      setLoggingOut(false);
+      onLogout?.();   // clears sessionStorage + re-renders LoginAdmin
+    }
   };
 
   return (
@@ -125,21 +156,24 @@ export default function Header({
             <div style={{ padding: "8px" }}>
               <button
                 onClick={handleSignOut}
+                disabled={loggingOut}
                 style={{
                   width: "100%", padding: "8px 12px", borderRadius: 9,
                   border: "1px solid rgba(220,38,38,0.15)",
-                  background: "#fff5f5", cursor: "pointer",
+                  background: loggingOut ? "#fee2e2" : "#fff5f5",
+                  cursor: loggingOut ? "wait" : "pointer",
                   display: "flex", alignItems: "center", gap: 8,
                   fontSize: 12, fontWeight: 600, color: "#dc2626",
                   fontFamily: "inherit", transition: "background .15s",
+                  opacity: loggingOut ? 0.7 : 1,
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#fee2e2")}
-                onMouseLeave={e => (e.currentTarget.style.background = "#fff5f5")}
+                onMouseEnter={e => { if (!loggingOut) e.currentTarget.style.background = "#fee2e2"; }}
+                onMouseLeave={e => { if (!loggingOut) e.currentTarget.style.background = "#fff5f5"; }}
               >
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M6 14H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3M11 11l3-3-3-3M14 8H6"/>
                 </svg>
-                Sign Out
+                {loggingOut ? "Signing out…" : "Sign Out"}
               </button>
             </div>
           </div>
@@ -148,4 +182,15 @@ export default function Header({
 
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reads the XSRF-TOKEN cookie that Laravel sets and returns it decoded.
+// Laravel expects this value in the X-XSRF-TOKEN request header.
+// ─────────────────────────────────────────────────────────────────────────────
+function getXsrfToken(): string {
+  const match = document.cookie
+    .split("; ")
+    .find(row => row.startsWith("XSRF-TOKEN="));
+  return match ? decodeURIComponent(match.split("=")[1]) : "";
 }
