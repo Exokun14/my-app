@@ -29,7 +29,7 @@ const STEPS = [
   { id: 1, label: "Identity",  icon: "✦", desc: "Name & describe your course" },
   { id: 2, label: "Details",   icon: "◈", desc: "Category, duration & media" },
   { id: 3, label: "Audience",  icon: "◉", desc: "Assign to companies" },
-  { id: 4, label: "Publish",    icon: "◆", desc: "Review & publish" },
+  { id: 4, label: "Save",      icon: "◆", desc: "Review & save as draft" },
 ];
 
 const WIZARD_STYLES = `
@@ -191,8 +191,6 @@ interface CourseCreationWizardProps {
   toast:         (msg: string) => void;
 }
 
-type LaunchMode = "draft" | "template" | "publish";
-
 export default function CourseCreationWizard({
   categories, setCategories, onSave, onCancel, toast,
 }: CourseCreationWizardProps) {
@@ -220,8 +218,8 @@ export default function CourseCreationWizard({
   const [indFilter,   setIndFilter]   = useState("All");
   const [coSearch,    setCoSearch]    = useState("");
 
-  // Step 4 — Launch
-  const [launchMode,  setLaunchMode]  = useState<LaunchMode>("publish");
+  // Step 4 — Save mode: draft | template
+  const [saveMode, setSaveMode] = useState<"draft" | "template">("draft");
   const [launched,    setLaunched]    = useState(false);
   const [showModulesPrompt, setShowModulesPrompt] = useState(false);
   const pendingCourseData = useRef<Course | null>(null);
@@ -295,9 +293,7 @@ export default function CourseCreationWizard({
   };
 
   const handleLaunch = () => {
-    // Store course data but do NOT save yet — show modules prompt first
     const companies = CLIENTS.filter(c => selectedCos.has(c.id)).map(c => c.name);
-    const isActive = launchMode === "publish";
     pendingCourseData.current = {
       title: title.trim(),
       desc: desc.trim() || "No description provided.",
@@ -307,22 +303,20 @@ export default function CourseCreationWizard({
       cat,
       enrolled: false,
       progress: 0,
-      active: isActive,
+      active: false,
+      stage: saveMode,
       companies: companies.length ? companies : null,
     } as Course;
     setShowModulesPrompt(true);
   };
 
   const handleDismissPrompt = () => {
-    // Course is created HERE — after user sees the prompt
     if (pendingCourseData.current) {
       onSave(pendingCourseData.current);
-      const msgs: Record<LaunchMode, string> = {
-        draft:    "Saved as Draft",
-        template: "Saved as Template",
-        publish:  "Course Published! 🎉",
-      };
-      toast(msgs[launchMode]);
+      const isTemplate = pendingCourseData.current.stage === "template";
+      toast(isTemplate
+        ? "Template saved — find it in the Templates tab to clone into a Draft."
+        : "Draft saved — add modules from the Workspace, then promote to Catalog.");
     }
     setShowModulesPrompt(false);
     onCancel();
@@ -467,7 +461,7 @@ export default function CourseCreationWizard({
               <div className="wiz-preview-card" style={{ borderRadius:14 }}>
                 <div style={{ height:72, background:`linear-gradient(135deg,${grad[0]},${grad[1]})`, display:"flex", alignItems:"flex-end", padding:"8px 10px", position:"relative" }}>
                   <div style={{ position:"absolute", top:6, right:8, padding:"2px 7px", borderRadius:10, background:"rgba(0,0,0,0.3)", fontSize:8, fontWeight:700, color:"#fff" }}>
-                    {launchMode === "publish" ? "Published" : launchMode === "draft" ? "Draft" : "Template"}
+                    Draft
                   </div>
                   <span style={{ fontSize:28 }}>{previewIcon}</span>
                 </div>
@@ -770,119 +764,76 @@ export default function CourseCreationWizard({
                     Back
                   </button>
                   <button className="wiz-btn-next" onClick={() => goStep(4)}>
-                    Review & Publish
+                    Review & Save
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M3 7h8M8 4l3 3-3 3"/></svg>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ─── STEP 4: Launch ─── */}
+            {/* ─── STEP 4: Save ─── */}
             {step === 4 && !launched && (
               <div>
-                <div style={{ marginBottom:36 }}>
+                <div style={{ marginBottom:24 }}>
                   <div style={{ fontSize:11, fontWeight:700, letterSpacing:".12em", textTransform:"uppercase", color:"rgba(236,72,153,0.8)", marginBottom:8 }}>Step 4 of 4</div>
                   <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>
-                    Ready to <em style={{ color:"#ec4899" }}>publish?</em>
+                    How do you want to <em style={{ color:"#7c3aed" }}>save?</em>
                   </h2>
-                  <p style={{ fontSize:13.5, color:"#7c65a8", lineHeight:1.6 }}>
-                    Review your course and choose how you'd like to save it.
+                  <p style={{ fontSize:13, color:"#7c65a8", lineHeight:1.6 }}>
+                    Save as a <strong>Draft</strong> to start building content right away, or as a <strong>Template</strong> to reuse this structure for future courses.
                   </p>
                 </div>
 
                 {/* Summary card */}
-                <div style={{ padding:"20px 22px", borderRadius:16, background:"#f5f3ff", border:"1px solid rgba(109,40,217,0.1)", marginBottom:28 }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:"#a89dc8", letterSpacing:".1em", textTransform:"uppercase", marginBottom:14 }}>Course Summary</div>
-                  <div style={{ display:"flex", gap:18, alignItems:"flex-start" }}>
-                    {/* Mini thumbnail */}
-                    <div style={{ width:80, height:60, borderRadius:12, overflow:"hidden", background:`linear-gradient(135deg,${grad[0]},${grad[1]})`, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, position:"relative" }}>
-                      {thumbUrl ? <img src={thumbUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", position:"absolute", inset:0, opacity:0.4 }} /> : null}
-                      <span style={{ position:"relative", zIndex:1 }}>{previewIcon}</span>
+                <div style={{ padding:"16px 20px", borderRadius:14, background:"#f5f3ff", border:"1px solid rgba(109,40,217,0.1)", marginBottom:20 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#a89dc8", letterSpacing:".1em", textTransform:"uppercase" as const, marginBottom:12 }}>Course Summary</div>
+                  <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
+                    <div style={{ width:68, height:52, borderRadius:10, overflow:"hidden", background:`linear-gradient(135deg,${grad[0]},${grad[1]})`, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, position:"relative" as const }}>
+                      {thumbUrl ? <img src={thumbUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" as const, position:"absolute" as const, inset:0, opacity:0.4 }} /> : null}
+                      <span style={{ position:"relative" as const, zIndex:1 }}>{previewIcon}</span>
                     </div>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:16, fontWeight:700, color:"#0f0a2a", marginBottom:5 }}>{title}</div>
-                      {desc && <div style={{ fontSize:12, color:"#7c65a8", lineHeight:1.5, marginBottom:8 }}>{desc}</div>}
-                      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                        {cat && <span style={{ padding:"3px 10px", borderRadius:8, background:"#ede9fe", fontSize:11, fontWeight:600, color:"#6d28d9" }}>{cat}</span>}
-                        {duration && <span style={{ padding:"3px 10px", borderRadius:8, background:"rgba(13,148,136,0.15)", fontSize:11, fontWeight:600, color:"rgba(45,212,191,0.8)" }}>⏱ {duration}</span>}
-                        {selectedCos.size > 0 && <span style={{ padding:"3px 10px", borderRadius:8, background:"rgba(14,165,233,0.12)", fontSize:11, fontWeight:600, color:"rgba(125,211,252,0.8)" }}>👥 {selectedCos.size} compan{selectedCos.size===1?"y":"ies"}</span>}
-                        {selectedCos.size === 0 && <span style={{ padding:"3px 10px", borderRadius:8, background:"#f5f3ff", fontSize:11, color:"#a89dc8" }}>All companies</span>}
+                      <div style={{ fontSize:14, fontWeight:700, color:"#0f0a2a", marginBottom:4 }}>{title}</div>
+                      <div style={{ display:"flex", gap:7, flexWrap:"wrap" as const }}>
+                        {cat && <span style={{ padding:"2px 9px", borderRadius:7, background:"#ede9fe", fontSize:10.5, fontWeight:600, color:"#6d28d9" }}>{cat}</span>}
+                        {duration && <span style={{ padding:"2px 9px", borderRadius:7, background:"rgba(13,148,136,0.15)", fontSize:10.5, fontWeight:600, color:"#0d9488" }}>⏱ {duration}</span>}
+                        {selectedCos.size > 0 && <span style={{ padding:"2px 9px", borderRadius:7, background:"rgba(14,165,233,0.12)", fontSize:10.5, fontWeight:600, color:"#0ea5e9" }}>👥 {selectedCos.size} co.</span>}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Launch mode selector */}
-                <div style={{ marginBottom:36 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:"#4a3880", marginBottom:14 }}>How would you like to save this course?</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {/* Mode selector */}
+                <div style={{ display:"flex", gap:12, marginBottom:28 }}>
+                  {/* Draft option */}
+                  <button
+                    onClick={() => setSaveMode("draft")}
+                    style={{ flex:1, padding:"16px 14px", borderRadius:14, border:`2px solid ${saveMode==="draft"?"#7c3aed":"rgba(109,40,217,0.14)"}`, background:saveMode==="draft"?"#f5f3ff":"#fafafa", cursor:"pointer", textAlign:"left" as const, fontFamily:"inherit", transition:"all .16s", boxShadow:saveMode==="draft"?"0 4px 18px rgba(124,58,237,0.18)":"none" }}>
+                    <div style={{ fontSize:26, marginBottom:8 }}>📝</div>
+                    <div style={{ fontSize:13, fontWeight:800, color:saveMode==="draft"?"#6d28d9":"#0f0a2a", marginBottom:4 }}>Save as Draft</div>
+                    <div style={{ fontSize:11, color:"#7c65a8", lineHeight:1.5 }}>Lands in the Workspace. Add modules, then promote to Catalog when ready.</div>
+                    {saveMode==="draft" && (
+                      <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:"#7c3aed" }}>
+                        <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 7l4 4 6-6"/></svg>
+                        Selected
+                      </div>
+                    )}
+                  </button>
 
-                    {/* Draft */}
-                    <div
-                      className="wiz-launch-card"
-                      onClick={() => setLaunchMode("draft")}
-                      style={{
-                        background: launchMode === "draft" ? "#fffbeb" : "#fff",
-                        borderColor: launchMode === "draft" ? "rgba(217,119,6,0.45)" : "rgba(109,40,217,0.1)",
-                        "--card-accent": "rgba(217,119,6,0.45)",
-                      } as React.CSSProperties}
-                    >
-                      <div style={{ width:40, height:40, borderRadius:12, background:"rgba(217,119,6,0.18)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="#d97706" strokeWidth="1.7"><path d="M9 2v9M6 8l3 3 3-3M3 13v3h12v-3"/></svg>
+                  {/* Template option */}
+                  <button
+                    onClick={() => setSaveMode("template")}
+                    style={{ flex:1, padding:"16px 14px", borderRadius:14, border:`2px solid ${saveMode==="template"?"#0ea5e9":"rgba(14,165,233,0.2)"}`, background:saveMode==="template"?"rgba(14,165,233,0.06)":"#fafafa", cursor:"pointer", textAlign:"left" as const, fontFamily:"inherit", transition:"all .16s", boxShadow:saveMode==="template"?"0 4px 18px rgba(14,165,233,0.18)":"none" }}>
+                    <div style={{ fontSize:26, marginBottom:8 }}>📋</div>
+                    <div style={{ fontSize:13, fontWeight:800, color:saveMode==="template"?"#0369a1":"#0f0a2a", marginBottom:4 }}>Save as Template</div>
+                    <div style={{ fontSize:11, color:"#7c65a8", lineHeight:1.5 }}>Saved to the Templates tab. Clone it any time to spin up new courses instantly.</div>
+                    {saveMode==="template" && (
+                      <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:"#0369a1" }}>
+                        <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 7l4 4 6-6"/></svg>
+                        Selected
                       </div>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:700, color:"#0f0a2a", marginBottom:3 }}>Save as Draft</div>
-                        <div style={{ fontSize:11.5, color:"#7c65a8", lineHeight:1.5 }}>Not visible to learners. Continue editing before publishing.</div>
-                      </div>
-                      <div style={{ marginLeft:"auto", width:20, height:20, borderRadius:"50%", border:`2px solid ${launchMode==="draft" ? "#d97706" : "rgba(109,40,217,0.15)"}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        {launchMode === "draft" && <div style={{ width:10, height:10, borderRadius:"50%", background:"#d97706" }} />}
-                      </div>
-                    </div>
-
-                    {/* Template */}
-                    <div
-                      className="wiz-launch-card"
-                      onClick={() => setLaunchMode("template")}
-                      style={{
-                        background: launchMode === "template" ? "#f0f9ff" : "#fff",
-                        borderColor: launchMode === "template" ? "rgba(14,165,233,0.45)" : "rgba(109,40,217,0.1)",
-                        "--card-accent": "rgba(14,165,233,0.45)",
-                      } as React.CSSProperties}
-                    >
-                      <div style={{ width:40, height:40, borderRadius:12, background:"rgba(14,165,233,0.15)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="#0ea5e9" strokeWidth="1.7"><rect x="2" y="2" width="14" height="14" rx="2"/><path d="M5 6h8M5 9h8M5 12h5"/></svg>
-                      </div>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:700, color:"#0f0a2a", marginBottom:3 }}>Save as Template</div>
-                        <div style={{ fontSize:11.5, color:"#7c65a8", lineHeight:1.5 }}>Reusable blueprint. Clone it later to create new courses quickly.</div>
-                      </div>
-                      <div style={{ marginLeft:"auto", width:20, height:20, borderRadius:"50%", border:`2px solid ${launchMode==="template" ? "#0ea5e9" : "rgba(109,40,217,0.15)"}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        {launchMode === "template" && <div style={{ width:10, height:10, borderRadius:"50%", background:"#0ea5e9" }} />}
-                      </div>
-                    </div>
-
-                    {/* Publish */}
-                    <div
-                      className="wiz-launch-card"
-                      onClick={() => setLaunchMode("publish")}
-                      style={{
-                        background: launchMode === "publish" ? "#f0fdf9" : "#fff",
-                        borderColor: launchMode === "publish" ? "rgba(16,185,129,0.45)" : "rgba(109,40,217,0.1)",
-                        "--card-accent": "rgba(16,185,129,0.45)",
-                      } as React.CSSProperties}
-                    >
-                      <div style={{ width:40, height:40, borderRadius:12, background:"rgba(16,185,129,0.15)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="#10b981" strokeWidth="1.7"><path d="M9 2l7 4v6c0 3-3 5-7 6-4-1-7-3-7-6V6l7-4z"/><path d="M6 9l2.5 2.5 4-4"/></svg>
-                      </div>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:700, color:"#0f0a2a", marginBottom:3 }}>Publish Now</div>
-                        <div style={{ fontSize:11.5, color:"#7c65a8", lineHeight:1.5 }}>Make it live immediately. Assigned companies can start learning right away.</div>
-                      </div>
-                      <div style={{ marginLeft:"auto", width:20, height:20, borderRadius:"50%", border:`2px solid ${launchMode==="publish" ? "#10b981" : "rgba(109,40,217,0.15)"}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        {launchMode === "publish" && <div style={{ width:10, height:10, borderRadius:"50%", background:"#10b981" }} />}
-                      </div>
-                    </div>
-                  </div>
+                    )}
+                  </button>
                 </div>
 
                 <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
@@ -890,15 +841,8 @@ export default function CourseCreationWizard({
                     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M11 7H3M6 4l-3 3 3 3"/></svg>
                     Back
                   </button>
-                  <button
-                    className="wiz-btn-next"
-                    onClick={handleLaunch}
-                    style={{
-                      background: launchMode === "publish" ? "linear-gradient(135deg,#10b981,#059669)" : launchMode === "template" ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "linear-gradient(135deg,#d97706,#b45309)",
-                      boxShadow: launchMode === "publish" ? "0 4px 18px rgba(16,185,129,0.35)" : launchMode === "template" ? "0 4px 18px rgba(14,165,233,0.35)" : "0 4px 18px rgba(217,119,6,0.35)",
-                    }}
-                  >
-                    {launchMode === "publish" ? "🚀 Publish Course" : launchMode === "template" ? "📋 Save Template" : "💾 Save Draft"}
+                  <button className="wiz-btn-next" onClick={handleLaunch} style={{ background:saveMode==="template"?"linear-gradient(135deg,#0ea5e9,#0284c7)":undefined }}>
+                    {saveMode==="template" ? "📋 Save as Template" : "💾 Save as Draft"}
                   </button>
                 </div>
               </div>
@@ -910,10 +854,8 @@ export default function CourseCreationWizard({
                 <div style={{ width:80, height:80, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#0d9488)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px", boxShadow:"0 12px 40px rgba(124,58,237,0.4)", animation:"wiz-pop 0.6s cubic-bezier(0.16,1,0.3,1) 0.1s both" }}>
                   <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="white" strokeWidth="2.5"><path d="M6 18l8 8 16-16"/></svg>
                 </div>
-                <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:28, fontWeight:700, color:"#0f0a2a", marginBottom:10 }}>
-                  {launchMode === "publish" ? "Course Published!" : launchMode === "template" ? "Template Saved!" : "Draft Saved!"}
-                </h2>
-                <p style={{ fontSize:13.5, color:"#7c65a8" }}>Returning to your catalog…</p>
+                <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:28, fontWeight:700, color:"#0f0a2a", marginBottom:10 }}>Draft Saved!</h2>
+                <p style={{ fontSize:13.5, color:"#7c65a8" }}>Opening your Workspace…</p>
               </div>
             )}
 
@@ -926,15 +868,20 @@ export default function CourseCreationWizard({
       {showModulesPrompt && (
         <div style={{ position:"fixed", inset:0, zIndex:700, background:"rgba(18,10,40,0.72)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", animation:"wiz-in 0.22s ease both" }}>
           <div style={{ background:"#fff", borderRadius:20, width:"92%", maxWidth:440, overflow:"hidden", boxShadow:"0 24px 80px rgba(124,58,237,0.38)", border:"1.5px solid rgba(124,58,237,0.15)" }}>
-            <div style={{ height:5, background:"linear-gradient(90deg,#dc2626,#d97706,#7c3aed)" }} />
+            <div style={{ height:5, background:"linear-gradient(90deg,#7c3aed,#0d9488)" }} />
             <div style={{ padding:"28px 28px 26px", textAlign:"center" as const }}>
-              <div style={{ width:64, height:64, borderRadius:"50%", background:"rgba(220,38,38,0.08)", border:"2px solid rgba(220,38,38,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, margin:"0 auto 16px" }}>🚫</div>
-              <div style={{ fontSize:18, fontWeight:900, color:"#18103a", letterSpacing:"-.03em", marginBottom:8 }}>Modules Required to Publish</div>
+              <div style={{ fontSize:52, marginBottom:12 }}>{pendingCourseData.current?.stage === "template" ? "📋" : "🎉"}</div>
+              <div style={{ fontSize:18, fontWeight:900, color:"#18103a", letterSpacing:"-.03em", marginBottom:8 }}>
+                {pendingCourseData.current?.stage === "template" ? "Template Saved!" : "Draft Saved!"}
+              </div>
               <div style={{ fontSize:12.5, color:"#4a3870", lineHeight:1.65, marginBottom:20 }}>
-                <span style={{ fontWeight:700, color:"#dc2626" }}>"{title}"</span> has no modules yet. You must add at least one module and chapter before this course can be published to learners.
+                {pendingCourseData.current?.stage === "template"
+                  ? <><strong style={{ color:"#0369a1" }}>"{title}"</strong> is saved as a Template. Find it in the <strong>Templates</strong> tab and clone it whenever you need a new course.</>
+                  : <><strong style={{ color:"#7c3aed" }}>"{title}"</strong> is now in your Workspace. Head there to add modules and chapters — then promote it to the Catalog when it's ready.</>
+                }
               </div>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:22, background:"rgba(124,58,237,0.04)", borderRadius:10, padding:"12px 16px", border:"1.5px solid rgba(124,58,237,0.1)" }}>
-                {[{icon:"📝",label:"Add Modules"},{icon:"→",label:""},{icon:"📄",label:"Add Chapters"},{icon:"→",label:""},{icon:"🚀",label:"Publish!"}].map((s,i) =>
+                {[{icon:"📝",label:"Modules"},{icon:"→",label:""},{icon:"📄",label:"Chapters"},{icon:"→",label:""},{icon:"🚀",label:"Promote!"}].map((s,i) =>
                   s.icon === "→"
                     ? <span key={i} style={{ color:"#c4bdd8", fontSize:14 }}>→</span>
                     : <div key={i} style={{ display:"flex", flexDirection:"column" as const, alignItems:"center", gap:3 }}>
@@ -944,12 +891,11 @@ export default function CourseCreationWizard({
                 )}
               </div>
               <div style={{ display:"flex", flexDirection:"column" as const, gap:9 }}>
-                <button onClick={handleDismissPrompt} style={{ width:"100%", padding:"13px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:13.5, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 18px rgba(124,58,237,0.35)", fontFamily:"inherit" }}>
-                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg>
-                  Add Modules Now
-                </button>
-                <button onClick={handleDismissPrompt} style={{ width:"100%", padding:"10px", borderRadius:10, border:"1.5px solid rgba(124,58,237,0.15)", background:"transparent", color:"#4a3870", fontSize:12.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
-                  Not Now
+                <button onClick={handleDismissPrompt} style={{ width:"100%", padding:"13px", borderRadius:10, border:"none", background:pendingCourseData.current?.stage==="template"?"linear-gradient(135deg,#0ea5e9,#0284c7)":"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:13.5, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:pendingCourseData.current?.stage==="template"?"0 4px 18px rgba(14,165,233,0.35)":"0 4px 18px rgba(124,58,237,0.35)", fontFamily:"inherit" }}>
+                  {pendingCourseData.current?.stage === "template"
+                    ? <><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><rect x="1.5" y="1.5" width="11" height="11" rx="2"/><path d="M4 5h6M4 7h6M4 9h4"/></svg> Go to Templates</>
+                    : <><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg> Go to Workspace</>
+                  }
                 </button>
               </div>
             </div>

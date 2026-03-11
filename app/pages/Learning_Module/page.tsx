@@ -5,7 +5,6 @@ import { useToast } from "../../Hooks/useToast";
 import Toast from "../../Components/Toast";
 import ActivityBuilderPanel, { type Activity } from "./ActivityBuilderPanel";
 import ActivityManager from "./ActivityManager";
-import ActivitiesPanel from "./ActivitiesPanel";
 import CourseCatalog from "./CourseCatalog";
 import ClientProgress from "./ClientProgress";
 import CourseViewer from "./CourseViewer";
@@ -14,13 +13,15 @@ import CourseCompletionStats from "./CourseCompletionStats";
 import CourseCreationWizard from "../../Components/CourseCreationWizard";
 import InitialLoader from "../../Components/InitialLoader";
 import LoadingPopup from "../../Components/LoadingPopup";
-import ClientView from "./ClientView"; // ← NEW
+import ClientView from "./ClientView";
 import type { Course } from "../../Data/types";
 import constants from "../../Data/test_data.json";
 import api from "../../Services/api.service";
 import "../../globals.css";
 
-const PANELS = ["Course Catalog", "Activities", "Client Progress"];
+type ProgressRole = "admin" | "manager" | "client";
+
+const PANELS = ["Course Catalog", "Client Progress"];
 const INITIAL_COURSES = constants.COURSES as Course[];
 const INITIAL_ACTIVITIES = constants.ACTIVITIES as Activity[];
 const DEFAULT_CATEGORIES = constants.DEFAULT_CATEGORIES;
@@ -51,7 +52,12 @@ async function loadDataFromAPI() {
 }
 
 export default function LearningCenter() {
-  const [appMode, setAppMode] = useState<'admin' | 'client'>('admin'); // ← NEW
+  const [appMode, setAppMode] = useState<'admin' | 'client'>('admin');
+
+  // ── Wire this to your real auth role in production.
+  // Options: "admin" | "manager" | "client"
+  // A role switcher is rendered in the header when panel === 1 for easy testing.
+  const [progressRole, setProgressRole] = useState<ProgressRole>("admin");
 
   const [panel, setPanel] = useState<number>(0);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -170,18 +176,15 @@ export default function LearningCenter() {
 
   // ── COURSE HANDLERS ──────────────────────────────────────────────────────────
   const handleWizardSave = async (data: Course) => {
+    const draftData: Course = { ...data, active: false, stage: "draft" as any };
     try {
       setServerLoading(true); setServerLoadingMsg("Creating course...");
-      const response = await api.courses.create(data);
+      const response = await api.courses.create(draftData);
       setServerLoading(false);
       if (response.success && response.data) {
-        const newCourse = { ...data, id: response.data.id };
-        setCourses(prev => {
-          const updated = [...prev, newCourse];
-          setNewCoursePromptIdx(updated.length - 1);
-          return updated;
-        });
-        toast('Course created successfully!');
+        const newCourse = { ...draftData, id: response.data.id };
+        setCourses(prev => [...prev, newCourse]);
+        toast('Course saved as Draft — open the Workspace to add modules and publish.');
       } else {
         toast(`Error: ${response.error || 'Failed to create course'}`);
       }
@@ -461,20 +464,37 @@ export default function LearningCenter() {
 
       <div style={{ position:'relative', zIndex:0, background:'#fafaf9', minHeight:'100vh' }}>
       <style>{`
+        :root, .lc-page {
+          --purple:    #6c3dd6;
+          --purple-d:  #4f1eb8;
+          --purple-lt: rgba(108,61,214,0.07);
+          --teal:      #0d9488;
+          --border:    rgba(108,61,214,0.1);
+          --surface:   #ffffff;
+          --surface2:  #f4f2fb;
+          --t1:        #18103a;
+          --t2:        #4a3870;
+          --t3:        #8e7ec0;
+          --t4:        rgba(142,126,192,0.6);
+          --bg:        #f7f6fe;
+        }
         @keyframes lc-fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         .lc-main-enter { animation: lc-fadeIn 0.35s ease both; }
         .mode-toggle { display:flex; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:3px; gap:2px; box-shadow:0 2px 10px rgba(109,40,217,0.06); }
         .mode-btn { display:flex; align-items:center; gap:5px; padding:5px 12px; border-radius:6px; border:none; font-size:11px; font-weight:600; cursor:pointer; transition:all .18s; background:transparent; color:var(--t3); font-family:'DM Sans',sans-serif; }
         .mode-btn.active { background:linear-gradient(135deg,var(--purple),var(--purple-d)); color:#fff; box-shadow:0 2px 8px rgba(124,58,237,0.3); }
         .mode-btn:not(.active):hover { color:var(--purple); background:var(--purple-lt); }
+        .role-toggle { display:flex; align-items:center; background:var(--surface2); border:1px solid var(--border); border-radius:7px; padding:2px; gap:1px; }
+        .role-btn { padding:3px 9px; border-radius:5px; border:none; font-size:10px; font-weight:600; cursor:pointer; transition:all .15s; background:transparent; color:var(--t3); font-family:'DM Sans',sans-serif; letter-spacing:.02em; }
+        .role-btn.active { background:var(--purple); color:#fff; box-shadow:0 1px 4px rgba(108,61,214,0.3); }
+        .role-btn:not(.active):hover { color:var(--purple); }
       `}</style>
 
       <div className="amb" />
       <div className="lc-page lc-main-enter">
 
-        {/* ── Page Header — shared across both modes ── */}
+        {/* ── Page Header ── */}
         <div className="ph">
-          {/* Title + tab dots — admin only */}
           {appMode === 'admin' && (
             <>
               <h1 className="ph-title">Learning <em>Center</em></h1>
@@ -487,7 +507,6 @@ export default function LearningCenter() {
             </>
           )}
 
-          {/* Mode toggle — always visible */}
           <div className="mode-toggle">
             <button className={`mode-btn${appMode === 'admin' ? ' active' : ''}`} onClick={() => setAppMode('admin')}>
               <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 1.5l1.5 3h3l-2.5 2 1 3L7 8l-3 1.5 1-3L2.5 4.5h3z"/></svg>
@@ -501,9 +520,23 @@ export default function LearningCenter() {
 
           <div className="ph-rule" />
 
-          {/* Action buttons — admin only */}
           {appMode === 'admin' && (
             <div className="ph-actions">
+              {/* Role switcher — visible on Client Progress panel for testing */}
+              {panel === 1 && (
+                <div className="role-toggle">
+                  {(["admin", "manager", "client"] as ProgressRole[]).map(r => (
+                    <button
+                      key={r}
+                      className={`role-btn${progressRole === r ? " active" : ""}`}
+                      onClick={() => setProgressRole(r)}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <button className="btn btn-p btn-sm" onClick={() => setWizardOpen(true)}>
                 <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="7" cy="7" r="5.5"/><path d="M7 4.5v5M4.5 7h5"/></svg>
                 Create New Course
@@ -538,7 +571,7 @@ export default function LearningCenter() {
           )}
         </div>
 
-        {/* ── ADMIN: original swipe panels ── */}
+        {/* ── ADMIN: swipe panels ── */}
         {appMode === 'admin' && (
           <div className="swipe-container">
             <div className="swipe-track" style={{ transform:`translateX(-${panel * 100}%)` }}>
@@ -548,21 +581,17 @@ export default function LearningCenter() {
                   categories={categories} setCategories={setCategories}
                   toast={toast} onOpenCourse={openViewer}
                   publishedActivities={publishedActivities}
-                  newCoursePromptIdx={newCoursePromptIdx}
-                  onNewCoursePromptConsumed={() => setNewCoursePromptIdx(null)}
                 />
               </div>
               <div className="swipe-panel" style={{ width:"100%" }}>
-                <ActivitiesPanel activities={activities} onEdit={handleOpenActivityBuilder} onDelete={handleDeleteActivity} toast={toast} />
-              </div>
-              <div className="swipe-panel" style={{ width:"100%" }}>
-                <ClientProgress toast={toast} />
+                {/* role prop routes to AdminProgress / ManagerProgress / ClientLearnerProgress */}
+                <ClientProgress toast={toast} role={progressRole} />
               </div>
             </div>
           </div>
         )}
 
-        {/* ── CLIENT VIEW: full screen, own header + swipe panels ── */}
+        {/* ── CLIENT VIEW ── */}
         {appMode === 'client' && (
           <ClientView
             courses={courses}

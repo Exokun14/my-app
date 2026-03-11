@@ -13,6 +13,7 @@ export interface Course {
   enrolled?: boolean;
   progress?: number;
   active?: boolean;
+  stage?: 'draft' | 'review_ready' | 'published' | 'unpublished' | 'template';
   companies?: string[];
   modules?: any[];
   [key: string]: any;
@@ -63,7 +64,7 @@ async function apiRequest<T>(
   try {
     const fullUrl = `${API_BASE_URL}${endpoint}`;
     console.log('🔵 Fetching:', fullUrl);
-    
+
     const response = await fetch(fullUrl, {
       headers: {
         'Content-Type': 'application/json',
@@ -94,11 +95,7 @@ async function apiRequest<T>(
       data = JSON.parse(text);
     } catch (e) {
       console.error('❌ Failed to parse JSON:', e);
-      console.error('❌ Response was:', text);
-      return {
-        success: false,
-        error: 'Invalid JSON from server',
-      };
+      return { success: false, error: 'Invalid JSON from server' };
     }
 
     if (!response.ok) {
@@ -120,12 +117,18 @@ async function apiRequest<T>(
 }
 
 export const coursesAPI = {
-  getAll: async (filters?: { category?: string; active?: boolean; client_id?: number }): Promise<ApiResponse<Course[]>> => {
+  getAll: async (filters?: {
+    category?: string;
+    active?: boolean;
+    client_id?: number;
+    stage?: 'draft' | 'review_ready' | 'published' | 'unpublished' | 'template';
+  }): Promise<ApiResponse<Course[]>> => {
     const params = new URLSearchParams();
-    if (filters?.category) params.append('category', filters.category);
+    if (filters?.category)   params.append('category',  filters.category);
     if (filters?.active !== undefined) params.append('active', String(filters.active));
-    if (filters?.client_id) params.append('client_id', String(filters.client_id));
-    
+    if (filters?.client_id)  params.append('client_id', String(filters.client_id));
+    if (filters?.stage)      params.append('stage',     filters.stage);
+
     const query = params.toString();
     return apiRequest<Course[]>(`/courses${query ? `?${query}` : ''}`, { method: 'GET' });
   },
@@ -156,7 +159,6 @@ export const coursesAPI = {
     return apiRequest<{ message: string }>(`/courses/${id}`, { method: 'DELETE' });
   },
 
-  // ✅ FIXED: accepts a payload object so callers can pass { progress, enrolled, time_spent, completed }
   updateProgress: async (id: number, payload: {
     progress: number;
     enrolled?: boolean | number;
@@ -176,8 +178,14 @@ export const coursesAPI = {
     });
   },
 
-  // Marks a single chapter row as done in the chapters table.
-  // chapterId is the DB id that comes back on every chapter object from getCourseModules.
+  // Clone a template (or any course) into a new draft.
+  // Returns the new course object so the frontend can append it immediately.
+  clone: async (id: number): Promise<ApiResponse<{ id: number; course: Course; message: string }>> => {
+    return apiRequest<{ id: number; course: Course; message: string }>(`/courses/${id}/clone`, {
+      method: 'POST',
+    });
+  },
+
   markChapterDone: async (chapterId: number): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/chapters/${chapterId}/done`, {
       method: 'PUT',
@@ -188,9 +196,9 @@ export const coursesAPI = {
 export const activitiesAPI = {
   getAll: async (filters?: { type?: string; status?: string }): Promise<ApiResponse<Activity[]>> => {
     const params = new URLSearchParams();
-    if (filters?.type) params.append('type', filters.type);
+    if (filters?.type)   params.append('type',   filters.type);
     if (filters?.status) params.append('status', filters.status);
-    
+
     const query = params.toString();
     return apiRequest<Activity[]>(`/activities${query ? `?${query}` : ''}`, { method: 'GET' });
   },
@@ -222,8 +230,8 @@ export const progressAPI = {
   getAll: async (filters?: { company?: string; status?: string }): Promise<ApiResponse<UserProgress[]>> => {
     const params = new URLSearchParams();
     if (filters?.company) params.append('company', filters.company);
-    if (filters?.status) params.append('status', filters.status);
-    
+    if (filters?.status)  params.append('status',  filters.status);
+
     const query = params.toString();
     return apiRequest<UserProgress[]>(`/progress${query ? `?${query}` : ''}`, { method: 'GET' });
   },
@@ -292,52 +300,40 @@ export const uploadAPI = {
     try {
       const fullUrl = `${API_BASE_URL}/upload`;
       console.log('🔵 Uploading to:', fullUrl);
-      
+
       const response = await fetch(fullUrl, {
         method: 'POST',
         body: formData,
-        headers: {
-          'X-User-Id': '1',
-        },
+        headers: { 'X-User-Id': '1' },
       });
 
       const text = await response.text();
       const contentType = response.headers.get('content-type');
-      
+
       if (!contentType?.includes('application/json')) {
-        return {
-          success: false,
-          error: 'Upload endpoint returned HTML instead of JSON',
-        };
+        return { success: false, error: 'Upload endpoint returned HTML instead of JSON' };
       }
 
       const data = JSON.parse(text);
-
       if (!response.ok) {
-        return {
-          success: false,
-          error: data.error || data.message || 'Upload failed',
-        };
+        return { success: false, error: data.error || data.message || 'Upload failed' };
       }
 
       return { success: true, data };
     } catch (error) {
       console.error('Upload error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Upload failed',
-      };
+      return { success: false, error: error instanceof Error ? error.message : 'Upload failed' };
     }
   },
 };
 
 export const api = {
-  courses: coursesAPI,
+  courses:    coursesAPI,
   activities: activitiesAPI,
-  progress: progressAPI,
-  clients: clientsAPI,
-  settings: settingsAPI,
-  upload: uploadAPI,
+  progress:   progressAPI,
+  clients:    clientsAPI,
+  settings:   settingsAPI,
+  upload:     uploadAPI,
 };
 
 export default api;
