@@ -23,6 +23,7 @@ import RetailSettingsPage   from "../Retail_Admin/RetailSettingsPage";
 
 import LearningCenter       from "../Learning_Module/page";
 
+import type { AuthUser }    from "../../Services/api.service";
 import type { UserIndustry, UserRole } from "../../page";
 
 // Types
@@ -30,11 +31,12 @@ export type CPView = "overview" | "tickets" | "users" | "settings" | "learning";
 
 interface ClientPortalProps {
   industry: UserIndustry;
-  role?: UserRole;       // "admin" | "user" -- passed from root page.tsx
+  role?: UserRole;
   onLogout?: () => void;
+  user?: AuthUser | null;
 }
 
-export default function ClientPortal({ industry, role = "user", onLogout }: ClientPortalProps) {
+export default function ClientPortal({ industry, role = "user", onLogout, user }: ClientPortalProps) {
   const [view, setView] = useState<CPView>("overview");
 
   if (view === "learning") return <LearningCenter role={role} onBack={() => setView("overview")} />;
@@ -42,10 +44,10 @@ export default function ClientPortal({ industry, role = "user", onLogout }: Clie
   // ── Retail industry ───────────────────────────────────────
   if (industry === "retail") {
     switch (view) {
-      case "tickets":  return <RetailTicketsPage  onNavigate={setView} onLogout={onLogout} />;
-      case "users":    return <RetailUsersPage    onNavigate={setView} onLogout={onLogout} />;
-      case "settings": return <RetailSettingsPage onNavigate={setView} onLogout={onLogout} />;
-      default:         return <RetailOverviewPage onNavigate={setView} onLogout={onLogout} />;
+      case "tickets":  return <RetailTicketsPage  onNavigate={setView} onLogout={onLogout} user={user} />;
+      case "users":    return <RetailUsersPage    onNavigate={setView} onLogout={onLogout} user={user} />;
+      case "settings": return <RetailSettingsPage onNavigate={setView} onLogout={onLogout} user={user} />;
+      default:         return <RetailOverviewPage onNavigate={setView} onLogout={onLogout} user={user} />;
     }
   }
 
@@ -60,9 +62,9 @@ export default function ClientPortal({ industry, role = "user", onLogout }: Clie
 
   // ── F&B / default ─────────────────────────────────────────
   switch (view) {
-    case "tickets":  return <TicketsPage  onNavigate={setView} onLogout={onLogout} />;
-    case "users":    return <UsersPage    onNavigate={setView} onLogout={onLogout} />;
-    case "settings": return <SettingsPage onNavigate={setView} onLogout={onLogout} />;
-    default:         return <OverviewPage onNavigate={setView} onLogout={onLogout} />;
+    case "tickets":  return <TicketsPage  onNavigate={setView} onLogout={onLogout} user={user} />;
+    case "users":    return <UsersPage    onNavigate={setView} onLogout={onLogout} user={user} />;
+    case "settings": return <SettingsPage onNavigate={setView} onLogout={onLogout} user={user} />;
+    default:         return <OverviewPage onNavigate={setView} onLogout={onLogout} user={user} />;
   }
 }

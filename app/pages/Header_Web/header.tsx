@@ -11,6 +11,9 @@
      Tailwind class and compiled to nothing — dropdown was hidden
      behind page content).
    - FIX: dropdown z-index raised above LoadingPopup pill (99999).
+   - FIX: Sign Out now awaits the async onLogout prop and shows a
+     loading state so the UI always responds even if the server
+     request is slow or fails.
    ============================================================== */
 
 "use client";
@@ -24,7 +27,7 @@ interface HeaderProps {
   notificationCount?: number;
   onSearch?: (query: string) => void;
   onNotificationClick?: () => void;
-  onLogout?: () => void;
+  onLogout?: () => Promise<void> | void;
 }
 
 // ─── CSS ─────────────────────────────────────────────────────────────────────
@@ -150,6 +153,7 @@ export default function Header({
   const [now,          setNow]          = useState(new Date());
   const [collapsed,    setCollapsed]    = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [loggingOut,   setLoggingOut]   = useState(false);
   const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const userMenuRef  = useRef<HTMLDivElement>(null);
 
@@ -190,6 +194,20 @@ export default function Header({
     return () => observer.disconnect();
   }, []);
 
+  // FIX: properly await the async onLogout so the UI shows loading
+  // state and clears correctly even if the server request is slow or fails.
+  const handleSignOut = async () => {
+    setUserMenuOpen(false);
+    setLoggingOut(true);
+    try {
+      await onLogout?.();
+    } catch (err) {
+      console.warn("Logout failed, clearing local state anyway:", err);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   return (
     <>
       <style>{CSS}</style>
@@ -200,7 +218,7 @@ export default function Header({
           borderColor: "var(--gxh-border)",
           padding: "0px 24px 0px 16px",
           gap: 12,
-          zIndex: 200, /* FIX: was z-99 (invalid Tailwind class = no effect) */
+          zIndex: 200,
         }}
       >
 
@@ -261,14 +279,16 @@ export default function Header({
 
           {/* Trigger pill */}
           <div
-            onClick={() => setUserMenuOpen(o => !o)}
+            onClick={() => { if (!loggingOut) setUserMenuOpen(o => !o); }}
             className="flex shrink-0 items-center gap-2 rounded-[10px] border cursor-pointer transition-all duration-150"
             style={{
               background:  "var(--gxh-surface2)",
               borderColor: userMenuOpen ? "var(--gxh-border-md)" : "var(--gxh-border)",
               padding:     "5px 10px 5px 5px",
+              opacity:     loggingOut ? 0.6 : 1,
+              cursor:      loggingOut ? "wait" : "pointer",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--gxh-border-md)")}
+            onMouseEnter={(e) => { if (!loggingOut) e.currentTarget.style.borderColor = "var(--gxh-border-md)"; }}
             onMouseLeave={(e) => { if (!userMenuOpen) e.currentTarget.style.borderColor = "var(--gxh-border)"; }}
           >
             {/* Avatar */}
@@ -282,7 +302,7 @@ export default function Header({
             {/* Name + role */}
             <div className="flex flex-col">
               <span className="text-[12.5px] font-semibold leading-tight whitespace-nowrap" style={{ color: "var(--gxh-t1)" }}>
-                {user.name}
+                {loggingOut ? "Signing out…" : user.name}
               </span>
               <span className="text-[10px] font-medium whitespace-nowrap leading-[1.3]" style={{ color: "var(--gxh-sky)" }}>
                 {user.role}
@@ -299,14 +319,14 @@ export default function Header({
           </div>
 
           {/* ── Dropdown panel ── */}
-          {userMenuOpen && (
+          {userMenuOpen && !loggingOut && (
             <div
               className="gxh-user-dropdown"
               style={{
                 position:      "absolute",
                 top:           "calc(100% + 8px)",
                 right:         0,
-                zIndex:        100000, /* FIX: above LoadingPopup pill (99999) */
+                zIndex:        100000,
                 background:    "#fff",
                 borderRadius:  14,
                 border:        "1px solid rgba(124,58,237,0.13)",
@@ -352,24 +372,27 @@ export default function Header({
               {/* Sign Out */}
               <div style={{ padding: "6px 8px 0" }}>
                 <button
-                  onClick={() => { setUserMenuOpen(false); onLogout?.(); }}
+                  onClick={handleSignOut}
+                  disabled={loggingOut}
                   style={{
                     width: "100%", display: "flex", alignItems: "center", gap: 8,
                     padding: "9px 12px", borderRadius: 9,
                     border: "1px solid rgba(220,38,38,0.15)",
-                    background: "rgba(254,242,242,0.7)",
+                    background: loggingOut ? "rgba(220,38,38,0.1)" : "rgba(254,242,242,0.7)",
                     color: "#dc2626", fontSize: 12, fontWeight: 600,
-                    cursor: "pointer", fontFamily: "inherit", transition: "background .15s",
+                    cursor: loggingOut ? "wait" : "pointer",
+                    fontFamily: "inherit", transition: "background .15s",
+                    opacity: loggingOut ? 0.7 : 1,
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(220,38,38,0.1)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(254,242,242,0.7)"; }}
+                  onMouseEnter={e => { if (!loggingOut) e.currentTarget.style.background = "rgba(220,38,38,0.1)"; }}
+                  onMouseLeave={e => { if (!loggingOut) e.currentTarget.style.background = "rgba(254,242,242,0.7)"; }}
                 >
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none"
                     stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M10 8H3M6 5l-3 3 3 3" />
                     <path d="M6 3h6a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6" />
                   </svg>
-                  Sign Out
+                  {loggingOut ? "Signing out…" : "Sign Out"}
                 </button>
               </div>
             </div>

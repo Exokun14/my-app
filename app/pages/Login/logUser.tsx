@@ -15,13 +15,8 @@ import {
 import RippleCanvas from "../../Effects/RippleCanvas";
 
 /* ── Laravel Fortify API ─────────────────────────────────── */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost//";
 
-// ─── PERF FIX 1: Cache the CSRF promise so parallel calls don't double-fetch.
-// The original code called csrfCookie() inside fortifyLogin() on every attempt,
-// meaning every login = 1 extra sequential network round-trip BEFORE the login
-// POST even starts. At ~2–4 s per round-trip on localhost, this alone explains
-// 4–8 s of perceived latency.
 let _csrfPromise: Promise<void> | null = null;
 
 async function csrfCookie(): Promise<void> {
@@ -37,18 +32,15 @@ async function csrfCookie(): Promise<void> {
     })
     .catch((err) => {
       console.error("[Auth][CSRF] ❌ FAILED — is Laravel running?", err);
-      _csrfPromise = null; // allow retry on next attempt
+      _csrfPromise = null;
       throw err;
     });
   return _csrfPromise;
 }
 
-// ─── PERF FIX 2: Pre-warm the CSRF cookie as soon as the module loads (i.e.
-// the moment the login page mounts) instead of waiting for the user to click
-// "Sign In". This hides the full CSRF round-trip behind user think-time.
 if (typeof window !== "undefined") {
   console.log("[Auth][CSRF] Pre-warming on page load…");
-  csrfCookie().catch(() => {}); // fire-and-forget; errors logged inside
+  csrfCookie().catch(() => {});
 }
 
 function getXsrfToken(): string {
@@ -68,7 +60,6 @@ async function fortifyLogin(email: string, password: string, remember: boolean) 
   console.log("→ email:", email);
   console.log("→ endpoint:", `${API_BASE}/login`);
 
-  // PERF FIX 3: await the cached CSRF promise (resolves instantly if already done)
   const tCsrf0 = performance.now();
   console.log(`[Auth] Awaiting CSRF cookie (pre-warmed = ${_csrfPromise ? "YES ✅" : "NO ❌"})`);
   await csrfCookie();
@@ -119,7 +110,8 @@ async function fortifyLogin(email: string, password: string, remember: boolean) 
   throw new Error(message);
 }
 
-async function getAuthUser(): Promise<{ role: UserRole; industry: UserIndustry }> {
+// ── FIXED: return the full user object, not just role+industry ────────────────
+async function getAuthUser(): Promise<AuthUser> {
   const t0 = performance.now();
   console.log("[Auth] → GET /api/user …");
   let res: Response;
@@ -138,7 +130,7 @@ async function getAuthUser(): Promise<{ role: UserRole; industry: UserIndustry }
     console.error("[Auth] ❌ /api/user rejected:", body);
     throw new Error("Could not fetch user.");
   }
-  const user = await res.json();
+  const user: AuthUser = await res.json();
   console.log(`[Auth] ✅ user fetched in ${(performance.now() - t0).toFixed(0)} ms:`, user);
   return user;
 }
@@ -146,8 +138,23 @@ async function getAuthUser(): Promise<{ role: UserRole; industry: UserIndustry }
 export type UserRole     = "admin" | "user";
 export type UserIndustry = "fnb" | "retail" | "warehouse" | null;
 
+// ── FIXED: export the full AuthUser type so page.tsx can use it ───────────────
+export interface AuthUser {
+  id:           number;
+  name:         string;
+  email:        string;
+  role:         UserRole;
+  industry:     UserIndustry;
+  company_id:   number | null;
+  company_name: string | null;
+  position?:    string | null;
+  phone?:       string | null;
+  status?:      string | null;
+}
+
 interface LoginAdminProps {
-  onLoginSuccess: (role: UserRole, industry: UserIndustry) => void;
+  // ── FIXED: callback now receives the full AuthUser ────────────────────────
+  onLoginSuccess: (role: UserRole, industry: UserIndustry, user: AuthUser) => void;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -284,14 +291,13 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
         return;
       }
 
-      // PERF FIX 4: getAuthUser() runs immediately after login succeeds.
-      // No further optimisation needed here since it's inherently sequential
-      // (we need the session cookie set by /login before /api/user will work).
-      // Log clearly shows how long this second leg takes.
       const user = await getAuthUser();
       console.log(`[Auth] ✅ Full login flow done in ${(performance.now() - tTotal).toFixed(0)} ms`);
       console.groupEnd();
-      onLoginSuccess(user.role, user.industry ?? null);
+
+      // ── FIXED: pass the full user object as the third argument ────────────
+      onLoginSuccess(user.role, user.industry ?? null, user);
+
     } catch (err: any) {
       console.error(`[Auth] ❌ Flow failed after ${(performance.now() - tTotal).toFixed(0)} ms`, err);
       console.groupEnd();
@@ -314,9 +320,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ─────────────────────────────────────────────────────────
-     MINIMAL <style> — ONLY what Tailwind cannot express
-     ───────────────────────────────────────────────────────── */
   const minimalCSS = `
     @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@200;300;400;500&display=swap');
 
@@ -373,9 +376,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
     <>
       <style>{minimalCSS}</style>
 
-      {/* ══════════════════════════════════════════════════════
-          BACKGROUND
-          ══════════════════════════════════════════════════════ */}
       <div className="fixed inset-0 overflow-hidden"
            style={{ background: "linear-gradient(135deg,#f0f4ff 0%,#e8eeff 35%,#dde8ff 65%,#f0f4ff 100%)" }}>
 

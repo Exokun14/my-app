@@ -3,6 +3,10 @@
 //  Self-contained: fetches the authenticated user from /api/user
 //  on mount, displays real name/role/company in the pill, and
 //  calls POST /logout (via authAPI) on sign-out.
+//
+//  FIX: Sign Out now properly awaits the async onLogout prop
+//  and always clears local state even if the server request
+//  fails — so the button never appears to do nothing.
 // ============================================================
 
 "use client";
@@ -16,7 +20,7 @@ interface HeaderProps {
   notificationCount?: number;
   onNotificationClick?: () => void;
   /** Called after logout succeeds so the parent can unmount the portal */
-  onLogout?: () => void;
+  onLogout?: () => Promise<void> | void;
 }
 
 function getInitials(name: string): string {
@@ -87,7 +91,10 @@ export default function Header({
   const displayCompany = authUser?.company_name ?? clientLabel ?? "—";
 
   // ── Sign Out ─────────────────────────────────────────────
+  // FIX: properly await the async onLogout prop so the loading state
+  // shows correctly and local state always clears even on server errors.
   const handleSignOut = async () => {
+    if (loggingOut) return;
     setUserOpen(false);
     setLoggingOut(true);
     try {
@@ -97,11 +104,13 @@ export default function Header({
         credentials: "include",
       });
       await authAPI.logout();
+      await onLogout?.();
     } catch (err) {
       console.warn("Logout request failed, clearing local state anyway:", err);
+      // Still call onLogout to clear client-side auth state
+      try { await onLogout?.(); } catch {}
     } finally {
       setLoggingOut(false);
-      onLogout?.();
     }
   };
 
@@ -159,8 +168,12 @@ export default function Header({
       <div style={{ position: "relative" }} ref={popRef}>
         <div
           className="gx-user-pill"
-          onClick={() => setUserOpen(o => !o)}
-          style={isMobile ? { gap: 6, padding: "4px 8px" } : undefined}
+          onClick={() => { if (!loggingOut) setUserOpen(o => !o); }}
+          style={{
+            ...(isMobile ? { gap: 6, padding: "4px 8px" } : undefined),
+            opacity: loggingOut ? 0.6 : 1,
+            cursor: loggingOut ? "wait" : "pointer",
+          }}
         >
           {/* Avatar */}
           <div className="gx-user-av">
@@ -179,7 +192,9 @@ export default function Header({
           {!isMobile && (
             <div>
               <div className="gx-user-name">
-                {authUser ? displayName : (
+                {loggingOut ? (
+                  <span style={{ opacity: 0.7 }}>Signing out…</span>
+                ) : authUser ? displayName : (
                   <span style={{
                     display: "inline-block", width: 72, height: 10,
                     borderRadius: 5, background: "rgba(124,58,237,0.12)",
@@ -212,7 +227,7 @@ export default function Header({
         </div>
 
         {/* Dropdown */}
-        {userOpen && (
+        {userOpen && !loggingOut && (
           <div style={{
             ...(isMobile
               ? { position: "fixed" as const, top: 60, right: 10 }

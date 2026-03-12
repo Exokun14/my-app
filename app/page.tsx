@@ -18,11 +18,16 @@
    FIX: handleLogout now calls POST /logout on the Laravel
    backend (Sanctum session) before clearing local state,
    so the server-side session is properly invalidated.
+
+   FIX: added `mounted` guard so the portal never renders
+   server-side or before sessionStorage has been read.
+   This prevents companyId from ever being null on first
+   render when a session exists.
    ============================================================== */
 
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import LoginAdmin, { AuthUser } from "./pages/Login/logUser";
 import DashboardAdmin           from "./pages/Dashboard_Admin_Main/DashboardAdmin";
@@ -35,7 +40,7 @@ export type UserIndustry = "fnb" | "retail" | "warehouse" | null;
 interface AuthState {
   role:     UserRole;
   industry: UserIndustry;
-  user:     AuthUser;         // ← full user object, passed down to avoid re-fetching
+  user:     AuthUser;
 }
 
 const SESSION_KEY = "gx_auth";
@@ -59,7 +64,6 @@ async function fortifyLogout(): Promise<void> {
       },
     });
   } catch (err) {
-    // Log but don't block — still clear local session below
     console.error("[Auth] Logout request failed:", err);
   }
 }
@@ -67,15 +71,23 @@ async function fortifyLogout(): Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Home() {
 
-  const [auth, setAuth] = useState<AuthState | null>(() => {
-    if (typeof window === "undefined") return null;
+  // `mounted` prevents any render until the client has read sessionStorage,
+  // eliminating the SSR/hydration mismatch and the companyId=null first render.
+  const [mounted, setMounted] = useState(false);
+  const [auth,    setAuth]    = useState<AuthState | null>(null);
+
+  useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
-      return saved ? (JSON.parse(saved) as AuthState) : null;
+      if (saved) setAuth(JSON.parse(saved) as AuthState);
     } catch {
-      return null;
+      // ignore
     }
-  });
+    setMounted(true);
+  }, []);
+
+  // Hold off rendering until sessionStorage has been read
+  if (!mounted) return null;
 
   // Called by logUser.tsx on successful login
   const handleLoginSuccess = (role: UserRole, industry: UserIndustry, user: AuthUser) => {
@@ -84,7 +96,7 @@ export default function Home() {
     setAuth(next);
   };
 
-  // Called by any Sign Out button — hits Laravel first, then clears local state
+  // Called by any Sign Out button
   const handleLogout = async () => {
     await fortifyLogout();
     sessionStorage.removeItem(SESSION_KEY);
