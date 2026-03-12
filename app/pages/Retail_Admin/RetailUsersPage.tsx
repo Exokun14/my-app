@@ -271,7 +271,8 @@ const UsersPage: React.FC<UsersPageProps> = ({ onNavigate, onLogout }) => {
       <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, minHeight:0, overflow:"hidden" }}>
         {/* FIX: onLogout wired in */}
         <Header
-          user={{ initials:"CL", name:"Chris Lee", role:"System Admin", company:"Nike Retail" }}
+          user={{ initials:"RJ", name:"Rence Joven", role:"Manager", company:"Retail" }}
+          clientLabel="Nike"
           notificationCount={unread}
           onNotificationClick={() => setNotifOpen(o => !o)}
           onLogout={onLogout}

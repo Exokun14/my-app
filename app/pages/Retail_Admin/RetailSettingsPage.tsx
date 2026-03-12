@@ -1,13 +1,6 @@
 // ============================================================
-//  SettingsPage.tsx  —  MERGED (v1 + v2)
-//  Features:
-//   • onLogout prop wired to Header (v2 fix)
-//   • Dynamic user + clientLabel props (v1)
-//   • Dynamic profile form derived from user prop (v1)
-//   • Full settings sections: General, Notifications,
-//     Security, Integrations, Profile, Billing (both)
-//   • Dark mode toggle (both)
-//   • All notification toggles (both)
+//  RetailSettingsPage.tsx
+//  Retail (Nike) branded settings page
 // ============================================================
 
 'use client'
@@ -18,19 +11,13 @@ import Header from "../Header_Client/header_client";
 import "../../globals.css";
 
 type CPView = "overview" | "tickets" | "users" | "settings";
-
-interface SettingsPageProps {
+interface RetailSettingsPageProps {
   onNavigate: (view: CPView) => void;
   onLogout?: () => void;
-  user?: { initials: string; name: string; role: string; company?: string };
-  clientLabel?: string;
 }
 
 type SettingsSection = "general" | "notifications" | "security" | "integrations" | "profile" | "billing";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENTS
-// ─────────────────────────────────────────────────────────────────────────────
 const Toggle: React.FC<{ value: boolean; onChange: (v: boolean) => void }> = ({ value, onChange }) => (
   <div onClick={() => onChange(!value)} style={{
     width: 44, height: 24, borderRadius: 12, cursor: "pointer", position: "relative",
@@ -57,16 +44,12 @@ const SettingRow: React.FC<{ label: string; desc?: string; children: React.React
 const inp: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1.5px solid rgba(109,40,217,0.12)", borderRadius: 10, fontSize: 13, fontFamily: "inherit", color: "#1e1b4b", background: "#f4f3fb", outline: "none", fontWeight: 500 };
 const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "rgba(0,0,0,0.4)", marginBottom: 5, display: "block" };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SETTINGS PAGE
-// ─────────────────────────────────────────────────────────────────────────────
-const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user, clientLabel }) => {
-  const [section, setSection]   = useState<SettingsSection>("general");
-  const [saved, setSaved]       = useState(false);
-  const [unread]                = useState(3);
+const RetailSettingsPage: React.FC<RetailSettingsPageProps> = ({ onNavigate, onLogout }) => {
+  const [section, setSection] = useState<SettingsSection>("general");
+  const [saved, setSaved]     = useState(false);
+  const [unread]              = useState(3);
   const [notifOpen, setNotifOpen] = useState(false);
 
-  // General
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     if (typeof window !== "undefined") return document.documentElement.classList.contains("dark");
     return false;
@@ -81,28 +64,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
   const [defaultFilter, setDefaultFilter] = useState("All Companies");
   const [defaultTicket, setDefaultTicket] = useState("Open");
 
-  // Notifications
   const [emailNotif,  setEmailNotif]  = useState(true);
   const [smsNotif,    setSmsNotif]    = useState(false);
   const [ticketAlert, setTicketAlert] = useState(true);
   const [saExpiry,    setSaExpiry]    = useState(true);
   const [weeklyRpt,   setWeeklyRpt]   = useState(false);
 
-  // Security
-  const [twoFA,           setTwoFA]           = useState(false);
-  const [sessionTimeout,  setSessionTimeout]  = useState("30");
-
-  // Profile — derived from user prop if present
-  const defaultUser = user ?? { initials: "MH", name: "Mics Hernandez", role: "Manager", company: "Popeyes" };
-  const nameParts = defaultUser.name.split(" ");
-  const [profile, setProfile] = useState({
-    firstName: nameParts[0] ?? "Mics",
-    lastName:  nameParts.slice(1).join(" ") || "Hernandez",
-    email:     `${nameParts[0]?.toLowerCase() ?? "mics"}@${(defaultUser.company ?? "popeyes").toLowerCase()}.com`,
-    phone:     "+63 912 345 6789",
-    position:  defaultUser.role,
-  });
+  const [profile, setProfile] = useState({ firstName: "Rence", lastName: "Joven", email: "rence@nike.com", phone: "+63 928 222 4012", position: "Manager" });
   const setP = (k: keyof typeof profile) => (e: React.ChangeEvent<HTMLInputElement>) => setProfile(p => ({ ...p, [k]: e.target.value }));
+
+  const [twoFA, setTwoFA] = useState(false);
+  const [sessionTimeout, setSessionTimeout] = useState("30");
 
   const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
@@ -130,9 +102,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <Sidebar activePage="settings" onNavigate={onNavigate as (view: string) => void} />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+        {/* FIX: onLogout wired in */}
         <Header
-          user={defaultUser}
-          clientLabel={clientLabel}
+          user={{ initials: "RJ", name: "Rence Joven", role: "Manager", company: "Retail" }}
+          clientLabel="Nike"
           notificationCount={unread}
           onNotificationClick={() => setNotifOpen(o => !o)}
           onLogout={onLogout}
@@ -151,7 +124,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
 
             <div className="gx-scroll">
               <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
-
                 {/* Left Nav */}
                 <div style={{ width: 200, flexShrink: 0 }}>
                   {["PREFERENCES", "ACCOUNT"].map(sec => (
@@ -169,7 +141,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
 
                 {/* Right Content */}
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
-
                   {section === "general" && <>
                     <div className="gx-card">
                       <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 4 }}>General Preferences</div>
@@ -197,7 +168,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
                     <SettingRow label="Email Notifications" desc="Receive updates via email"><Toggle value={emailNotif} onChange={setEmailNotif} /></SettingRow>
                     <SettingRow label="SMS Notifications" desc="Receive alerts via SMS"><Toggle value={smsNotif} onChange={setSmsNotif} /></SettingRow>
                     <SettingRow label="Ticket Alerts" desc="Notify on new or updated tickets"><Toggle value={ticketAlert} onChange={setTicketAlert} /></SettingRow>
-                    <SettingRow label="MSA/SA Expiry Reminders" desc="Alert before software assurance expires"><Toggle value={saExpiry} onChange={setSaExpiry} /></SettingRow>
+                    <SettingRow label="SA Expiry Reminders" desc="Alert before software assurance expires"><Toggle value={saExpiry} onChange={setSaExpiry} /></SettingRow>
                     <SettingRow label="Weekly Summary Report" desc="Receive weekly digest every Monday"><Toggle value={weeklyRpt} onChange={setWeeklyRpt} /></SettingRow>
                   </div>}
 
@@ -225,10 +196,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
                   {section === "integrations" && <div className="gx-card">
                     <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 14 }}>Integrations</div>
                     {[
-                      { name: "Slack",            desc: "Send ticket alerts to Slack channels",  connected: true,  color: "#4a154b", emoji: "💬" },
-                      { name: "Google Workspace", desc: "Sync users with Google directory",      connected: false, color: "#4285f4", emoji: "🔵" },
-                      { name: "Microsoft Teams",  desc: "Post updates to Teams channels",        connected: false, color: "#6264a7", emoji: "🟣" },
-                      { name: "Zapier",           desc: "Automate workflows with 5000+ apps",   connected: false, color: "#ff4a00", emoji: "⚡" },
+                      { name: "Slack",             desc: "Send ticket alerts to Slack channels",    connected: true,  color: "#4a154b", emoji: "💬" },
+                      { name: "Google Workspace",  desc: "Sync users with Google directory",        connected: false, color: "#4285f4", emoji: "🔵" },
+                      { name: "Microsoft Teams",   desc: "Post updates to Teams channels",          connected: false, color: "#6264a7", emoji: "🟣" },
+                      { name: "Zapier",            desc: "Automate workflows with 5000+ apps",      connected: false, color: "#ff4a00", emoji: "⚡" },
                     ].map(item => (
                       <div key={item.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(109,40,217,0.07)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -248,12 +219,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
                   {section === "profile" && <div className="gx-card">
                     <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 14 }}>Profile Information</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", background: "#f4f3fb", borderRadius: 12, marginBottom: 16 }}>
-                      <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#6d28d9,#0f766e)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{defaultUser.initials}</div>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e1b4b" }}>Profile Photo</div>
-                        <div style={{ fontSize: 10.5, color: "rgba(0,0,0,0.4)", marginBottom: 6 }}>Upload a new photo or keep existing</div>
-                        <button style={{ fontSize: 11, fontWeight: 600, color: "#fff", background: "#6d28d9", border: "none", borderRadius: 7, padding: "4px 12px", cursor: "pointer" }}>Change Photo</button>
-                      </div>
+                      <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#6d28d9,#0f766e)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#fff", flexShrink: 0 }}>RJ</div>
+                      <div><div style={{ fontSize: 13, fontWeight: 700, color: "#1e1b4b" }}>Profile Photo</div><div style={{ fontSize: 10.5, color: "rgba(0,0,0,0.4)", marginBottom: 6 }}>Upload a new photo or keep existing</div><button style={{ fontSize: 11, fontWeight: 600, color: "#fff", background: "#6d28d9", border: "none", borderRadius: 7, padding: "4px 12px", cursor: "pointer" }}>Change Photo</button></div>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                       <div><label style={lbl}>First Name</label><input style={inp} value={profile.firstName} onChange={setP("firstName")} /></div>
@@ -289,7 +256,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
                       <button className="btn btn-p btn-sm">Upgrade Plan</button>
                     </div>
                   </div>}
-
                 </div>
               </div>
             </div>
@@ -300,4 +266,4 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, user,
   );
 };
 
-export default SettingsPage;
+export default RetailSettingsPage;

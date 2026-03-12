@@ -694,6 +694,8 @@ table.gx-dt tr:hover td { background: var(--surf2); }
   .gx-card > div[style*="overflow"]   { overflow: visible !important; max-height: none !important; }
 
   .gx-two-col-grid { grid-template-columns: 1fr !important; height: auto !important; min-height: 0 !important; }
+  .gx-main-grid,
+  div[class*="grid"][style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
 
   .gx-pos-search-row { flex-wrap: wrap !important; gap: 6px !important; }
   .gx-pos-search-row input { width: 100% !important; }

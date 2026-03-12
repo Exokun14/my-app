@@ -1,13 +1,13 @@
 // app/Hooks/useAuthUser.ts
 //
-// Fetches the authenticated user from GET /api/user once on mount.
-// Use this in any component that needs to show the current user's
-// name, role, or company — just like useToast() is used for toasts.
+// Builds the <Header user={...}> shape from an AuthUser.
+// Pass the user object that was already fetched at login (from page.tsx)
+// to avoid an extra GET /api/user on every page mount.
 //
 // Usage:
 //   import { useAuthUser } from "../../Hooks/useAuthUser";
 //
-//   const { headerUser } = useAuthUser();
+//   const { headerUser } = useAuthUser(propUser);
 //   <Header user={headerUser} />
 
 import { useState, useEffect, useRef } from "react";
@@ -31,26 +31,38 @@ function buildHeaderUser(user: AuthUser | null) {
   return {
     initials: user ? getInitials(user.name) : "··",
     name:     user?.name         ?? "Loading...",
-    role:     formatRole(user?.role),   // 'admin' → 'System Admin'
-    company:  user?.company_name ?? "", // from companies.name via eager-load
+    role:     formatRole(user?.role),
+    company:  user?.company_name ?? "",
   };
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useAuthUser() {
-  const [user,    setUser]    = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+/**
+ * @param initialUser  Pass the AuthUser already fetched at login (from page.tsx
+ *                     via props). When provided, skips the GET /api/user call
+ *                     entirely. Falls back to fetching if not supplied.
+ */
+export function useAuthUser(initialUser?: AuthUser | null) {
+  const [user,    setUser]    = useState<AuthUser | null>(initialUser ?? null);
+  const [loading, setLoading] = useState(!initialUser);
   const [error,   setError]   = useState<string | null>(null);
 
-  // Prevent double-fetch from React's strict-mode double mount in dev
+  // Prevent double-fetch from React strict-mode double mount in dev
   const fetched = useRef(false);
 
   useEffect(() => {
+    // If a user was passed in as a prop, no need to fetch
+    if (initialUser) {
+      setUser(initialUser);
+      setLoading(false);
+      return;
+    }
+
     if (fetched.current) return;
     fetched.current = true;
 
-    console.log("[useAuthUser] fetching GET /api/user...");
+    console.log("[useAuthUser] no user prop — falling back to GET /api/user");
 
     api.auth.getUser().then(r => {
       if (r.success && r.data) {
@@ -62,12 +74,13 @@ export function useAuthUser() {
       }
       setLoading(false);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
-    user,                        // raw AuthUser from the DB, or null
-    loading,                     // true until the request completes
-    error,                       // error message if the request failed
-    headerUser: buildHeaderUser(user),  // ready-to-pass to <Header user={...}>
+    user,
+    loading,
+    error,
+    headerUser: buildHeaderUser(user),
   };
 }

@@ -1,7 +1,15 @@
 // ============================================================
-//  UsersPage.tsx
+//  UsersPage.tsx  —  MERGED (v1 + v2)
+//  Features:
+//   • Full user table with Role Overview sidebar (both)
+//   • EditUserModal with photo, password, status (v2)
+//   • AddUserModal (v2)
+//   • Search + Role filter (both)
+//   • Pagination (both)
+//   • Notification panel (both)
+//   • onLogout wired through (v2)
+//   • System Admin users hidden from table (both)
 // ============================================================
-
 
 'use client'
 
@@ -10,7 +18,6 @@ import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "../Sidebar_Client/sidebar_client";
 import Header from "../Header_Client/header_client";
 import "../../globals.css";
-
 
 type UserRole   = "System Admin" | "Manager" | "User";
 type UserStatus = "Active" | "Inactive";
@@ -24,6 +31,9 @@ interface Notification {
   title: string; desc: string; time: string; read: boolean;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────────────────────────────────────
 const USERS_INIT: User[] = [
   { id:1, firstName:"John",     lastName:"Doe",    email:"john@popeyes.com",     role:"System Admin", position:"IT Lead",            company:"Popeyes", status:"Active",   phone:"+63 9XX XXX XXXX" },
   { id:2, firstName:"Ana",      lastName:"Reyes",  email:"ana@popeyes.com",       role:"User",         position:"Store Supervisor",   company:"Popeyes", status:"Active",   phone:"+63 9XX XXX XXXX" },
@@ -33,11 +43,11 @@ const USERS_INIT: User[] = [
 ];
 
 const NOTIFS_INIT: Notification[] = [
-  { id:1, type:"warn",    title:"SA Expiry Notice",       desc:"Your Software Assurance ends May 31, 2025.", time:"Just now",    read:false },
-  { id:2, type:"error",   title:"Open Ticket Alert",      desc:"Ticket #89323930193 has been open for 2+ hours.", time:"2 hours ago", read:false },
-  { id:3, type:"info",    title:"New Ticket Submitted",   desc:"Ticket #89323930200 filed for Manila branch.", time:"2 days ago",  read:false },
-  { id:4, type:"success", title:"Ticket Resolved",        desc:"Ticket #89323930170 has been resolved.", time:"1 week ago",  read:true  },
-  { id:5, type:"purple",  title:"Account Manager Update", desc:"Maria Santos has updated your account details.", time:"1 week ago",  read:true  },
+  { id:1, type:"warn",    title:"MSA Expiry Notice",       desc:"Manila Branch MSA ends March 31, 2026. Contact your account manager to renew.", time:"Just now",    read:false },
+  { id:2, type:"error",   title:"Open Ticket Alert",       desc:"Ticket #89323930193 has been open for 2+ hours.", time:"2 hours ago", read:false },
+  { id:3, type:"info",    title:"New Ticket Submitted",    desc:"Ticket #89323930200 filed for Manila branch.", time:"2 days ago",  read:false },
+  { id:4, type:"success", title:"Ticket Resolved",         desc:"Ticket #89323930170 has been resolved.", time:"1 week ago",  read:true  },
+  { id:5, type:"purple",  title:"Account Manager Update",  desc:"Maria Santos has updated your account details.", time:"1 week ago",  read:true  },
 ];
 
 const NOTIF_ICONS: Record<string, JSX.Element> = {
@@ -52,6 +62,9 @@ const AVATAR_COLORS = ["#6d28d9","#0f766e","#0369a1","#be123c","#b45309","#065f4
 const avatarColor = (id: number) => AVATAR_COLORS[id % AVATAR_COLORS.length];
 const initials = (u: User) => (u.firstName[0] + u.lastName[0]).toUpperCase();
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HOOKS
+// ─────────────────────────────────────────────────────────────────────────────
 function useToast() {
   const [msg, setMsg] = useState(""); const [show, setShow] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -67,6 +80,16 @@ function useClickOutside<T extends HTMLElement>(cb: () => void) {
   return ref;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED STYLES
+// ─────────────────────────────────────────────────────────────────────────────
+const inp: React.CSSProperties = { width:"100%", padding:"9px 12px", border:"1.5px solid rgba(109,40,217,0.12)", borderRadius:10, fontSize:12.5, fontFamily:"inherit", color:"#1e1b4b", background:"#f4f3fb", outline:"none", fontWeight:500 };
+const lbl: React.CSSProperties = { fontSize:12, fontWeight:600, color:"rgba(0,0,0,0.4)", marginBottom:5, display:"block" };
+const req = <span style={{ color:"#dc2626" }}> *</span>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATION PANEL
+// ─────────────────────────────────────────────────────────────────────────────
 const NotifPanel: React.FC<{ notifs: Notification[]; onRead: (id: number) => void; onMarkAll: () => void; onClose: () => void }> = ({ notifs, onRead, onMarkAll, onClose }) => {
   const ref = useClickOutside<HTMLDivElement>(onClose);
   const unread = notifs.filter(n => !n.read).length;
@@ -96,10 +119,9 @@ const NotifPanel: React.FC<{ notifs: Notification[]; onRead: (id: number) => voi
   );
 };
 
-const inp: React.CSSProperties = { width:"100%", padding:"9px 12px", border:"1.5px solid rgba(109,40,217,0.12)", borderRadius:10, fontSize:12.5, fontFamily:"inherit", color:"#1e1b4b", background:"#f4f3fb", outline:"none", fontWeight:500 };
-const lbl: React.CSSProperties = { fontSize:12, fontWeight:600, color:"rgba(0,0,0,0.4)", marginBottom:5, display:"block" };
-const req = <span style={{ color:"#dc2626" }}> *</span>;
-
+// ─────────────────────────────────────────────────────────────────────────────
+// EDIT USER MODAL (v2)
+// ─────────────────────────────────────────────────────────────────────────────
 const EditUserModal: React.FC<{ user: User; onSave: (u: User) => void; onClose: () => void }> = ({ user, onSave, onClose }) => {
   const [form, setForm] = useState<User>({ ...user });
   const set = (k: keyof User) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -119,6 +141,7 @@ const EditUserModal: React.FC<{ user: User; onSave: (u: User) => void; onClose: 
           <button onClick={onClose} style={{ width:28, height:28, borderRadius:8, background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", cursor:"pointer", fontSize:13, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
         </div>
         <div style={{ padding:"12px 22px 16px", overflowY:"auto", maxHeight:"72vh" }}>
+          {/* Avatar row */}
           <div style={{ display:"flex", alignItems:"center", gap:14, padding:"10px 14px", background:"#f4f3fb", borderRadius:12, marginBottom:16 }}>
             <div style={{ width:48, height:48, borderRadius:12, background:avatarColor(form.id), display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff", flexShrink:0 }}>{initials(form)}</div>
             <div>
@@ -133,13 +156,22 @@ const EditUserModal: React.FC<{ user: User; onSave: (u: User) => void; onClose: 
           </div>
           <div style={{ marginBottom:10 }}><label style={lbl}>Email Address{req}</label><input style={inp} type="email" value={form.email} onChange={set("email")} /></div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            <div><label style={lbl}>User Role{req}</label><select style={{ ...inp, appearance:"none" }} value={form.role} onChange={set("role")}><option>System Admin</option><option>Manager</option><option>User</option></select></div>
-            <div><label style={lbl}>Company{req}</label><select style={{ ...inp, appearance:"none" }} value={form.company} onChange={set("company")}><option>Popeyes</option><option>GenieX</option></select></div>
+            <div><label style={lbl}>User Role{req}</label>
+              <select style={{ ...inp, appearance:"none" }} value={form.role} onChange={set("role")}>
+                <option>System Admin</option><option>Manager</option><option>User</option>
+              </select>
+            </div>
+            <div><label style={lbl}>Company{req}</label>
+              <select style={{ ...inp, appearance:"none" }} value={form.company} onChange={set("company")}>
+                <option>Popeyes</option><option>GenieX</option>
+              </select>
+            </div>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
             <div><label style={lbl}>Position / Title</label><input style={inp} value={form.position} onChange={set("position")} /></div>
             <div><label style={lbl}>Phone Number</label><input style={inp} placeholder="+63 9XX XXX XXXX" value={form.phone} onChange={set("phone")} /></div>
           </div>
+          {/* Status selector */}
           <div style={{ marginBottom:14 }}>
             <label style={lbl}>Status</label>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
@@ -153,6 +185,7 @@ const EditUserModal: React.FC<{ user: User; onSave: (u: User) => void; onClose: 
               ))}
             </div>
           </div>
+          {/* Password */}
           <div style={{ borderTop:"1px solid rgba(109,40,217,0.1)", paddingTop:12 }}>
             <div style={{ fontSize:9.5, fontWeight:700, letterSpacing:".12em", textTransform:"uppercase" as const, color:"#6d28d9", textAlign:"center" as const, marginBottom:12 }}>Change Password</div>
             <div style={{ marginBottom:10 }}><label style={lbl}>New Password <span style={{ fontSize:10, color:"rgba(0,0,0,0.3)" }}>(leave blank to keep current)</span></label><input style={inp} type="password" placeholder="Enter new password..." /></div>
@@ -171,6 +204,9 @@ const EditUserModal: React.FC<{ user: User; onSave: (u: User) => void; onClose: 
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD USER MODAL (v2)
+// ─────────────────────────────────────────────────────────────────────────────
 const AddUserModal: React.FC<{ onAdd: (u: User) => void; onClose: () => void }> = ({ onAdd, onClose }) => {
   const [form, setForm] = useState({ firstName:"", lastName:"", email:"", role:"User" as UserRole, position:"", company:"Popeyes", status:"Active" as UserStatus, phone:"" });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -196,8 +232,16 @@ const AddUserModal: React.FC<{ onAdd: (u: User) => void; onClose: () => void }> 
           </div>
           <div style={{ marginBottom:10 }}><label style={lbl}>Email Address{req}</label><input style={inp} type="email" value={form.email} onChange={set("email")} /></div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            <div><label style={lbl}>User Role{req}</label><select style={{ ...inp, appearance:"none" }} value={form.role} onChange={set("role")}><option>System Admin</option><option>Manager</option><option>User</option></select></div>
-            <div><label style={lbl}>Company{req}</label><select style={{ ...inp, appearance:"none" }} value={form.company} onChange={set("company")}><option>Popeyes</option><option>GenieX</option></select></div>
+            <div><label style={lbl}>User Role{req}</label>
+              <select style={{ ...inp, appearance:"none" }} value={form.role} onChange={set("role")}>
+                <option>System Admin</option><option>Manager</option><option>User</option>
+              </select>
+            </div>
+            <div><label style={lbl}>Company{req}</label>
+              <select style={{ ...inp, appearance:"none" }} value={form.company} onChange={set("company")}>
+                <option>Popeyes</option><option>GenieX</option>
+              </select>
+            </div>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
             <div><label style={lbl}>Position / Title</label><input style={inp} value={form.position} onChange={set("position")} /></div>
@@ -216,15 +260,16 @@ const AddUserModal: React.FC<{ onAdd: (u: User) => void; onClose: () => void }> 
   );
 };
 
-
-
+// ─────────────────────────────────────────────────────────────────────────────
+// USERS PAGE
+// ─────────────────────────────────────────────────────────────────────────────
 type CPView = "overview" | "tickets" | "users" | "settings";
 interface UsersPageProps {
   onNavigate: (view: CPView) => void;
   onLogout?: () => void;
 }
 
-const UsersPage: React.FC<UsersPageProps> = ({ onNavigate, onLogout}) => {
+const UsersPage: React.FC<UsersPageProps> = ({ onNavigate, onLogout }) => {
   const { msg, show, toast }        = useToast();
   const [notifs, setNotifs]         = useState<Notification[]>(NOTIFS_INIT);
   const [notifOpen, setNotifOpen]   = useState(false);
@@ -244,7 +289,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ onNavigate, onLogout}) => {
     if (u.role === "System Admin") return false;
     const q = search.toLowerCase();
     const matchQ = !q || `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-    const matchR = roleFilter==="All" || u.role===roleFilter;
+    const matchR = roleFilter === "All" || u.role === roleFilter;
     return matchQ && matchR;
   });
 
@@ -274,10 +319,10 @@ const UsersPage: React.FC<UsersPageProps> = ({ onNavigate, onLogout}) => {
       <Sidebar activePage="users" onNavigate={onNavigate as (view: string) => void} />
       <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, minHeight:0, overflow:"hidden" }}>
         <Header
-          user={{ initials:"JD", name:"John Doe", role:"System Admin", company:"Popeyes" }}
+          user={{ initials:"MH", name:"Mics Hernandez", role:"Manager", company:"Popeyes" }}
           notificationCount={unread}
           onNotificationClick={() => setNotifOpen(o => !o)}
-           onLogout={onLogout}
+          onLogout={onLogout}
         />
         <div className="gx-main">
           <div className="gx-view">
@@ -300,7 +345,8 @@ const UsersPage: React.FC<UsersPageProps> = ({ onNavigate, onLogout}) => {
                     { role:"Manager" as UserRole, count:managerCount, desc:"Team & Client Oversight",  color:"#be185d", bg:"#fce7f3" },
                     { role:"User"    as UserRole, count:userCount,    desc:"Standard Access",          color:"#16a34a", bg:"#f0fdf4" },
                   ]).map(({ role, count, desc, color, bg }) => (
-                    <div key={role} onClick={() => { setRoleFilter(roleFilter===role?"All":role); setPage(1); }} style={{ background:"#fff", border:`1px solid ${roleFilter===role?color:"#ebebeb"}`, borderRadius:10, padding:"12px 14px", cursor:"pointer", transition:"all .15s", boxShadow:roleFilter===role?`0 0 0 3px ${color}22`:"none" }}>
+                    <div key={role} onClick={() => { setRoleFilter(roleFilter===role?"All":role); setPage(1); }}
+                      style={{ background:"#fff", border:`1px solid ${roleFilter===role?color:"#ebebeb"}`, borderRadius:10, padding:"12px 14px", cursor:"pointer", transition:"all .15s", boxShadow:roleFilter===role?`0 0 0 3px ${color}22`:"none" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
                         <div style={{ width:28, height:28, borderRadius:8, background:bg, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.4"><path d="M2 13s2.5-4 6-4 6 4 6 4"/><circle cx="8" cy="6" r="2.5"/></svg>
@@ -370,8 +416,11 @@ const UsersPage: React.FC<UsersPageProps> = ({ onNavigate, onLogout}) => {
                         </tbody>
                       </table>
                     </div>
+                    {/* Pagination */}
                     <div style={{ padding:"10px 14px", borderTop:"1px solid rgba(109,40,217,0.08)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                      <span style={{ fontSize:11, color:"rgba(0,0,0,0.4)" }}>Showing {Math.min((page-1)*PER_PAGE+1, filtered.length)}–{Math.min(page*PER_PAGE, filtered.length)} of {filtered.length} entries</span>
+                      <span style={{ fontSize:11, color:"rgba(0,0,0,0.4)" }}>
+                        Showing {Math.min((page-1)*PER_PAGE+1, filtered.length)}–{Math.min(page*PER_PAGE, filtered.length)} of {filtered.length} entries
+                      </span>
                       <div style={{ display:"flex", gap:4 }}>
                         <button onClick={() => setPage(p => Math.max(1,p-1))} disabled={page===1} style={{ width:26, height:26, borderRadius:7, border:"1px solid rgba(109,40,217,0.15)", background:"#fff", color:"#6d28d9", cursor:page===1?"default":"pointer", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center", opacity:page===1?0.4:1 }}>‹</button>
                         {Array.from({length:totalPages},(_,i)=>i+1).map(p => (

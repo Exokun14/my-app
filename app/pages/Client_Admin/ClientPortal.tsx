@@ -2,21 +2,26 @@
    app/pages/Client_Admin/ClientPortal.tsx
 
    Thin router: receives the user's industry + role from root page.tsx
-   and renders the matching overview portal.
+   and renders the matching portal pages.
 
-   Add new industry branches here as you build them.
+   Retail industry now uses Retail-branded pages for all views.
    ============================================================== */
 
 'use client';
 
 import React, { useState } from "react";
 
-import OverviewPage       from "./OverviewPage";
-import RetailOverviewPage from "../Retail_Admin/RetailOverviewPage";
-import TicketsPage        from "./TicketsPage";
-import UsersPage          from "./UsersPage";
-import SettingsPage       from "./SettingsPage";
-import LearningCenter     from "../Learning_Module/page";
+import OverviewPage         from "./OverviewPage";
+import TicketsPage          from "./TicketsPage";
+import UsersPage            from "./UsersPage";
+import SettingsPage         from "./SettingsPage";
+
+import RetailOverviewPage   from "../Retail_Admin/RetailOverviewPage";
+import RetailTicketsPage    from "../Retail_Admin/RetailTicketsPage";
+import RetailUsersPage      from "../Retail_Admin/RetailUsersPage";
+import RetailSettingsPage   from "../Retail_Admin/RetailSettingsPage";
+
+import LearningCenter       from "../Learning_Module/page";
 
 import type { UserIndustry, UserRole } from "../../page";
 
@@ -32,26 +37,32 @@ interface ClientPortalProps {
 export default function ClientPortal({ industry, role = "user", onLogout }: ClientPortalProps) {
   const [view, setView] = useState<CPView>("overview");
 
-  // Shared pages (same for all industries)
-  if (view === "tickets")  return <TicketsPage  onNavigate={setView} onLogout={onLogout} />;
-  if (view === "users")    return <UsersPage     onNavigate={setView} onLogout={onLogout} />;
-  if (view === "settings") return <SettingsPage  onNavigate={setView} onLogout={onLogout} />;
-  if (view === "learning") return <LearningCenter role={role}         onBack={() => setView("overview")} />;
+  if (view === "learning") return <LearningCenter role={role} onBack={() => setView("overview")} />;
 
-  // Overview -- pick by industry
-  switch (industry) {
-    case "retail":
-      return <RetailOverviewPage onNavigate={setView} onLogout={onLogout} />;
+  // ── Retail industry ───────────────────────────────────────
+  if (industry === "retail") {
+    switch (view) {
+      case "tickets":  return <RetailTicketsPage  onNavigate={setView} onLogout={onLogout} />;
+      case "users":    return <RetailUsersPage    onNavigate={setView} onLogout={onLogout} />;
+      case "settings": return <RetailSettingsPage onNavigate={setView} onLogout={onLogout} />;
+      default:         return <RetailOverviewPage onNavigate={setView} onLogout={onLogout} />;
+    }
+  }
 
-    case "warehouse":
-      return (
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", fontFamily:"sans-serif", color:"#666" }}>
-          Warehouse portal coming soon.
-        </div>
-      );
+  // ── Warehouse (placeholder) ───────────────────────────────
+  if (industry === "warehouse") {
+    return (
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", fontFamily:"sans-serif", color:"#666" }}>
+        Warehouse portal coming soon.
+      </div>
+    );
+  }
 
-    case "fnb":
-    default:
-      return <OverviewPage onNavigate={setView} onLogout={onLogout} />;
+  // ── F&B / default ─────────────────────────────────────────
+  switch (view) {
+    case "tickets":  return <TicketsPage  onNavigate={setView} onLogout={onLogout} />;
+    case "users":    return <UsersPage    onNavigate={setView} onLogout={onLogout} />;
+    case "settings": return <SettingsPage onNavigate={setView} onLogout={onLogout} />;
+    default:         return <OverviewPage onNavigate={setView} onLogout={onLogout} />;
   }
 }

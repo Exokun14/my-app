@@ -24,9 +24,9 @@
 
 import { useState } from "react";
 
-import LoginAdmin     from "./pages/Login/logUser";
-import DashboardAdmin from "./pages/Dashboard_Admin_Main/DashboardAdmin";
-import ClientPortal   from "./pages/Client_Admin/ClientPortal";
+import LoginAdmin, { AuthUser } from "./pages/Login/logUser";
+import DashboardAdmin           from "./pages/Dashboard_Admin_Main/DashboardAdmin";
+import ClientPortal             from "./pages/Client_Admin/ClientPortal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type UserRole     = "admin" | "user";
@@ -35,6 +35,7 @@ export type UserIndustry = "fnb" | "retail" | "warehouse" | null;
 interface AuthState {
   role:     UserRole;
   industry: UserIndustry;
+  user:     AuthUser;         // ← full user object, passed down to avoid re-fetching
 }
 
 const SESSION_KEY = "gx_auth";
@@ -77,8 +78,8 @@ export default function Home() {
   });
 
   // Called by logUser.tsx on successful login
-  const handleLoginSuccess = (role: UserRole, industry: UserIndustry) => {
-    const next: AuthState = { role, industry };
+  const handleLoginSuccess = (role: UserRole, industry: UserIndustry, user: AuthUser) => {
+    const next: AuthState = { role, industry, user };
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
     setAuth(next);
   };
@@ -97,12 +98,12 @@ export default function Home() {
 
   // ── Admin → Company Database ──
   if (auth.role === "admin") {
-    return <DashboardAdmin onLogout={handleLogout} />;
+    return <DashboardAdmin user={auth.user} onLogout={handleLogout} />;
   }
 
   // ── Client user → industry-specific portal ──
   if (auth.role === "user") {
-    return <ClientPortal industry={auth.industry} onLogout={handleLogout} />;
+    return <ClientPortal industry={auth.industry} user={auth.user} onLogout={handleLogout} />;
   }
 
   // Fallback

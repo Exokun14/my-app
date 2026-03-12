@@ -17,30 +17,68 @@ import RippleCanvas from "../../Effects/RippleCanvas";
 /* ── Laravel Fortify API ─────────────────────────────────── */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-async function csrfCookie() {
-  console.log("[Auth] Fetching CSRF cookie from:", `${API_BASE}/sanctum/csrf-cookie`);
-  try {
-    await fetch(`${API_BASE}/sanctum/csrf-cookie`, { credentials: "include" });
-    console.log("[Auth] CSRF cookie fetched successfully");
-  } catch (err) {
-    console.error("[Auth] CSRF fetch FAILED — is Laravel running?", err);
-    throw err;
+// ─── PERF FIX 1: Cache the CSRF promise so parallel calls don't double-fetch.
+// The original code called csrfCookie() inside fortifyLogin() on every attempt,
+// meaning every login = 1 extra sequential network round-trip BEFORE the login
+// POST even starts. At ~2–4 s per round-trip on localhost, this alone explains
+// 4–8 s of perceived latency.
+let _csrfPromise: Promise<void> | null = null;
+
+async function csrfCookie(): Promise<void> {
+  if (_csrfPromise) {
+    console.log("[Auth][CSRF] Reusing in-flight/cached CSRF fetch");
+    return _csrfPromise;
   }
+  console.log("[Auth][CSRF] → fetching", `${API_BASE}/sanctum/csrf-cookie`);
+  const t0 = performance.now();
+  _csrfPromise = fetch(`${API_BASE}/sanctum/csrf-cookie`, { credentials: "include" })
+    .then(() => {
+      console.log(`[Auth][CSRF] ✅ done in ${(performance.now() - t0).toFixed(0)} ms`);
+    })
+    .catch((err) => {
+      console.error("[Auth][CSRF] ❌ FAILED — is Laravel running?", err);
+      _csrfPromise = null; // allow retry on next attempt
+      throw err;
+    });
+  return _csrfPromise;
+}
+
+// ─── PERF FIX 2: Pre-warm the CSRF cookie as soon as the module loads (i.e.
+// the moment the login page mounts) instead of waiting for the user to click
+// "Sign In". This hides the full CSRF round-trip behind user think-time.
+if (typeof window !== "undefined") {
+  console.log("[Auth][CSRF] Pre-warming on page load…");
+  csrfCookie().catch(() => {}); // fire-and-forget; errors logged inside
 }
 
 function getXsrfToken(): string {
   const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
   const token = match ? decodeURIComponent(match[1]) : "";
-  console.log("[Auth] XSRF Token found:", token ? "yes (" + token.substring(0, 20) + "...)" : "NO — cookie missing!");
+  if (token) {
+    console.log("[Auth][CSRF] XSRF token present:", token.substring(0, 20) + "…");
+  } else {
+    console.warn("[Auth][CSRF] ⚠️  XSRF-TOKEN cookie missing — request will likely be rejected by Laravel");
+  }
   return token;
 }
 
 async function fortifyLogin(email: string, password: string, remember: boolean) {
-  console.log("[Auth] Attempting login to:", `${API_BASE}/login`);
-  console.log("[Auth] Email:", email);
+  const t0 = performance.now();
+  console.group("[Auth] fortifyLogin");
+  console.log("→ email:", email);
+  console.log("→ endpoint:", `${API_BASE}/login`);
+
+  // PERF FIX 3: await the cached CSRF promise (resolves instantly if already done)
+  const tCsrf0 = performance.now();
+  console.log(`[Auth] Awaiting CSRF cookie (pre-warmed = ${_csrfPromise ? "YES ✅" : "NO ❌"})`);
   await csrfCookie();
+  console.log(`[Auth] CSRF ready in ${(performance.now() - tCsrf0).toFixed(0)} ms`);
+
   const xsrfToken = getXsrfToken();
+
   let res: Response;
+  const tLogin0 = performance.now();
+  console.log("[Auth] → POST /login …");
   try {
     res = await fetch(`${API_BASE}/login`, {
       method: "POST",
@@ -54,29 +92,36 @@ async function fortifyLogin(email: string, password: string, remember: boolean) 
       body: JSON.stringify({ email, password, remember }),
     });
   } catch (err) {
-    console.error("[Auth] Login fetch FAILED — CORS or network issue:", err);
+    console.error(`[Auth] ❌ POST /login FAILED after ${(performance.now() - tLogin0).toFixed(0)} ms — CORS or network issue:`, err);
+    console.groupEnd();
     throw err;
   }
 
-  console.log("[Auth] Login response status:", res.status);
+  console.log(`[Auth] POST /login responded ${res.status} in ${(performance.now() - tLogin0).toFixed(0)} ms`);
 
-  // 204 or 200 = success, 422 = wrong credentials, 423 = 2FA required
   if (res.status === 204 || res.status === 200) {
     const data = await res.json().catch(() => ({}));
-    console.log("[Auth] Login success! Response:", data);
-    if (data?.two_factor === true) { return { status: "2fa" }; }
+    console.log(`[Auth] ✅ Login success — total so far: ${(performance.now() - t0).toFixed(0)} ms`, data);
+    console.groupEnd();
+    if (data?.two_factor === true) return { status: "2fa" };
     return { status: "ok" };
   }
-  if (res.status === 423) { console.log("[Auth] 2FA required"); return { status: "2fa" }; }
+  if (res.status === 423) {
+    console.log("[Auth] 2FA required");
+    console.groupEnd();
+    return { status: "2fa" };
+  }
 
   const data = await res.json().catch(() => ({}));
-  console.error("[Auth] Login failed — server response:", data);
+  console.error(`[Auth] ❌ Login failed (${res.status}) after ${(performance.now() - t0).toFixed(0)} ms`, data);
+  console.groupEnd();
   const message = data?.message || data?.errors?.email?.[0] || "Invalid credentials.";
   throw new Error(message);
 }
 
 async function getAuthUser(): Promise<{ role: UserRole; industry: UserIndustry }> {
-  console.log("[Auth] Fetching authenticated user from:", `${API_BASE}/api/user`);
+  const t0 = performance.now();
+  console.log("[Auth] → GET /api/user …");
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/user`, {
@@ -84,17 +129,17 @@ async function getAuthUser(): Promise<{ role: UserRole; industry: UserIndustry }
       headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
     });
   } catch (err) {
-    console.error("[Auth] getAuthUser fetch FAILED:", err);
+    console.error(`[Auth] ❌ GET /api/user FAILED after ${(performance.now() - t0).toFixed(0)} ms`, err);
     throw err;
   }
-  console.log("[Auth] getAuthUser response status:", res.status);
+  console.log(`[Auth] GET /api/user responded ${res.status} in ${(performance.now() - t0).toFixed(0)} ms`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    console.error("[Auth] getAuthUser failed — response body:", body);
+    console.error("[Auth] ❌ /api/user rejected:", body);
     throw new Error("Could not fetch user.");
   }
   const user = await res.json();
-  console.log("[Auth] Authenticated user:", user);
+  console.log(`[Auth] ✅ user fetched in ${(performance.now() - t0).toFixed(0)} ms:`, user);
   return user;
 }
 
@@ -226,20 +271,30 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
     if (!password) { showToast("⚠️  Please enter your password."); return; }
 
     setIsLoading(true);
+    const tTotal = performance.now();
+    console.group("[Auth] handleSignIn — full flow");
+
     try {
       const result = await fortifyLogin(email, password, stayChecked);
 
       if (result.status === "2fa") {
-        // 2FA required — show toast; extend this with a 2FA modal when ready
         showToast("⚠️  Two-factor authentication required.");
         setIsLoading(false);
+        console.groupEnd();
         return;
       }
 
-      // Fetch the authenticated user's role + industry from your Laravel API
+      // PERF FIX 4: getAuthUser() runs immediately after login succeeds.
+      // No further optimisation needed here since it's inherently sequential
+      // (we need the session cookie set by /login before /api/user will work).
+      // Log clearly shows how long this second leg takes.
       const user = await getAuthUser();
+      console.log(`[Auth] ✅ Full login flow done in ${(performance.now() - tTotal).toFixed(0)} ms`);
+      console.groupEnd();
       onLoginSuccess(user.role, user.industry ?? null);
     } catch (err: any) {
+      console.error(`[Auth] ❌ Flow failed after ${(performance.now() - tTotal).toFixed(0)} ms`, err);
+      console.groupEnd();
       showError(
         err?.message ||
         "The account you entered doesn't exist or the password is incorrect. Please check your credentials and try again."
@@ -259,18 +314,8 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Enter") handleSignIn(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   /* ─────────────────────────────────────────────────────────
-     MINIMAL <style> — ONLY what Tailwind cannot express:
-     @font-face imports · @keyframes · shard/ripple animation
-     classes · staggered fade-up delays · ::placeholder color
-     · mobile font-size @media override
+     MINIMAL <style> — ONLY what Tailwind cannot express
      ───────────────────────────────────────────────────────── */
   const minimalCSS = `
     @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@200;300;400;500&display=swap');
@@ -334,7 +379,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
       <div className="fixed inset-0 overflow-hidden"
            style={{ background: "linear-gradient(135deg,#f0f4ff 0%,#e8eeff 35%,#dde8ff 65%,#f0f4ff 100%)" }}>
 
-        {/* Animated blobs */}
         {[
           { sz:"clamp(150px,42vw,600px)", c:"rgba(124,58,237,0.25)", pos:{ top:"-15%",  left:"-20%"  }, dur:"12s" },
           { sz:"clamp(120px,34vw,500px)", c:"rgba(14,165,233,0.2)",  pos:{ bottom:"-15%",right:"-15%"}, dur:"15s" },
@@ -353,22 +397,17 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
           />
         ))}
 
-        {/* Grid texture */}
         <div className="absolute inset-0"
              style={{
                backgroundImage:`linear-gradient(rgba(124,58,237,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(14,165,233,0.05) 1px,transparent 1px)`,
                backgroundSize:"60px 60px",
              }} />
 
-        {/* Floating crystal shards — injected by initShards() */}
         <div id="shardContainer" ref={shardContainerRef} className="absolute inset-0" />
       </div>
 
       <RippleCanvas />
 
-      {/* ══════════════════════════════════════════════════════
-          SCROLL + CENTERING WRAPPER
-          ══════════════════════════════════════════════════════ */}
       <div className="fixed inset-0 z-[100] overflow-y-auto overflow-x-hidden"
            style={{ WebkitOverflowScrolling: "touch" as any }}>
         <div
@@ -384,10 +423,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
             className="w-full shrink-0"
             style={{ maxWidth: tok.cardMaxW }}
           >
-
-            {/* ════════════════════════════════════════════
-                CARD
-                ════════════════════════════════════════════ */}
             <div
               id="loginCard"
               className="gx-card-in relative overflow-hidden w-full backdrop-blur-2xl"
@@ -401,17 +436,13 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                 WebkitBackdropFilter: "blur(32px) saturate(150%)",
               }}
             >
-              {/* Top edge highlight */}
               <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
                    style={{ background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.9),rgba(124,58,237,0.3),rgba(14,165,233,0.3),transparent)" }} />
-              {/* Corner gloss */}
               <div className="absolute inset-0 pointer-events-none"
                    style={{ background:"linear-gradient(135deg,rgba(255,255,255,0.5) 0%,transparent 50%)" }} />
-              {/* Shimmer sweep */}
               <div className="gx-shimmer-lyr absolute inset-0 pointer-events-none"
                    style={{ background:"linear-gradient(105deg,transparent 30%,rgba(255,255,255,0.4) 50%,transparent 70%)" }} />
 
-              {/* ── Logo row ─────────────────────────────── */}
               {!isVeryShort && (
                 <div
                   className="gx-fade-up-1 flex items-center gap-3 overflow-hidden"
@@ -428,7 +459,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                       marginBottom: -tok.logoNudge,
                     }}
                   />
-                  {/* Divider pip */}
                   <div className="w-px h-7 shrink-0 mx-1"
                        style={{ background:"linear-gradient(to bottom,transparent,rgba(139,92,246,0.5),transparent)" }} />
                   <span
@@ -440,7 +470,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                 </div>
               )}
 
-              {/* ── Heading ──────────────────────────────── */}
               <div
                 className="gx-fade-up-2"
                 style={{ marginTop: isVeryShort ? 0 : tok.headingMt, marginBottom: tok.headingMb }}
@@ -466,7 +495,8 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                 </p>
               </div>
 
-              {/* ── Username field ───────────────────────── */}
+              <form onSubmit={e => { e.preventDefault(); handleSignIn(); }}>
+
               <div className="gx-fade-up-3">
                 <label
                   className="block font-semibold tracking-[0.12em] uppercase"
@@ -504,7 +534,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                     onFocus={() => setInputFocused("username")}
                     onBlur={()  => setInputFocused(null)}
                   />
-                  {/* Animated underline — collapses to centre on focus */}
                   <div
                     className="absolute bottom-0 h-0.5 pointer-events-none transition-all duration-[450ms]"
                     style={{
@@ -518,7 +547,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                 </div>
               </div>
 
-              {/* ── Password field ───────────────────────── */}
               <div className="gx-fade-up-4">
                 <label
                   className="block font-semibold tracking-[0.12em] uppercase"
@@ -555,7 +583,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                     onFocus={() => setInputFocused("password")}
                     onBlur={()  => setInputFocused(null)}
                   />
-                  {/* Animated underline */}
                   <div
                     className="absolute bottom-0 h-0.5 pointer-events-none transition-all duration-[450ms]"
                     style={{
@@ -566,7 +593,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                       transitionTimingFunction: "cubic-bezier(0.4,0,0.2,1)",
                     }}
                   />
-                  {/* Eye toggle */}
                   <button
                     id="eyeBtn"
                     type="button"
@@ -594,12 +620,10 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                 </div>
               </div>
 
-              {/* ── Options row ──────────────────────────── */}
               <div
                 className={`gx-fade-up-5 flex items-center justify-between ${tier === "xs" ? "flex-wrap gap-2" : ""}`}
                 style={{ marginTop: tok.optionsMt }}
               >
-                {/* Remember me */}
                 <label
                   htmlFor="stayCheck"
                   className="flex items-center gap-2 cursor-pointer select-none font-normal"
@@ -636,7 +660,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                   Remember me
                 </label>
 
-                {/* Forgot password */}
                 <button
                   type="button"
                   onClick={() => router.push("/pages/Forgot_Password")}
@@ -656,11 +679,10 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                 </button>
               </div>
 
-              {/* ── Sign in button ───────────────────────── */}
               <button
                 ref={signInBtnRef}
                 id="signInBtn"
-                onClick={handleSignIn}
+                type="submit"
                 disabled={isLoading}
                 onMouseEnter={() => setSignInHover(true)}
                 onMouseLeave={() => setSignInHover(false)}
@@ -692,8 +714,8 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                   </span>
                 ) : "Sign In"}
               </button>
+              </form>
 
-              {/* ── Security tag ─────────────────────────── */}
               {!isVeryShort && (
                 <div
                   className="gx-fade-up-7 flex items-center justify-center gap-1.5 font-medium tracking-[0.14em] uppercase mb-0.5"
@@ -707,7 +729,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                 </div>
               )}
 
-              {/* ── Divider ──────────────────────────────── */}
               <div
                 className="gx-fade-up-8 flex items-center gap-3.5"
                 style={{ marginTop: tok.dividerMy, marginBottom: tok.dividerMy }}
@@ -724,10 +745,7 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                      style={{ background:"linear-gradient(to right,transparent,rgba(124,58,237,0.2),transparent)" }} />
               </div>
 
-              {/* ── Social buttons ───────────────────────── */}
               <div className="gx-fade-up-9 grid grid-cols-2 gap-3">
-
-                {/* Google */}
                 <button
                   onMouseEnter={() => setGoogleHover(true)}
                   onMouseLeave={() => setGoogleHover(false)}
@@ -750,12 +768,11 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
                   Google
                 </button>
 
-                {/* GitHub */}
                 <button
                   onMouseEnter={() => setGithubHover(true)}
                   onMouseLeave={() => setGithubHover(false)}
@@ -779,16 +796,13 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
                   </svg>
                   GitHub
                 </button>
-
               </div>
-            </div>{/* /card */}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════
-          TOAST
-          ══════════════════════════════════════════════════════ */}
+      {/* TOAST */}
       <div
         className="fixed left-1/2 z-[9999] font-medium text-center rounded-2xl transition-all duration-300 ease-in-out"
         style={{
@@ -812,9 +826,7 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
         {toastMsg.replace("⚠️  ", "")}
       </div>
 
-      {/* ══════════════════════════════════════════════════════
-          ERROR MODAL
-          ══════════════════════════════════════════════════════ */}
+      {/* ERROR MODAL */}
       {errorVisible && (
         <div
           onClick={(e) => { if (e.target === e.currentTarget) closeError(); }}
@@ -831,7 +843,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
               animation:  "modalPop 0.3s cubic-bezier(0.34,1.56,0.64,1)",
             }}
           >
-            {/* Close × */}
             <button
               onClick={closeError}
               onMouseEnter={() => setCloseErrHover(true)}
@@ -844,7 +855,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
               }}
             >✕</button>
 
-            {/* Lock icon */}
             <div className="flex items-center justify-center mb-4 w-12 h-12 rounded-2xl"
                  style={{ background:"rgba(124,58,237,0.12)", border:"1px solid rgba(124,58,237,0.25)" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -860,7 +870,6 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
               {errorMsg}
             </p>
 
-            {/* Try Again */}
             <button
               onClick={closeError}
               onMouseEnter={() => setTryAgainHover(true)}
@@ -884,16 +893,3 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
