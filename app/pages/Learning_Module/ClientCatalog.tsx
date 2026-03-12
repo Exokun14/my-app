@@ -16,43 +16,56 @@ function fmtTime(mins: number) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-// ─── Spotlight: hero card + 2 stacked side cards ─────────────────────────────
+// ─── Spotlight: AI recommendation hero + rec stack (mirrors admin design) ─────
 function CatalogSpotlight({ courses, onOpenCourse }: CatalogProps) {
   const ordered = [
     ...courses.filter(c => (c.progress ?? 0) > 0 && !c.completed),
     ...courses.filter(c => !(c.enrolled || (c.progress ?? 0) > 0) && !c.completed),
     ...courses.filter(c => c.completed),
-  ].slice(0, 3);
+  ].slice(0, 4);
 
   if (ordered.length === 0) return null;
 
-  const hero = ordered[0];
+  const hero    = ordered[0];
   const heroIdx = courses.indexOf(hero);
   const heroGrad = THUMB_GRADIENTS[heroIdx % THUMB_GRADIENTS.length];
+  const heroPat  = THUMB_PATTERNS[heroIdx % THUMB_PATTERNS.length];
   const heroIcon = CAT_ICONS[hero.cat] || hero.thumbEmoji || "📚";
-  const heroPct = hero.progress ?? 0;
+  const heroPct  = hero.progress ?? 0;
   const heroDone = hero.completed || heroPct >= 100;
-  const heroEnr = hero.enrolled || heroPct > 0;
-  const sides = ordered.slice(1);
+  const heroEnr  = hero.enrolled || heroPct > 0;
+  const recCourses = ordered.slice(1);
+  const matchPcts  = [92, 87, 78];
 
   return (
     <div className="cl-spotlight">
-      <div className="cl-all-label">
-        <span>Featured</span>
-        <div className="cl-spotlight-rule" />
+      {/* AI section header — exact admin design */}
+      <div className="ai-section-header">
+        <span className="ai-badge">
+          <span className="ai-badge-icon">✦</span>
+          AI Pick
+        </span>
+        <span className="ai-section-title">Recommended for you</span>
+        <span className="ai-reason">Based on your role &amp; activity</span>
       </div>
-      <div className="cl-spotlight-layout">
-        {/* Hero */}
-        <div className="cl-spot-hero" style={{ background:`linear-gradient(145deg,${heroGrad[0]},${heroGrad[1]})` }}
-          onClick={() => onOpenCourse(heroIdx)}>
-          <div className="cl-spot-hero-glow" />
-          <div className="cl-spot-hero-scrim" />
-          <div className="cl-spot-hero-icon">{heroIcon}</div>
-          <div className="cl-spot-hero-pill">★ Featured</div>
-          <div className="cl-spot-hero-content">
-            <div className="cl-spot-hero-cat">{hero.cat}</div>
-            <div className="cl-spot-hero-title">{hero.title}</div>
-            {hero.desc && <div className="cl-spot-hero-desc">{hero.desc}</div>}
+
+      {/* Featured row: hero left + rec stack right */}
+      <div className="ai-featured-row">
+
+        {/* Hero — full bleed with gradient bg */}
+        <div className="ai-hero" onClick={() => onOpenCourse(heroIdx)}>
+          <div className="ai-hero-img"
+            style={{ background:`linear-gradient(135deg,${heroGrad[0]},${heroGrad[1]})` }}>
+            <div style={{ position:"absolute", inset:0, backgroundImage:heroPat, backgroundSize:"18px 18px", opacity:0.35 }} />
+            <div style={{ position:"absolute", bottom:-10, left:-4, fontSize:80, fontWeight:900, color:"rgba(255,255,255,0.07)", textTransform:"uppercase" as const, letterSpacing:"-.04em", lineHeight:1, userSelect:"none" as const }}>{hero.cat}</div>
+            <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:72, filter:"drop-shadow(0 10px 28px rgba(0,0,0,0.38))", paddingBottom:40 }}>{heroIcon}</div>
+          </div>
+          <div className="ai-hero-overlay" />
+          <div className="ai-hero-content">
+            <div className="ai-hero-featured-pill"><span>✦</span> AI Top Pick</div>
+            <div style={{ fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,0.55)", textTransform:"uppercase" as const, letterSpacing:".1em", marginBottom:5 }}>{hero.cat}</div>
+            <div style={{ fontSize:20, fontWeight:900, color:"#fff", lineHeight:1.2, letterSpacing:"-.03em", marginBottom:6 }}>{hero.title}</div>
+            {hero.desc && <div style={{ fontSize:11.5, color:"rgba(255,255,255,0.65)", lineHeight:1.55, display:"-webkit-box" as const, WebkitLineClamp:2, WebkitBoxOrient:"vertical" as const, overflow:"hidden", marginBottom:14 }}>{hero.desc}</div>}
             {heroEnr && heroPct > 0 && (
               <div className="cl-spot-pbar-wrap">
                 <div className="cl-spot-pbar">
@@ -61,45 +74,50 @@ function CatalogSpotlight({ courses, onOpenCourse }: CatalogProps) {
                 <span className="cl-spot-pct">{heroPct}%</span>
               </div>
             )}
-            <button className={`cl-spot-btn${heroDone?" done":heroEnr?" enr":""}`}
-              onClick={e=>{e.stopPropagation();onOpenCourse(heroIdx);}}>
-              {heroDone?"✓ Review Course":heroEnr?`▶ Continue · ${heroPct}%`:"+  Enroll Now"}
-            </button>
+            <div style={{ display:"flex", gap:8, alignItems:"center", marginTop: heroEnr && heroPct > 0 ? 0 : 14 }}>
+              <button
+                style={{ padding:"6px 16px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(0,0,0,0.3)" }}
+                onClick={e=>{e.stopPropagation();onOpenCourse(heroIdx);}}>
+                {heroDone ? "✓ Review Course" : heroEnr ? `▶ Continue · ${heroPct}%` : "+ Enroll Now"}
+              </button>
+            </div>
           </div>
         </div>
-        {/* Side stack */}
-        <div className="cl-spot-sides">
-          {sides.map((c, si) => {
-            const ri = courses.indexOf(c);
-            const grad = THUMB_GRADIENTS[ri % THUMB_GRADIENTS.length];
-            const icon = CAT_ICONS[c.cat] || c.thumbEmoji || "📚";
-            const pct = c.progress ?? 0;
-            const done = c.completed || pct >= 100;
-            const enr = c.enrolled || pct > 0;
-            return (
-              <div key={si} className="cl-spot-side" onClick={() => onOpenCourse(ri)}>
-                <div className="cl-spot-side-thumb" style={{ background:`linear-gradient(145deg,${grad[0]},${grad[1]})` }}>
-                  <span>{icon}</span>
-                </div>
-                <div className="cl-spot-side-body">
-                  <div className="cl-spot-side-cat">{c.cat}</div>
-                  <div className="cl-spot-side-title">{c.title}</div>
-                  {enr && pct > 0 && (
-                    <div className="cl-spot-pbar" style={{ marginBottom:6 }}>
-                      <div style={{ height:"100%", width:`${pct}%`, background:done?"#10b981":"linear-gradient(90deg,#6c3dd6,#0d9488)", borderRadius:3 }} />
+
+        {/* Right: rec stack */}
+        <div className="ai-rec-stack">
+          {recCourses.length === 0
+            ? <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"#c4b9e8", fontSize:12 }}>More courses below ↓</div>
+            : recCourses.map((c, ri) => {
+              const rIdx  = courses.indexOf(c);
+              const rGrad = THUMB_GRADIENTS[rIdx % THUMB_GRADIENTS.length];
+              const rIcon = CAT_ICONS[c.cat] || c.thumbEmoji || "📚";
+              const rPct  = c.progress ?? 0;
+              const rDone = c.completed || rPct >= 100;
+              const rEnr  = c.enrolled || rPct > 0;
+              return (
+                <div key={rIdx} className="ai-rec-card" onClick={() => onOpenCourse(rIdx)}>
+                  <div className="ai-rec-thumb"
+                    style={{ background:`linear-gradient(135deg,${rGrad[0]},${rGrad[1]})` }}>
+                    <span>{rIcon}</span>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:9, fontWeight:700, color:"#c4b9e8", textTransform:"uppercase" as const, letterSpacing:".07em", marginBottom:2 }}>{c.cat}</div>
+                    <div style={{ fontSize:12.5, fontWeight:800, color:"#18103a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.title}</div>
+                    <div style={{ marginTop:5 }} onClick={e => e.stopPropagation()}>
+                      {rDone
+                        ? <button className="ai-rec-review" onClick={() => onOpenCourse(rIdx)}>✓ Review</button>
+                        : <button className="ai-rec-enroll" onClick={() => onOpenCourse(rIdx)}>
+                            {rEnr ? `▶ Continue · ${rPct}%` : "+ Enroll"}
+                          </button>
+                      }
                     </div>
-                  )}
-                  <button className={`cl-spot-btn sm${done?" done":enr?" enr":""}`}
-                    onClick={e=>{e.stopPropagation();onOpenCourse(ri);}}>
-                    {done?"✓ Review":enr?`▶ Continue · ${pct}%`:"+  Enroll"}
-                  </button>
+                  </div>
+                  <div className="ai-rec-match">{matchPcts[ri] ?? 80}% match</div>
                 </div>
-              </div>
-            );
-          })}
-          {sides.length < 2 && (
-            <div className="cl-spot-placeholder">More courses below ↓</div>
-          )}
+              );
+            })
+          }
         </div>
       </div>
     </div>
@@ -331,7 +349,7 @@ const CATALOG_CSS = `
 }
 .cl-sf-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
 
-/* ── Scroll area — KEY FIX: replaces cl-masonry-scroll ──────────────────── */
+/* ── Scroll area ─────────────────────────────────────────────────────────── */
 .cl-scroll-area {
   flex:1 1 0; min-height:0; overflow-y:auto; overflow-x:hidden;
   padding:2px 1px 28px;
@@ -339,12 +357,12 @@ const CATALOG_CSS = `
 .cl-scroll-area::-webkit-scrollbar { width:3px; }
 .cl-scroll-area::-webkit-scrollbar-thumb { background:rgba(108,61,214,.2); border-radius:3px; }
 
-/* ── CSS Grid — replaces broken masonry columns layout ───────────────────── */
+/* ── Grid ────────────────────────────────────────────────────────────────── */
 .cl-grid {
   display:grid;
   grid-template-columns: repeat(3, 1fr);
   gap:12px;
-  align-items:start;        /* ← CRITICAL: cards align to top of each row */
+  align-items:start;
 }
 @media (min-width:1400px) { .cl-grid { grid-template-columns:repeat(4,1fr); } }
 @media (max-width:960px)  { .cl-grid { grid-template-columns:repeat(2,1fr); } }
@@ -365,107 +383,134 @@ const CATALOG_CSS = `
   background:rgba(108,61,214,.07); padding:2px 7px; border-radius:20px;
 }
 
-/* ── Spotlight ───────────────────────────────────────────────────────────── */
-.cl-spotlight { margin-bottom:20px; flex-shrink:0; }
-.cl-spotlight-layout {
-  display:flex; gap:12px; align-items:stretch; min-height:190px;
+/* ── AI spotlight — exact copy from admin CourseCatalog ──────────────────── */
+@keyframes ai-shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+@keyframes ai-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(124,58,237,0.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(124,58,237,0); }
+}
+@keyframes star-drift {
+  0%   { transform: translateY(0px) rotate(0deg);  opacity:.7; }
+  50%  { transform: translateY(-6px) rotate(8deg); opacity:1;  }
+  100% { transform: translateY(0px) rotate(0deg);  opacity:.7; }
 }
 
-/* Hero */
-.cl-spot-hero {
-  flex:0 0 56%; border-radius:16px; overflow:hidden; position:relative;
-  cursor:pointer; min-height:190px;
+.ai-section-header {
+  display:flex; align-items:center; gap:10px; margin-bottom:12px;
+}
+.ai-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 10px; border-radius:20px;
+  background:linear-gradient(135deg,#7c3aed,#4f46e5);
+  font-size:10px; font-weight:800; color:#fff; letter-spacing:.06em;
+  animation: ai-pulse 2.4s ease infinite;
+}
+.ai-badge-icon { font-size:11px; animation: star-drift 2.4s ease infinite; }
+.ai-section-title {
+  font-size:11px; font-weight:700; color:#8e7ec0;
+  text-transform:uppercase; letter-spacing:.1em;
+}
+.ai-reason {
+  font-size:10px; color:#a594d4; font-style:italic; margin-left:auto;
+}
+
+.ai-featured-row {
+  display:grid;
+  grid-template-columns: 1fr 320px;
+  gap:12px;
+  margin-bottom:20px;
+  align-items:stretch;
+}
+
+.ai-hero {
+  border-radius:16px; overflow:hidden; cursor:pointer;
+  position:relative; min-height:170px;
+  border:1.5px solid rgba(109,40,217,0.1);
+  box-shadow:0 4px 24px rgba(109,40,217,0.1);
   transition:transform .2s, box-shadow .2s;
+  display:flex; flex-direction:column; justify-content:flex-end;
 }
-.cl-spot-hero:hover { transform:translateY(-3px); box-shadow:0 14px 36px rgba(0,0,0,.18); }
-.cl-spot-hero-glow {
-  position:absolute; inset:0; pointer-events:none;
-  background:radial-gradient(ellipse 75% 50% at 50% -5%, rgba(255,255,255,.2) 0%, transparent 65%);
+.ai-hero:hover { transform:translateY(-2px); box-shadow:0 10px 36px rgba(109,40,217,0.18); }
+.ai-hero-img { position:absolute; inset:0; }
+.ai-hero-overlay {
+  position:absolute; inset:0;
+  background:linear-gradient(to top, rgba(15,6,40,0.92) 0%, rgba(15,6,40,0.4) 55%, transparent 100%);
 }
-.cl-spot-hero-scrim {
-  position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.04) 55%, transparent 100%);
+.ai-hero-content { position:relative; z-index:2; padding:18px 20px; }
+.ai-hero-featured-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 10px; border-radius:20px;
+  background:linear-gradient(135deg,#7c3aed,#4f46e5);
+  font-size:9px; font-weight:800; color:#fff; letter-spacing:.07em;
+  margin-bottom:10px;
 }
-.cl-spot-hero-icon {
-  position:absolute; right:22px; top:50%; transform:translateY(-50%);
-  font-size:76px; opacity:.2; user-select:none;
-  filter:drop-shadow(0 8px 24px rgba(0,0,0,.35));
-}
-.cl-spot-hero-pill {
-  position:absolute; top:12px; left:12px;
-  padding:3px 9px; border-radius:20px;
-  background:rgba(255,255,255,.15); backdrop-filter:blur(6px);
-  border:1px solid rgba(255,255,255,.2);
-  font-size:8.5px; font-weight:800; color:rgba(255,255,255,.9); letter-spacing:.1em;
-}
-.cl-spot-hero-content {
-  position:absolute; bottom:0; left:0; right:0; padding:16px 18px;
-}
-.cl-spot-hero-cat {
-  font-size:9px; font-weight:800; color:rgba(255,255,255,.55);
-  text-transform:uppercase; letter-spacing:.1em; margin-bottom:4px;
-}
-.cl-spot-hero-title {
-  font-family:'DM Serif Display',Georgia,serif;
-  font-size:18px; font-weight:400; font-style:italic;
-  color:#fff; line-height:1.3; margin-bottom:6px;
-}
-.cl-spot-hero-desc {
-  font-size:11px; color:rgba(255,255,255,.6); line-height:1.5; margin-bottom:10px;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-}
-.cl-spot-pbar-wrap { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-.cl-spot-pbar {
-  flex:1; height:3px; border-radius:3px; background:rgba(255,255,255,.18); overflow:hidden;
-}
-.cl-spot-pct { font-size:9px; font-weight:800; color:rgba(255,255,255,.8); }
 
-/* Side stack */
-.cl-spot-sides { flex:1; display:flex; flex-direction:column; gap:10px; }
-.cl-spot-side {
-  flex:1; border-radius:12px; overflow:hidden;
-  display:flex; background:#fff;
-  border:1.5px solid rgba(108,61,214,.09);
-  box-shadow:0 1px 4px rgba(0,0,0,.04);
-  cursor:pointer; transition:all .18s; min-height:0;
+.ai-rec-stack {
+  display:flex; flex-direction:column; gap:8px;
+  overflow-y:auto; max-height:100%;
 }
-.cl-spot-side:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(108,61,214,.13); border-color:rgba(108,61,214,.2); }
-.cl-spot-side-thumb {
-  width:68px; position:relative; flex-shrink:0;
+.ai-rec-card {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:12px; cursor:pointer;
+  background:#fff; border:1.5px solid rgba(109,40,217,0.08);
+  box-shadow:0 1px 6px rgba(109,40,217,0.05);
+  transition:all .16s; position:relative; overflow:hidden;
+  flex-shrink:0;
+}
+.ai-rec-card:hover {
+  border-color:rgba(109,40,217,0.22);
+  box-shadow:0 4px 16px rgba(109,40,217,0.12);
+  transform:translateX(2px);
+}
+.ai-rec-thumb {
+  width:46px; height:46px; border-radius:9px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
-  font-size:26px; opacity:.75;
+  position:relative; overflow:hidden; font-size:22px;
 }
-.cl-spot-side-body { flex:1; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
-.cl-spot-side-cat { font-size:8.5px; font-weight:800; color:#b0a8cc; text-transform:uppercase; letter-spacing:.09em; margin-bottom:3px; }
-.cl-spot-side-title {
-  font-family:'DM Serif Display',Georgia,serif;
-  font-size:13px; font-style:italic; color:#18103a; line-height:1.35;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-  margin-bottom:6px; flex:1;
+.ai-rec-match {
+  position:absolute; top:6px; right:10px;
+  font-size:9px; font-weight:800; color:#7c3aed;
+  background:rgba(109,40,217,0.08); padding:2px 7px; border-radius:5px;
 }
+.ai-rec-enroll {
+  margin-top:4px; padding:4px 10px; border-radius:6px; border:none;
+  background:linear-gradient(135deg,#7c3aed,#0d9488); color:#fff;
+  font-size:9.5px; font-weight:700; cursor:pointer;
+  font-family:'DM Sans',sans-serif; transition:all .13s;
+  display:inline-flex; align-items:center; gap:4px;
+}
+.ai-rec-enroll:hover { opacity:.88; }
+.ai-rec-review {
+  margin-top:4px; padding:4px 10px; border-radius:6px; border:none;
+  background:linear-gradient(135deg,#0d9488,#059669); color:#fff;
+  font-size:9.5px; font-weight:700; cursor:pointer;
+  font-family:'DM Sans',sans-serif; transition:all .13s;
+  display:inline-flex; align-items:center; gap:4px;
+}
+.ai-rec-card::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(124,58,237,0.04),transparent);
+  background-size:200% 100%;
+  animation: ai-shimmer 3s linear infinite;
+  opacity:0; transition:opacity .2s;
+}
+.ai-rec-card:hover::before { opacity:1; }
+
+/* keep progress bar helpers for hero */
+.cl-spot-pbar-wrap { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.cl-spot-pbar { flex:1; height:3px; border-radius:3px; background:rgba(255,255,255,.18); overflow:hidden; }
+.cl-spot-pct  { font-size:9px; font-weight:800; color:rgba(255,255,255,.8); }
+
+/* keep spotlight wrapper + placeholder */
+.cl-spotlight { margin-bottom:20px; flex-shrink:0; }
 .cl-spot-placeholder {
   flex:1; border-radius:12px; border:1.5px dashed rgba(108,61,214,.12);
   display:flex; align-items:center; justify-content:center;
   font-size:11px; color:#b0a8cc; font-weight:600;
 }
-
-/* Shared spotlight CTA */
-.cl-spot-btn {
-  display:inline-flex; align-items:center; justify-content:center;
-  padding:6px 14px; border-radius:8px; border:none; cursor:pointer;
-  font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700;
-  background:rgba(255,255,255,.18); color:#fff; backdrop-filter:blur(4px);
-  transition:all .15s;
-}
-.cl-spot-btn:hover { filter:brightness(1.1); transform:translateY(-1px); }
-.cl-spot-btn.enr  { background:rgba(99,102,241,.9); }
-.cl-spot-btn.done { background:rgba(16,185,129,.9); }
-.cl-spot-btn.sm {
-  padding:4px 10px; font-size:10px;
-  background:rgba(108,61,214,.07); color:#6c3dd6;
-}
-.cl-spot-btn.sm.enr  { background:linear-gradient(135deg,#6c3dd6,#4f1eb8); color:#fff; }
-.cl-spot-btn.sm.done { background:linear-gradient(135deg,#065f46,#0d9488); color:#fff; }
 
 /* ── Card ────────────────────────────────────────────────────────────────── */
 .cl-card {
