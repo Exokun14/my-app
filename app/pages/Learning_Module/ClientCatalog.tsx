@@ -16,95 +16,33 @@ function fmtTime(mins: number) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-// ─── Spotlight: hero card + 2 stacked side cards ─────────────────────────────
-function CatalogSpotlight({ courses, onOpenCourse }: CatalogProps) {
-  const ordered = [
-    ...courses.filter(c => (c.progress ?? 0) > 0 && !c.completed),
-    ...courses.filter(c => !(c.enrolled || (c.progress ?? 0) > 0) && !c.completed),
-    ...courses.filter(c => c.completed),
-  ].slice(0, 3);
-
-  if (ordered.length === 0) return null;
-
-  const hero = ordered[0];
-  const heroIdx = courses.indexOf(hero);
-  const heroGrad = THUMB_GRADIENTS[heroIdx % THUMB_GRADIENTS.length];
-  const heroIcon = CAT_ICONS[hero.cat] || hero.thumbEmoji || "📚";
-  const heroPct = hero.progress ?? 0;
-  const heroDone = hero.completed || heroPct >= 100;
-  const heroEnr = hero.enrolled || heroPct > 0;
-  const sides = ordered.slice(1);
-
+// ─── AI Course Coach banner ───────────────────────────────────────────────────
+function AICourseCoach({ onGetOverview }: { onGetOverview: () => void }) {
   return (
-    <div className="cl-spotlight">
-      <div className="cl-all-label">
-        <span>Featured</span>
-        <div className="cl-spotlight-rule" />
-      </div>
-      <div className="cl-spotlight-layout">
-        {/* Hero */}
-        <div className="cl-spot-hero" style={{ background:`linear-gradient(145deg,${heroGrad[0]},${heroGrad[1]})` }}
-          onClick={() => onOpenCourse(heroIdx)}>
-          <div className="cl-spot-hero-glow" />
-          <div className="cl-spot-hero-scrim" />
-          <div className="cl-spot-hero-icon">{heroIcon}</div>
-          <div className="cl-spot-hero-pill">★ Featured</div>
-          <div className="cl-spot-hero-content">
-            <div className="cl-spot-hero-cat">{hero.cat}</div>
-            <div className="cl-spot-hero-title">{hero.title}</div>
-            {hero.desc && <div className="cl-spot-hero-desc">{hero.desc}</div>}
-            {heroEnr && heroPct > 0 && (
-              <div className="cl-spot-pbar-wrap">
-                <div className="cl-spot-pbar">
-                  <div style={{ height:"100%", width:`${heroPct}%`, background:heroDone?"rgba(110,231,183,.85)":"rgba(255,255,255,.8)", borderRadius:3 }} />
-                </div>
-                <span className="cl-spot-pct">{heroPct}%</span>
-              </div>
-            )}
-            <button className={`cl-spot-btn${heroDone?" done":heroEnr?" enr":""}`}
-              onClick={e=>{e.stopPropagation();onOpenCourse(heroIdx);}}>
-              {heroDone?"✓ Review Course":heroEnr?`▶ Continue · ${heroPct}%`:"+  Enroll Now"}
-            </button>
-          </div>
+    <div className="cl-ai-coach">
+      <div className="cl-ai-orb cl-ai-orb-1" />
+      <div className="cl-ai-orb cl-ai-orb-2" />
+      <div className="cl-ai-coach-inner">
+        <div className="cl-ai-coach-icon-wrap">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white" opacity="0.95">
+            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z"/>
+          </svg>
+          <span className="cl-ai-badge">AI</span>
         </div>
-        {/* Side stack */}
-        <div className="cl-spot-sides">
-          {sides.map((c, si) => {
-            const ri = courses.indexOf(c);
-            const grad = THUMB_GRADIENTS[ri % THUMB_GRADIENTS.length];
-            const icon = CAT_ICONS[c.cat] || c.thumbEmoji || "📚";
-            const pct = c.progress ?? 0;
-            const done = c.completed || pct >= 100;
-            const enr = c.enrolled || pct > 0;
-            return (
-              <div key={si} className="cl-spot-side" onClick={() => onOpenCourse(ri)}>
-                <div className="cl-spot-side-thumb" style={{ background:`linear-gradient(145deg,${grad[0]},${grad[1]})` }}>
-                  <span>{icon}</span>
-                </div>
-                <div className="cl-spot-side-body">
-                  <div className="cl-spot-side-cat">{c.cat}</div>
-                  <div className="cl-spot-side-title">{c.title}</div>
-                  {enr && pct > 0 && (
-                    <div className="cl-spot-pbar" style={{ marginBottom:6 }}>
-                      <div style={{ height:"100%", width:`${pct}%`, background:done?"#10b981":"linear-gradient(90deg,#6c3dd6,#0d9488)", borderRadius:3 }} />
-                    </div>
-                  )}
-                  <button className={`cl-spot-btn sm${done?" done":enr?" enr":""}`}
-                    onClick={e=>{e.stopPropagation();onOpenCourse(ri);}}>
-                    {done?"✓ Review":enr?`▶ Continue · ${pct}%`:"+  Enroll"}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-          {sides.length < 2 && (
-            <div className="cl-spot-placeholder">More courses below ↓</div>
-          )}
-        </div>
+        <div className="cl-ai-coach-title">AI Learning Coach</div>
+        <div className="cl-ai-coach-sub">Get a personalized analysis of where you stand and exactly what to focus on next.</div>
+        <button className="cl-ai-coach-btn" onClick={onGetOverview}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z"/>
+          </svg>
+          Get My Overview
+        </button>
       </div>
     </div>
   );
 }
+
+
 
 export default function Catalog({ courses, onOpenCourse }: CatalogProps) {
   const [search, setSearch] = useState(""),
@@ -166,9 +104,9 @@ export default function Catalog({ courses, onOpenCourse }: CatalogProps) {
         {/* ── Scrollable content ── */}
         <div className="cl-scroll-area">
 
-          {/* Spotlight — only when no filters */}
+          {/* AI Coach — only when no filters */}
           {status === "All" && cat === "All" && !search && (
-            <CatalogSpotlight courses={courses} onOpenCourse={onOpenCourse} />
+            <AICourseCoach onGetOverview={() => {/* hook up your handler here */}} />
           )}
 
           {filtered.length === 0 ? (
@@ -342,11 +280,10 @@ const CATALOG_CSS = `
 /* ── CSS Grid — replaces broken masonry columns layout ───────────────────── */
 .cl-grid {
   display:grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap:12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap:14px;
   align-items:start;        /* ← CRITICAL: cards align to top of each row */
 }
-@media (min-width:1400px) { .cl-grid { grid-template-columns:repeat(4,1fr); } }
 @media (max-width:960px)  { .cl-grid { grid-template-columns:repeat(2,1fr); } }
 @media (max-width:600px)  { .cl-grid { grid-template-columns:1fr; } }
 
@@ -365,107 +302,73 @@ const CATALOG_CSS = `
   background:rgba(108,61,214,.07); padding:2px 7px; border-radius:20px;
 }
 
-/* ── Spotlight ───────────────────────────────────────────────────────────── */
-.cl-spotlight { margin-bottom:20px; flex-shrink:0; }
-.cl-spotlight-layout {
-  display:flex; gap:12px; align-items:stretch; min-height:190px;
+/* ── AI Course Coach ─────────────────────────────────────────────────────── */
+.cl-ai-coach {
+  position:relative; overflow:hidden;
+  border-radius:18px; margin-bottom:22px; flex-shrink:0;
+  background:linear-gradient(135deg,#3b1d8a 0%,#5b2fd4 45%,#4f46e5 100%);
+  box-shadow:0 8px 32px rgba(108,61,214,.35), 0 2px 8px rgba(0,0,0,.1);
+  cursor:default;
 }
-
-/* Hero */
-.cl-spot-hero {
-  flex:0 0 56%; border-radius:16px; overflow:hidden; position:relative;
-  cursor:pointer; min-height:190px;
-  transition:transform .2s, box-shadow .2s;
+/* Decorative orbs */
+.cl-ai-orb {
+  position:absolute; border-radius:50%; pointer-events:none;
 }
-.cl-spot-hero:hover { transform:translateY(-3px); box-shadow:0 14px 36px rgba(0,0,0,.18); }
-.cl-spot-hero-glow {
-  position:absolute; inset:0; pointer-events:none;
-  background:radial-gradient(ellipse 75% 50% at 50% -5%, rgba(255,255,255,.2) 0%, transparent 65%);
+.cl-ai-orb-1 {
+  width:280px; height:280px; top:-80px; right:-40px;
+  background:radial-gradient(circle, rgba(192,132,252,.25) 0%, transparent 65%);
 }
-.cl-spot-hero-scrim {
-  position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.04) 55%, transparent 100%);
+.cl-ai-orb-2 {
+  width:200px; height:200px; bottom:-60px; left:60px;
+  background:radial-gradient(circle, rgba(99,102,241,.3) 0%, transparent 65%);
 }
-.cl-spot-hero-icon {
-  position:absolute; right:22px; top:50%; transform:translateY(-50%);
-  font-size:76px; opacity:.2; user-select:none;
-  filter:drop-shadow(0 8px 24px rgba(0,0,0,.35));
+.cl-ai-coach-inner {
+  position:relative; z-index:1;
+  display:flex; flex-direction:column; align-items:center;
+  padding:32px 24px 28px; text-align:center; gap:10px;
 }
-.cl-spot-hero-pill {
-  position:absolute; top:12px; left:12px;
-  padding:3px 9px; border-radius:20px;
-  background:rgba(255,255,255,.15); backdrop-filter:blur(6px);
-  border:1px solid rgba(255,255,255,.2);
-  font-size:8.5px; font-weight:800; color:rgba(255,255,255,.9); letter-spacing:.1em;
+.cl-ai-coach-icon-wrap {
+  width:56px; height:56px; border-radius:18px; flex-shrink:0;
+  background:rgba(255,255,255,.15); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center; position:relative;
+  border:1.5px solid rgba(255,255,255,.25);
+  box-shadow:0 4px 16px rgba(0,0,0,.15);
+  margin-bottom:2px;
 }
-.cl-spot-hero-content {
-  position:absolute; bottom:0; left:0; right:0; padding:16px 18px;
+.cl-ai-badge {
+  position:absolute; top:-7px; right:-7px;
+  font-size:8px; font-weight:900; letter-spacing:.05em;
+  background:linear-gradient(135deg,#f0abfc,#a5b4fc);
+  color:#2e1065; padding:2px 5px; border-radius:5px;
+  border:2px solid rgba(255,255,255,.4);
 }
-.cl-spot-hero-cat {
-  font-size:9px; font-weight:800; color:rgba(255,255,255,.55);
-  text-transform:uppercase; letter-spacing:.1em; margin-bottom:4px;
-}
-.cl-spot-hero-title {
+.cl-ai-coach-title {
   font-family:'DM Serif Display',Georgia,serif;
-  font-size:18px; font-weight:400; font-style:italic;
-  color:#fff; line-height:1.3; margin-bottom:6px;
+  font-size:20px; font-weight:400; font-style:italic;
+  color:#fff; line-height:1.2; letter-spacing:-0.01em;
 }
-.cl-spot-hero-desc {
-  font-size:11px; color:rgba(255,255,255,.6); line-height:1.5; margin-bottom:10px;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+.cl-ai-coach-sub {
+  font-size:13px; color:rgba(255,255,255,.7); font-weight:400;
+  line-height:1.55; max-width:380px;
 }
-.cl-spot-pbar-wrap { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-.cl-spot-pbar {
-  flex:1; height:3px; border-radius:3px; background:rgba(255,255,255,.18); overflow:hidden;
+.cl-ai-coach-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:11px 24px; border-radius:12px; border:none; cursor:pointer;
+  font-family:'DM Sans',sans-serif; font-size:13px; font-weight:700;
+  background:rgba(255,255,255,.18); color:#fff;
+  backdrop-filter:blur(8px);
+  border:1.5px solid rgba(255,255,255,.3);
+  box-shadow:0 2px 12px rgba(0,0,0,.15);
+  transition:all .18s; white-space:nowrap; margin-top:4px;
 }
-.cl-spot-pct { font-size:9px; font-weight:800; color:rgba(255,255,255,.8); }
-
-/* Side stack */
-.cl-spot-sides { flex:1; display:flex; flex-direction:column; gap:10px; }
-.cl-spot-side {
-  flex:1; border-radius:12px; overflow:hidden;
-  display:flex; background:#fff;
-  border:1.5px solid rgba(108,61,214,.09);
-  box-shadow:0 1px 4px rgba(0,0,0,.04);
-  cursor:pointer; transition:all .18s; min-height:0;
-}
-.cl-spot-side:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(108,61,214,.13); border-color:rgba(108,61,214,.2); }
-.cl-spot-side-thumb {
-  width:68px; position:relative; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  font-size:26px; opacity:.75;
-}
-.cl-spot-side-body { flex:1; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
-.cl-spot-side-cat { font-size:8.5px; font-weight:800; color:#b0a8cc; text-transform:uppercase; letter-spacing:.09em; margin-bottom:3px; }
-.cl-spot-side-title {
-  font-family:'DM Serif Display',Georgia,serif;
-  font-size:13px; font-style:italic; color:#18103a; line-height:1.35;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-  margin-bottom:6px; flex:1;
-}
-.cl-spot-placeholder {
-  flex:1; border-radius:12px; border:1.5px dashed rgba(108,61,214,.12);
-  display:flex; align-items:center; justify-content:center;
-  font-size:11px; color:#b0a8cc; font-weight:600;
+.cl-ai-coach-btn:hover {
+  background:rgba(255,255,255,.28);
+  border-color:rgba(255,255,255,.5);
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(0,0,0,.2);
 }
 
-/* Shared spotlight CTA */
-.cl-spot-btn {
-  display:inline-flex; align-items:center; justify-content:center;
-  padding:6px 14px; border-radius:8px; border:none; cursor:pointer;
-  font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700;
-  background:rgba(255,255,255,.18); color:#fff; backdrop-filter:blur(4px);
-  transition:all .15s;
-}
-.cl-spot-btn:hover { filter:brightness(1.1); transform:translateY(-1px); }
-.cl-spot-btn.enr  { background:rgba(99,102,241,.9); }
-.cl-spot-btn.done { background:rgba(16,185,129,.9); }
-.cl-spot-btn.sm {
-  padding:4px 10px; font-size:10px;
-  background:rgba(108,61,214,.07); color:#6c3dd6;
-}
-.cl-spot-btn.sm.enr  { background:linear-gradient(135deg,#6c3dd6,#4f1eb8); color:#fff; }
-.cl-spot-btn.sm.done { background:linear-gradient(135deg,#065f46,#0d9488); color:#fff; }
+
 
 /* ── Card ────────────────────────────────────────────────────────────────── */
 .cl-card {
@@ -486,7 +389,7 @@ const CATALOG_CSS = `
 
 /* ── Thumbnail ───────────────────────────────────────────────────────────── */
 .cl-thumb {
-  position:relative; height:130px; overflow:hidden; flex-shrink:0;
+  position:relative; height:148px; overflow:hidden; flex-shrink:0;
 }
 .cl-thumb-noise {
   position:absolute; inset:0; pointer-events:none; opacity:.05;
@@ -500,7 +403,7 @@ const CATALOG_CSS = `
 .cl-thumb-emoji {
   position:absolute; top:50%; left:50%;
   transform:translate(-50%, -56%);
-  font-size:50px; line-height:1;
+  font-size:56px; line-height:1;
   filter:drop-shadow(0 6px 18px rgba(0,0,0,.32));
   user-select:none;
   transition:transform .24s cubic-bezier(.16,1,.3,1);

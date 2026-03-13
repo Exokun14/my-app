@@ -1,12 +1,14 @@
 // ─────────────────────────────────────────────
 //  user_functions.ts  –  Types, Data, Utilities & Logic
+//  Updated: users fetched from /api/users (no seeded data)
 // ─────────────────────────────────────────────
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { portalUsersAPI } from '../../Services/api.service';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type UserRole   = 'System Admin' | 'Manager' | 'User';
+export type UserRole   = 'Super Admin' | 'System Admin' | 'Manager' | 'User';
 export type UserStatus = 'Active' | 'Inactive';
 
 export interface User {
@@ -19,6 +21,7 @@ export interface User {
   status:    UserStatus;
   phone?:    string;
   imgSrc?:   string | null;
+  accountType?: string;
 }
 
 export interface UserFilters {
@@ -28,10 +31,10 @@ export interface UserFilters {
 }
 
 export interface AddUserForm {
-  firstName:       string;
-  lastName:        string;
+  fullName:        string;
   email:           string;
   role:            string;
+  accountType:     string;
   company:         string;
   position:        string;
   phone:           string;
@@ -53,6 +56,66 @@ export interface RoleCardInfo {
   iconColor:   string;
 }
 
+// ── API response shape (mirrors actual DB columns in `users` table) ─────────
+
+interface ApiUser {
+  id:             number | null;
+  // Actual API field names (confirmed from raw response):
+  full_name?:     string | null;  // API sends full_name, not name
+  name?:          string | null;  // fallback if older endpoint sends name
+  email:          string;
+  phone_number?:  string | null;  // API sends phone_number, not phone
+  phone?:         string | null;  // fallback
+  position_title?: string | null; // API sends position_title, not position
+  position?:      string | null;  // fallback
+  status:         string;         // 'active' | 'inactive'
+  access_level?:  string | null;  // API sends access_level, not role
+  role?:          string | null;  // fallback
+  account_type?:  string | null;
+  company_id?:    number | null;
+  company_name?:  string | null;
+  profile_photo?: string | null;
+  created_at?:    string;
+  updated_at?:    string;
+}
+
+// ── Map DB role → display label ────────────────────────────────────────────
+
+function toUserRole(role: string): UserRole {
+  const map: Record<string, UserRole> = {
+    super_admin:  'Super Admin',
+    system_admin: 'System Admin',
+    admin:        'System Admin',
+    manager:      'Manager',
+    user:         'User',
+  };
+  return map[role] ?? 'User';
+}
+
+function toUserStatus(status: string): UserStatus {
+  return status === 'active' ? 'Active' : 'Inactive';
+}
+
+export function apiUserToUser(u: ApiUser): User {
+  console.log('[apiUserToUser] raw row:', u);
+  const rawName   = u.full_name ?? u.name;
+  const rawPhone  = u.phone_number ?? u.phone;
+  const rawPos    = u.position_title ?? u.position;
+  const rawRole   = u.access_level ?? u.role ?? 'user';
+  return {
+    id:          u.id ?? Math.random(), // guard against null id (shouldn't happen)
+    name:        rawName?.trim() || u.email?.split('@')[0] || 'Unknown',
+    email:       u.email,
+    role:        toUserRole(rawRole),
+    company:     u.company_name?.trim() || (u.company_id ? `Company #${u.company_id}` : '—'),
+    position:    rawPos ?? '',
+    status:      toUserStatus(u.status ?? 'inactive'),
+    phone:       rawPhone ?? undefined,
+    imgSrc:      u.profile_photo ?? null,
+    accountType: u.account_type ?? rawRole,
+  };
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────
 
 export const COMPANY_OPTIONS: string[] = [
@@ -68,28 +131,20 @@ export const ROLE_CARDS: RoleCardInfo[] = [
   { role: 'User',         description: 'Standard Access',         iconBg: 'var(--green-lt)', iconColor: 'var(--green)' },
 ];
 
-export const INITIAL_USERS: User[] = [
-  { id: 1, name: 'Kathryn Weeks',    email: 'Kathryn_genieX@gmail.com',          role: 'System Admin', company: 'GenieX',      position: 'CRM Administrator', status: 'Active'   },
-  { id: 2, name: 'Michael Johnson',  email: 'Michaelevictus@gmail.com',           role: 'User',         company: 'Victus',      position: 'Support Specialist', status: 'Inactive' },
-  { id: 3, name: 'Sarah Miller',     email: 'sarah_miller_lenovo@gmail.com',      role: 'User',         company: 'Lenovo',      position: 'Technical Support',  status: 'Active'   },
-  { id: 4, name: 'David Anderson',   email: 'david_anderson_rolex@gmail.com',     role: 'User',         company: 'Rolex',       position: 'Sales Associate',    status: 'Active'   },
-  { id: 5, name: 'Emily Thompson',   email: 'thompson_google@gmail.com',          role: 'Manager',      company: 'Google',      position: 'Operations Manager', status: 'Active'   },
-  { id: 6, name: 'James Roberts',    email: 'james_stratospark@gmail.com',        role: 'System Admin', company: 'Stratospark', position: 'IT Lead',            status: 'Active'   },
-  { id: 7, name: 'Ana Reyes',        email: 'ana_reyes@popeyes.com',              role: 'User',         company: 'Popeyes',     position: 'Store Supervisor',   status: 'Active'   },
-  { id: 8, name: 'Chris Park',       email: 'cpark_nike@gmail.com',               role: 'Manager',      company: 'Nike Retail', position: 'Regional Manager',   status: 'Inactive' },
-];
-
 export const EMPTY_ADD_FORM: AddUserForm = {
-  firstName: '', lastName: '', email: '', role: '', company: '',
+  fullName: '', email: '', role: '', company: '',
   position: '', phone: '', status: 'Active', imgSrc: null,
-  password: '', confirmPassword: '',
+  password: '', confirmPassword: '', accountType: '',
 };
 
 export const EMPTY_EDIT_FORM: EditUserForm = {
-  userId: -1, firstName: '', lastName: '', email: '', role: '', company: '',
+  userId: -1, fullName: '', email: '', role: '', company: '',
   position: '', phone: '', status: 'Active', imgSrc: null,
-  password: '', confirmPassword: '', newPassword: '',
+  password: '', confirmPassword: '', newPassword: '', accountType: '',
 };
+
+// ── Pagination constant ────────────────────────────────────────────────────
+export const USERS_PER_PAGE = 12;
 
 // ── CSS ────────────────────────────────────────────────────────────────────
 
@@ -179,6 +234,49 @@ export const RESIDUAL_CSS = `
     background: var(--bg);
   }
 
+  .pg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: all .15s ease;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--t2);
+    user-select: none;
+  }
+  .pg-btn:hover:not(:disabled) {
+    border-color: var(--border-md);
+    background: var(--s2);
+  }
+  .pg-btn.active {
+    background: var(--purple);
+    border-color: var(--purple);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(124,58,237,.30);
+  }
+  .pg-btn:disabled {
+    opacity: .35;
+    cursor: default;
+  }
+  .pg-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+    color: var(--t4);
+    letter-spacing: .08em;
+  }
+
   * { scrollbar-width:thin; scrollbar-color:rgba(124,58,237,.15) transparent; }
   ::-webkit-scrollbar       { width:4px; height:4px; }
   ::-webkit-scrollbar-thumb { background:rgba(124,58,237,.18); border-radius:4px; }
@@ -186,11 +284,13 @@ export const RESIDUAL_CSS = `
 
 // ── Utility Functions ──────────────────────────────────────────────────────
 
-export function getInitials(name: string): string {
-  return name.split(' ').map(w => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+export function getInitials(name: string | null | undefined): string {
+  if (!name?.trim()) return '?';
+  return name.trim().split(/\s+/).map(w => w[0] ?? '').join('').slice(0, 2).toUpperCase();
 }
 
 export function getRoleBadgeClass(role: string): string {
+  if (role === 'Super Admin')  return 'badge bg-p';
   if (role === 'System Admin') return 'badge bg-s';
   if (role === 'Manager')      return 'badge bg-mgr';
   return 'badge bg-gray';
@@ -203,7 +303,7 @@ export function getStatusBadgeClass(status: string): string {
 export function filterUsers(users: User[], query: string, filters: UserFilters): User[] {
   const q = query.toLowerCase();
   return users.filter(u => {
-    const matchQ      = !q || `${u.name} ${u.email} ${u.company} ${u.role} ${u.position ?? ''}`.toLowerCase().includes(q);
+    const matchQ       = !q || `${u.name} ${u.email} ${u.company} ${u.role} ${u.position ?? ''}`.toLowerCase().includes(q);
     const matchRole    = filters.role.size    === 0 || filters.role.has(u.role);
     const matchStatus  = filters.status.size  === 0 || filters.status.has(u.status);
     const matchCompany = filters.company.size === 0 || filters.company.has(u.company);
@@ -234,11 +334,10 @@ export function emptyFilters(): UserFilters {
 }
 
 export function validateUserForm(form: AddUserForm): string | null {
-  if (!form.firstName.trim()) return "Please enter the user's first name.";
-  if (!form.lastName.trim())  return "Please enter the user's last name.";
-  if (!form.email.trim())     return 'Please enter an email address.';
-  if (!form.role)             return 'Please select a role.';
-  if (!form.company)          return 'Please select a company.';
+  if (!form.fullName.trim()) return "Please enter the user's full name.";
+  if (!form.email.trim())    return 'Please enter an email address.';
+  if (!form.role)            return 'Please select a role.';
+  if (!form.company)         return 'Please select a company.';
   return null;
 }
 
@@ -259,7 +358,7 @@ export function validatePasswordChange(newPw: string, confirmPw: string): string
 export function formToUser(form: AddUserForm, id: number): User {
   return {
     id,
-    name:     `${form.firstName} ${form.lastName}`.trim(),
+    name:     form.fullName.trim(),
     email:    form.email,
     role:     form.role as UserRole,
     company:  form.company,
@@ -271,14 +370,56 @@ export function formToUser(form: AddUserForm, id: number): User {
 }
 
 export function userToEditForm(user: User): EditUserForm {
-  const [firstName = '', ...rest] = user.name.split(' ');
   return {
-    userId: user.id, firstName, lastName: rest.join(' '),
-    email: user.email, role: user.role, company: user.company,
-    position: user.position ?? '', phone: user.phone ?? '',
-    status: user.status, imgSrc: user.imgSrc ?? null,
-    password: '', confirmPassword: '', newPassword: '',
+    userId:      user.id,
+    fullName:    user.name,
+    email:       user.email,
+    role:        user.role,
+    company:     user.company,
+    position:    user.position ?? '',
+    phone:       user.phone ?? '',
+    status:      user.status,
+    imgSrc:      user.imgSrc ?? null,
+    password:    '',
+    confirmPassword: '',
+    newPassword: '',
+    accountType: user.accountType ?? '',
   };
+}
+
+// ── Pagination Helper ──────────────────────────────────────────────────────
+
+export interface PaginationInfo {
+  currentPage:  number;
+  totalPages:   number;
+  totalItems:   number;
+  startIndex:   number;
+  endIndex:     number;
+  pageNumbers:  (number | '…')[];
+}
+
+export function getPaginationInfo(
+  totalItems:  number,
+  currentPage: number,
+  perPage:     number = USERS_PER_PAGE,
+): PaginationInfo {
+  const totalPages  = Math.max(1, Math.ceil(totalItems / perPage));
+  const clampedPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex  = (clampedPage - 1) * perPage;
+  const endIndex    = Math.min(startIndex + perPage, totalItems);
+
+  const pageNumbers: (number | '…')[] = [];
+  if (totalPages <= 5) {
+    for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
+  } else if (clampedPage <= 3) {
+    pageNumbers.push(1, 2, 3, '…', totalPages);
+  } else if (clampedPage >= totalPages - 2) {
+    pageNumbers.push(1, '…', totalPages - 2, totalPages - 1, totalPages);
+  } else {
+    pageNumbers.push(1, '…', clampedPage, '…', totalPages);
+  }
+
+  return { currentPage: clampedPage, totalPages, totalItems, startIndex, endIndex, pageNumbers };
 }
 
 // ── Custom Hook ────────────────────────────────────────────────────────────
@@ -287,6 +428,8 @@ export interface ToastState { visible: boolean; message: string; }
 
 export interface UseUserManagementReturn {
   users:              User[];
+  usersLoading:       boolean;
+  usersError:         string | null;
   searchQuery:        string;
   filters:            UserFilters;
   addOpen:            boolean;
@@ -295,24 +438,30 @@ export interface UseUserManagementReturn {
   toast:              ToastState;
   animKey:            number;
   searchFocused:      boolean;
+  filteredUsers:      User[];
   visibleUsers:       User[];
   filterCount:        number;
   companies:          string[];
+  pagination:         PaginationInfo;
   setSearchQuery:     (q: string) => void;
   setEditForm:        (form: EditUserForm) => void;
   setAddOpen:         (open: boolean) => void;
   setEditOpen:        (open: boolean) => void;
   setSearchFocused:   (focused: boolean) => void;
+  setCurrentPage:     (page: number) => void;
   handleToggleFilter: (type: keyof UserFilters, value: string) => void;
   handleClearFilters: () => void;
   handleAddUser:      (form: AddUserForm) => string | null;
   openEditModal:      (user: User) => void;
   handleEditUser:     (form: EditUserForm) => string | null;
   showToast:          (msg: string) => void;
+  refreshUsers:       () => void;
 }
 
 export function useUserManagement(): UseUserManagementReturn {
-  const [users,         setUsers]         = useState<User[]>([...INITIAL_USERS]);
+  const [users,         setUsers]         = useState<User[]>([]);
+  const [usersLoading,  setUsersLoading]  = useState(true);
+  const [usersError,    setUsersError]    = useState<string | null>(null);
   const [searchQuery,   setSearchQuery]   = useState('');
   const [filters,       setFilters]       = useState<UserFilters>(emptyFilters());
   const [addOpen,       setAddOpen]       = useState(false);
@@ -321,9 +470,44 @@ export function useUserManagement(): UseUserManagementReturn {
   const [toast,         setToast]         = useState<ToastState>({ visible: false, message: '' });
   const [animKey,       setAnimKey]       = useState(0);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [currentPage,   setCurrentPage]   = useState(1);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => { setAnimKey(k => k + 1); }, [searchQuery, filters]);
+  /* ── Fetch users from API ── */
+  const fetchUsers = useCallback(() => {
+    console.group('[UserManagement] fetchUsers()');
+    setUsersLoading(true);
+    setUsersError(null);
+
+    portalUsersAPI.getAll()
+      .then(res => {
+        const users = (res.data as any)?.data ?? res.data;
+        if (res.success && Array.isArray(users)) {
+          console.log(`✅ Got ${users.length} user(s) from API`);
+          setUsers(users.map(apiUserToUser));
+          setAnimKey(k => k + 1);
+        } else {
+          console.error('❌ Unexpected response:', res.error);
+          throw new Error(res.error ?? 'Unexpected response format');
+        }
+      })
+      .catch(err => {
+        console.error('❌ fetchUsers failed:', err?.message ?? err);
+        setUsersError(err.message ?? 'Failed to load users.');
+      })
+      .finally(() => {
+        console.log('🏁 fetchUsers done');
+        console.groupEnd();
+        setUsersLoading(false);
+      });
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setAnimKey(k => k + 1);
+  }, [searchQuery, filters]);
 
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -331,9 +515,12 @@ export function useUserManagement(): UseUserManagementReturn {
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, visible: false })), 2800);
   }, []);
 
-  const visibleUsers = filterUsers(users, searchQuery, filters);
-  const filterCount  = countActiveFilters(filters);
-  const companies    = getUniqueCompanies(users).length ? getUniqueCompanies(users) : COMPANY_OPTIONS;
+  const filteredUsers = filterUsers(users, searchQuery, filters);
+  const pagination    = getPaginationInfo(filteredUsers.length, currentPage, USERS_PER_PAGE);
+  const visibleUsers  = filteredUsers.slice(pagination.startIndex, pagination.endIndex);
+
+  const filterCount = countActiveFilters(filters);
+  const companies   = getUniqueCompanies(users).length ? getUniqueCompanies(users) : COMPANY_OPTIONS;
 
   function handleToggleFilter(type: keyof UserFilters, value: string) {
     setFilters(f => ({ ...f, [type]: toggleFilterValue(f[type], value) }));
@@ -344,11 +531,11 @@ export function useUserManagement(): UseUserManagementReturn {
   function handleAddUser(form: AddUserForm): string | null {
     const err = validateUserForm(form) ?? validateNewUserPassword(form.password, form.confirmPassword);
     if (err) { showToast(err); return err; }
-
+    // Optimistically prepend while API saves; refreshUsers() called by popup on success
     const newId = Math.max(0, ...users.map(u => u.id)) + 1;
     setUsers(prev => [formToUser(form, newId), ...prev]);
-    setAddOpen(false);
-    showToast(`User "${form.firstName} ${form.lastName}" added!`);
+    setCurrentPage(1);
+    showToast(`User "${form.fullName}" added!`);
     return null;
   }
 
@@ -363,7 +550,7 @@ export function useUserManagement(): UseUserManagementReturn {
 
     setUsers(prev => prev.map(u => u.id === form.userId ? {
       ...u,
-      name:     `${form.firstName} ${form.lastName}`.trim(),
+      name:     form.fullName.trim(),
       email:    form.email,
       role:     form.role as UserRole,
       company:  form.company,
@@ -373,14 +560,26 @@ export function useUserManagement(): UseUserManagementReturn {
       imgSrc:   form.imgSrc ?? null,
     } : u));
     setEditOpen(false);
-    showToast(`User "${form.firstName} ${form.lastName}" updated${form.newPassword ? ' & password changed' : ''}!`);
+    showToast(`User "${form.fullName}" updated${form.newPassword ? ' & password changed' : ''}!`);
     return null;
   }
 
   return {
-    users, searchQuery, filters, addOpen, editOpen, editForm, toast, animKey, searchFocused,
-    visibleUsers, filterCount, companies,
-    setSearchQuery, setEditForm, setAddOpen, setEditOpen, setSearchFocused,
-    handleToggleFilter, handleClearFilters, handleAddUser, openEditModal, handleEditUser, showToast,
+    users, usersLoading, usersError,
+    searchQuery, filters, addOpen, editOpen, editForm, toast, animKey, searchFocused,
+    filteredUsers, visibleUsers, filterCount, companies, pagination,
+    setSearchQuery, setEditForm, setAddOpen, setEditOpen, setSearchFocused, setCurrentPage,
+    handleToggleFilter, handleClearFilters, handleAddUser, openEditModal, handleEditUser,
+    showToast, refreshUsers: fetchUsers,
   };
 }
+
+
+
+
+
+
+
+
+
+

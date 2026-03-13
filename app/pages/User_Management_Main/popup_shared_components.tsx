@@ -12,13 +12,14 @@ import { UserStatus } from './user_functions';
 // ── Shared input base style ───────────────────────────────────────────────────
 
 export const baseInputStyle: React.CSSProperties = {
-  background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10,
+  backgroundColor: 'var(--s2)',
+  borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border)', borderRadius: 10,
   padding: '10px 13px', fontFamily: "'DM Sans', sans-serif", fontSize: 13,
   color: 'var(--t1)', outline: 'none', width: '100%', transition: 'all .16s',
 };
 
 const focusedInputStyle: React.CSSProperties = {
-  background: '#fff',
+  backgroundColor: '#fff',
   borderColor: 'var(--border-md)',
   boxShadow: '0 0 0 3px rgba(124,58,237,.08)',
 };
@@ -194,10 +195,10 @@ export function FSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
       {...props}
       style={{
         ...baseInputStyle,
+        ...(focused ? focusedInputStyle : {}),
         appearance: 'none' as const,
         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a76bc' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
         backgroundRepeat: 'no-repeat', backgroundPosition: 'right 11px center', paddingRight: 26, cursor: 'pointer',
-        ...(focused ? focusedInputStyle : {}),
         ...props.style,
       }}
       onFocus={() => setFocused(true)}
@@ -205,3 +206,14 @@ export function FSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     />
   );
 }
+
+
+
+
+
+
+
+
+
+
+

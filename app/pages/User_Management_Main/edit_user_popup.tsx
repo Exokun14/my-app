@@ -33,7 +33,7 @@ export default function EditUserPopup({ open, form, companies, onClose, onChange
 
   if (!open) return null;
 
-  const initials = (form.firstName[0] ?? '') + (form.lastName[0] ?? '');
+  const initials = form.fullName.trim().split(/\s+/).map(w => w[0] ?? '').join('').slice(0, 2);
 
   return (
     <div
@@ -52,7 +52,7 @@ export default function EditUserPopup({ open, form, companies, onClose, onChange
             </svg>
           </div>
           <div className="relative z-10 flex-1">
-            <div className="text-white font-extrabold" style={{ fontSize: 18 }}>Edit User: {form.firstName} {form.lastName}</div>
+            <div className="text-white font-extrabold" style={{ fontSize: 18 }}>Edit User: {form.fullName}</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>Update user information and access</div>
           </div>
           <button className="relative z-10 flex items-center justify-center cursor-pointer transition-all duration-150"
@@ -65,6 +65,7 @@ export default function EditUserPopup({ open, form, companies, onClose, onChange
 
         {/* ── Body ── */}
         <div className="flex flex-col overflow-y-auto" style={{ padding: '20px 24px', gap: 16, maxHeight: '72vh' }}>
+
           <AvatarUploader
             inputId="eu-file" initials={initials.toUpperCase()} imgSrc={form.imgSrc ?? null}
             accentColor="linear-gradient(135deg,#0d9488,#0284c7)" buttonLabel="Change Photo"
@@ -72,30 +73,65 @@ export default function EditUserPopup({ open, form, companies, onClose, onChange
             onImageLoad={src => onChange({ ...form, imgSrc: src })}
           />
 
+          {/* ── Row 1: Full Name + Email Address ── */}
           <div className="grid grid-cols-2" style={{ gap: 14 }}>
             <div className="flex flex-col" style={{ gap: 5 }}>
-              <FieldLabel required>First Name</FieldLabel>
-              <FInput type="text" value={form.firstName} onChange={e => onChange({ ...form, firstName: e.target.value })} />
+              <FieldLabel required>Full Name</FieldLabel>
+              <FInput
+                type="text"
+                placeholder="Jane Smith"
+                value={form.fullName}
+                onChange={e => onChange({ ...form, fullName: e.target.value })}
+              />
             </div>
             <div className="flex flex-col" style={{ gap: 5 }}>
-              <FieldLabel required>Last Name</FieldLabel>
-              <FInput type="text" value={form.lastName} onChange={e => onChange({ ...form, lastName: e.target.value })} />
+              <FieldLabel required>Email Address</FieldLabel>
+              <FInput
+                type="email"
+                placeholder="jane@company.com"
+                value={form.email}
+                onChange={e => onChange({ ...form, email: e.target.value })}
+              />
             </div>
           </div>
 
-          <div className="flex flex-col" style={{ gap: 5 }}>
-            <FieldLabel required>Email Address</FieldLabel>
-            <FInput type="email" value={form.email} onChange={e => onChange({ ...form, email: e.target.value })} />
-          </div>
-
+          {/* ── Row 2: Phone Number (left col only) ── */}
           <div className="grid grid-cols-2" style={{ gap: 14 }}>
             <div className="flex flex-col" style={{ gap: 5 }}>
-              <FieldLabel required>User Role</FieldLabel>
+              <FieldLabel required>Phone Number</FieldLabel>
+              <FInput
+                type="tel"
+                placeholder="+63 9XX XXX XXXX"
+                value={form.phone}
+                onChange={e => onChange({ ...form, phone: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {/* ── Row 3: User Access + Account Type ── */}
+          <div className="grid grid-cols-2" style={{ gap: 14 }}>
+            <div className="flex flex-col" style={{ gap: 5 }}>
+              <FieldLabel required>User Access</FieldLabel>
               <FSelect value={form.role} onChange={e => onChange({ ...form, role: e.target.value })}>
                 <option value="">Select role…</option>
-                <option>System Admin</option><option>Manager</option><option>User</option>
+                <option>System Admin</option>
+                <option>Manager</option>
+                <option>User</option>
               </FSelect>
             </div>
+            <div className="flex flex-col" style={{ gap: 5 }}>
+              <FieldLabel required>Account Type</FieldLabel>
+              <FSelect value={form.accountType ?? ''} onChange={e => onChange({ ...form, accountType: e.target.value })}>
+                <option value="">Select type…</option>
+                <option>Admin</option>
+                <option>Account Manager</option>
+                <option>Users</option>
+              </FSelect>
+            </div>
+          </div>
+
+          {/* ── Row 4: Company + Position ── */}
+          <div className="grid grid-cols-2" style={{ gap: 14 }}>
             <div className="flex flex-col" style={{ gap: 5 }}>
               <FieldLabel required>Company</FieldLabel>
               <FSelect value={form.company} onChange={e => onChange({ ...form, company: e.target.value })}>
@@ -103,51 +139,63 @@ export default function EditUserPopup({ open, form, companies, onClose, onChange
                 {companies.map(c => <option key={c}>{c}</option>)}
               </FSelect>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2" style={{ gap: 14 }}>
             <div className="flex flex-col" style={{ gap: 5 }}>
-              <FieldLabel>Position / Title</FieldLabel>
-              <FInput type="text" placeholder="e.g. Store Manager" value={form.position} onChange={e => onChange({ ...form, position: e.target.value })} />
-            </div>
-            <div className="flex flex-col" style={{ gap: 5 }}>
-              <FieldLabel>Phone Number</FieldLabel>
-              <FInput type="tel" placeholder="+63 9XX XXX XXXX" value={form.phone} onChange={e => onChange({ ...form, phone: e.target.value })} />
+              <FieldLabel required>Position / Title</FieldLabel>
+              <FInput
+                type="text"
+                placeholder="e.g. Store Manager"
+                value={form.position}
+                onChange={e => onChange({ ...form, position: e.target.value })}
+              />
             </div>
           </div>
 
           <StatusRadioGroup name="eu-status" value={form.status} onChange={v => onChange({ ...form, status: v })} />
 
+          {/* ── Password divider ── */}
           <div className="text-center" style={{ paddingTop: 4 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--purple)' }}>Change Password</span>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--teal)' }}>Change Password</span>
           </div>
 
-          <div className="flex flex-col" style={{ gap: 5 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)', display: 'flex', alignItems: 'baseline', gap: 5 }}>
-              New Password
-              <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--t3)' }}>(leave blank to keep current)</span>
-            </label>
-            <PasswordField id="eu-new-pw" label="" value={form.newPassword}
-              onChange={v => { onChange({ ...form, newPassword: v }); checkMatch(v, form.confirmPassword); }}
-            />
+          {/* ── Row 5: New Password + Confirm Password (inline) ── */}
+          <div className="grid grid-cols-2" style={{ gap: 14 }}>
+            <div className="flex flex-col" style={{ gap: 5 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)', display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                New Password
+                <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--t3)' }}>(optional)</span>
+              </label>
+              <PasswordField
+                id="eu-new-pw"
+                label=""
+                placeholder="Enter new password…"
+                value={form.newPassword}
+                onChange={v => { onChange({ ...form, newPassword: v }); checkMatch(v, form.confirmPassword); }}
+              />
+            </div>
+            <div className="flex flex-col" style={{ gap: 5 }}>
+              <FieldLabel>Confirm Password</FieldLabel>
+              <PasswordField
+                id="eu-confirm-pw"
+                label=""
+                placeholder="Confirm new password…"
+                value={form.confirmPassword}
+                onChange={v => { onChange({ ...form, confirmPassword: v }); checkMatch(form.newPassword, v); }}
+                matchMsg={matchMsg}
+              />
+            </div>
           </div>
 
-          <div className="flex flex-col" style={{ gap: 5 }}>
-            <FieldLabel>Confirm Password</FieldLabel>
-            <PasswordField id="eu-confirm-pw" label="" value={form.confirmPassword}
-              onChange={v => { onChange({ ...form, confirmPassword: v }); checkMatch(form.newPassword, v); }}
-              matchMsg={matchMsg}
-            />
-          </div>
         </div>
 
         {/* ── Footer ── */}
         <div className="flex items-center justify-end" style={{ gap: 10, padding: '14px 24px', borderTop: '1px solid var(--border)' }}>
-          <button className="inline-flex items-center cursor-pointer font-semibold transition-all duration-150"
+          <button
+            className="inline-flex items-center cursor-pointer font-semibold transition-all duration-150"
             style={{ gap: 6, padding: '9px 20px', borderRadius: 10, border: '1px solid var(--border)', background: '#fff', color: 'var(--t2)', fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}
             onClick={handleClose}
           >Cancel</button>
-          <button className="inline-flex items-center cursor-pointer font-semibold text-white transition-all duration-150"
+          <button
+            className="inline-flex items-center cursor-pointer font-semibold text-white transition-all duration-150"
             style={{ gap: 7, padding: '9px 22px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#065f46,#0d9488 50%,#0284c7)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxShadow: '0 2px 12px rgba(13,148,136,.35)' }}
             onClick={handleSave}
           >
@@ -155,7 +203,20 @@ export default function EditUserPopup({ open, form, companies, onClose, onChange
             Save Changes
           </button>
         </div>
+
       </div>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+

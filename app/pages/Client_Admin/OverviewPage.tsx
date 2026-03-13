@@ -281,34 +281,32 @@ const PosGrid: React.FC<{ posDevices: PosDevice[]; branches: Branch[]; licenses:
       {Object.entries(byBranch).sort(([a], [b]) => a.localeCompare(b)).map(([branch, devices]) => (
         <div key={branch}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "linear-gradient(135deg,rgba(2,132,199,0.1),rgba(13,148,136,0.08))", border: "1px solid rgba(2,132,199,0.18)", borderRadius: 6, padding: "3px 10px" }}>
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#0284c7" strokeWidth="1.5"><path d="M6 1.5C4 1.5 2.5 3 2.5 5c0 3 3.5 5.5 3.5 5.5S9.5 8 9.5 5c0-2-1.5-3.5-3.5-3.5z"/><circle cx="6" cy="5" r="1.2"/></svg>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#0c4a6e", letterSpacing: "0.03em" }}>{branch}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#18103a" }}>{branch}</span>
             </div>
             {licenseKey && (
-              <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(217,119,6,0.1)", color: "#92400e", padding: "2px 8px", borderRadius: 5, border: "1px solid rgba(217,119,6,0.2)" }}>{licenseKey}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, background: "rgba(217,119,6,0.12)", color: "#92400e", padding: "2px 9px", borderRadius: 5, border: "1px solid rgba(217,119,6,0.25)", letterSpacing: "0.02em" }}>{licenseKey}</span>
             )}
-            <span style={{ fontSize: 10.5, color: "#8e7ec0", fontWeight: 600 }}>{devices.length} device{devices.length !== 1 ? "s" : ""}</span>
-            <div style={{ flex: 1, height: 1, background: "linear-gradient(to right,rgba(2,132,199,0.12),transparent)" }} />
+            <span style={{ fontSize: 11, color: "#8e7ec0", fontWeight: 600 }}>{devices.length} device{devices.length !== 1 ? "s" : ""}</span>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {devices.map(pos => {
               const dotColor = statusColor[pos.status ?? "offline"] ?? "#8e7ec0";
               return (
                 <div key={pos.id} onClick={() => onSelect(pos)}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.border = "1.5px solid rgba(124,58,237,0.28)"; e.currentTarget.style.boxShadow = "0 3px 12px rgba(124,58,237,0.1)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "#faf9ff"; e.currentTarget.style.border = "1.5px solid rgba(124,58,237,0.1)"; e.currentTarget.style.boxShadow = "none"; }}
-                  style={{ background: "#faf9ff", border: "1.5px solid rgba(124,58,237,0.1)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "row", alignItems: "center", gap: 10, cursor: "pointer", transition: "all 0.14s", minWidth: 160, flex: "1 1 160px", maxWidth: 220, position: "relative", overflow: "hidden" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#f9f8ff"; e.currentTarget.style.borderColor = "rgba(124,58,237,0.22)"; e.currentTarget.style.boxShadow = "0 2px 10px rgba(124,58,237,0.08)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "rgba(0,0,0,0.08)"; e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; }}
+                  style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "row", alignItems: "center", gap: 10, cursor: "pointer", transition: "all 0.14s", minWidth: 160, flex: "1 1 160px", maxWidth: 220, position: "relative", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
                 >
                   <div style={{ width: 36, height: 36, borderRadius: 9, background: "#f2f0fb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, position: "relative" }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8e7ec0" strokeWidth="1.4"><rect x="2" y="3" width="20" height="13" rx="2"/><path d="M2 10h20M12 16v3M8 19h8"/></svg>
-                    <div style={{ position: "absolute", bottom: 2, right: 2, width: 7, height: 7, borderRadius: "50%", background: dotColor, border: "1.5px solid #fff" }} />
+
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#18103a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pos.model ?? "Unknown"}</div>
-                    <div style={{ fontSize: 9.5, color: "#8e7ec0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{pos.ip_address ?? "—"}</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: "#18103a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pos.model ?? "Unknown"}</div>
+                    <div style={{ fontSize: 10, color: "#8e7ec0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{pos.ip_address ?? "—"}</div>
                   </div>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#b8aed8" strokeWidth="1.6" style={{ flexShrink: 0 }}><path d="M4 2l4 4-4 4"/></svg>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#c4bfe0" strokeWidth="1.6" style={{ flexShrink: 0 }}><path d="M4 2l4 4-4 4"/></svg>
                 </div>
               );
             })}
@@ -709,11 +707,7 @@ const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onLogout, user 
                   label="Branches"
                 />
                 <MSAStatCard onClick={() => setMsaModalOpen(true)} licenses={licenses} />
-                <Stat ico="si-key"
-                  icon={<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="6" cy="7" r="3.5"/><path d="M9 9.5l5 5M12 12l1.5-1.5"/></svg>}
-                  value={loading ? "…" : (licenses[0]?.license_key ?? "—")}
-                  label="License Key"
-                />
+
               </div>
 
               {/* Two columns */}
