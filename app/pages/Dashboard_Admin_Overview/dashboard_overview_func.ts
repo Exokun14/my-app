@@ -1,20 +1,54 @@
 /* ==============================================================
    dashboard_overview_func.ts  ·  Company Client Overview — Types, Data & Utilities
-          Connection function for dashboard_overview_users.tsx 
+   UPDATED: Re-exports CLIENT_TICKET_ANALYTICS and related types from
+            Company_Database_sample.ts.
+            Added buildClientTrendChartPoints, getClientCategoryBarWidthPct,
+            buildClientBacklogStatItems helpers for the Tickets panel charts.
+            MOVED from dashboard_overview_users.tsx (functions only):
+              - parseTicketHoursAgo
+              - computeAvgResolutionHrs
+              - buildRealBacklog
+              - classifySubject
+              - CATEGORY_DEFS
+              - buildRealCategories
+              - RealCategory (interface)
+            ADDED: branchIds to Client interface (maps branch_name → DB branch id)
+            ADDED: getClientAnalytics — fallback generator so every client
+                   (including DB-only ones) renders the Tickets panel fully.
    ============================================================== */
 
-/* ═══════════════════════════════════════════════
-   SECTION 1: TYPES & INTERFACES
-   ═══════════════════════════════════════════════ */
+/* ─── Re-export seed data from Sample_Data ──────────────────────────────────── */
+export {
+  CLIENTS,
+  CLIENT_USERS,
+  GLOBAL_USERS,
+  ALL_TICKETS,
+  ACCOUNT_MANAGERS,
+  CLIENT_TICKET_ANALYTICS,
+} from '../../Sample_Data/Company_Database_sample';
 
-export type HealthLevel = 'green' | 'yellow' | 'red';
+export type {
+  ClientTicketTrend,
+  ClientTicketCategory,
+  ClientBacklogData,
+  ClientTicketItem,
+  ClientTicketAnalytics,
+} from '../../Sample_Data/Company_Database_sample';
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SECTION 1 — TYPES & INTERFACES
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+export type HealthLevel    = 'green' | 'yellow' | 'red';
 export type ClientCategory = 'F&B' | 'Retail' | 'Warehouse';
-export type UserRole = 'System Admin' | 'Manager' | 'User';
-export type UserStatus = 'Active' | 'Inactive';
-export type TicketStatus = 'open' | 'pending' | 'closed';
+export type UserRole       = 'System Admin' | 'Manager' | 'User';
+export type UserStatus     = 'Active' | 'Inactive';
+export type TicketStatus   = 'open' | 'pending' | 'closed';
 export type TicketPriority = 'critical' | 'high' | 'normal' | 'low';
-export type PageId = 'overview';
-export type SettingsSection = 'general' | 'notifications' | 'security' | 'integrations' | 'profile' | 'billing';
+export type PageId         = 'overview';
+export type SettingsSection =
+  | 'general' | 'notifications' | 'security'
+  | 'integrations' | 'profile' | 'billing';
 
 export interface Client {
   id: number;
@@ -22,9 +56,12 @@ export interface Client {
   contact: string;
   email: string;
   phone: string;
-  altContact?: string;
-  altEmail?: string;
-  altPhone?: string;
+  altContact?:  string;
+  altEmail?:    string;
+  altPhone?:    string;
+  altContact2?: string;
+  altEmail2?:   string;
+  altPhone2?:   string;
   accountManager: string;
   products: number;
   users: number;
@@ -33,6 +70,8 @@ export interface Client {
   cat: ClientCategory;
   logo: string | null;
   branches: string[];
+  /** Maps branch_name → database branch id (populated after fetching /api/branches) */
+  branchIds?: Record<string, number>;
   posCount: number;
   seats: number;
   site?: string;
@@ -41,6 +80,8 @@ export interface Client {
   saEnd?: string;
   licenseId?: string;
   keysPerStore?: number;
+  branchLicenses?: Record<string, string>;
+  branchMsaDates?: Record<string, { msaStart?: string; msaEnd?: string }>;
 }
 
 export interface ClientUser {
@@ -58,7 +99,7 @@ export interface ClientUser {
 export interface POSDevice {
   id: string;
   model: string;
-  serial: string;
+  licenseNumber: string;
   ip: string;
   os: string;
   branch: string;
@@ -96,458 +137,16 @@ export interface GlobalUser {
   phone?: string;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SECTION 2 — UTILITY FUNCTIONS
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
-/* ═══════════════════════════════════════════════
-   SECTION 2: DATA CONSTANTS
-   ═══════════════════════════════════════════════ */
-
-export const CLIENTS: Client[] = [
-  {
-    id: 1,
-    name: 'Starbucks',
-    contact: 'Martin Roberts',
-    email: 'martin@starbucks.com',
-    phone: '+63 2 8888 1001',
-    altContact: 'Sarah Lim',
-    altEmail: 'sarah@starbucks.com',
-    altPhone: '+63 917 111 2001',
-    accountManager: 'Lisa Cruz',
-    products: 12,
-    users: 16,
-    tickets: 0,
-    level: 'green',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo_2011.svg/200px-Starbucks_Corporation_Logo_2011.svg.png',
-    branches: ['Makati', 'BGC', 'Ortigas'],
-    posCount: 5,
-    seats: 16,
-    site: 'Makati CBD',
-    krunchNum: 'KRN-10231',
-    saStart: '2024-01-15',
-    saEnd: '2026-06-14',
-    licenseId: 'LIC-SBX-2024-0112',
-    keysPerStore: 3,
-  },
-  {
-    id: 2,
-    name: 'Ace Hardware',
-    contact: 'John Kent',
-    email: 'john@ace.com',
-    phone: '+63 2 8555 2002',
-    altContact: 'Mel Torres',
-    altEmail: 'mel@ace.com',
-    altPhone: '+63 918 222 3002',
-    accountManager: 'Renz Tolentino',
-    products: 4,
-    users: 9,
-    tickets: 5,
-    level: 'yellow',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Ace_Hardware_logo.svg/200px-Ace_Hardware_logo.svg.png',
-    branches: ['Quezon City', 'Pasay'],
-    posCount: 4,
-    seats: 9,
-    site: 'QC Main Store',
-    krunchNum: 'KRN-20445',
-    saStart: '2024-03-01',
-    saEnd: '2026-02-14',
-    licenseId: 'LIC-ACE-2024-0203',
-  },
-  {
-    id: 3,
-    name: 'Popeyes',
-    contact: 'John Doe',
-    email: 'john@popeyes.com',
-    phone: '+63 2 8444 3003',
-    altContact: 'Rica Cruz',
-    altEmail: 'rica@popeyes.com',
-    altPhone: '+63 919 333 4003',
-    accountManager: 'Maria Santos',
-    products: 8,
-    users: 9,
-    tickets: 8,
-    level: 'red',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/b/b8/Popeyes_logo.svg/200px-Popeyes_logo.svg.png',
-    branches: ['Manila Branch', 'Makati Branch'],
-    posCount: 7,
-    seats: 12,
-    site: 'Manila HQ',
-    krunchNum: 'KRN-30887',
-    saStart: '2024-06-01',
-    saEnd: '2026-03-15',
-    licenseId: 'LIC-POP-2024-0601',
-    keysPerStore: 4,
-  },
-  {
-    id: 4,
-    name: '7-Eleven',
-    contact: 'Kyle Jennings',
-    email: 'kyle@7eleven.com',
-    phone: '+63 2 8333 4004',
-    altContact: 'Anna Cruz',
-    altEmail: 'anna@7eleven.com',
-    altPhone: '+63 920 444 5004',
-    accountManager: 'Jake Reyes',
-    products: 1,
-    users: 1,
-    tickets: 0,
-    level: 'green',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/7-eleven_logo.svg/200px-7-eleven_logo.svg.png',
-    branches: ['Caloocan', 'Pasig'],
-    posCount: 3,
-    seats: 5,
-    site: 'Caloocan',
-    krunchNum: 'KRN-40123',
-    saStart: '2025-01-01',
-    saEnd: '2027-01-01',
-    licenseId: 'LIC-7EL-2025-0101',
-  },
-  {
-    id: 5,
-    name: 'Wolfgang Grill',
-    contact: 'Walter King',
-    email: 'walter@wolfganggrill.com',
-    phone: '+63 2 8222 5005',
-    altContact: 'Petra Reyes',
-    altEmail: 'petra@wolfganggrill.com',
-    altPhone: '+63 921 555 6005',
-    accountManager: 'Ana Mendez',
-    products: 14,
-    users: 9,
-    tickets: 0,
-    level: 'green',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Wolfgang_Puck_logo.svg/200px-Wolfgang_Puck_logo.svg.png',
-    branches: ['BGC Main'],
-    posCount: 2,
-    seats: 10,
-    site: 'BGC Fort',
-    krunchNum: 'KRN-50321',
-    saStart: '2024-09-01',
-    saEnd: '2026-04-30',
-    licenseId: 'LIC-WGG-2024-0901',
-    keysPerStore: 2,
-  },
-  {
-    id: 6,
-    name: 'Rolex',
-    contact: 'James Blue',
-    email: 'james@rolex.com',
-    phone: '+63 2 8111 6006',
-    altContact: 'Chloe Tan',
-    altEmail: 'chloe@rolex.com',
-    altPhone: '+63 922 666 7006',
-    accountManager: 'Lisa Cruz',
-    products: 4,
-    users: 8,
-    tickets: 0,
-    level: 'green',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/9/9f/Rolex_logo.svg/200px-Rolex_logo.svg.png',
-    branches: ['Greenbelt', 'Shangri-La'],
-    posCount: 3,
-    seats: 8,
-    site: 'Greenbelt 5',
-    krunchNum: 'KRN-60014',
-    saStart: '2024-02-01',
-    saEnd: '2026-03-20',
-    licenseId: 'LIC-RLX-2024-0201',
-  },
-  {
-    id: 7,
-    name: 'Amazon Fulfillment',
-    contact: 'Sara Chen',
-    email: 'sara@amazon.com',
-    phone: '+63 2 8000 7007',
-    altContact: 'Dan Park',
-    altEmail: 'dan@amazon.com',
-    altPhone: '+63 923 777 8007',
-    accountManager: 'Renz Tolentino',
-    products: 32,
-    users: 24,
-    tickets: 2,
-    level: 'yellow',
-    cat: 'Warehouse',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/200px-Amazon_logo.svg.png',
-    branches: ['Laguna Warehouse', 'Cavite Hub'],
-    posCount: 6,
-    seats: 30,
-    site: 'Laguna Tech',
-    krunchNum: 'KRN-70556',
-    saStart: '2024-04-01',
-    saEnd: '2027-03-31',
-    licenseId: 'LIC-AMZ-2024-0401',
-  },
-  {
-    id: 8,
-    name: 'FedEx Depot',
-    contact: 'Tom Harris',
-    email: 'tom@fedex.com',
-    phone: '+63 2 7999 8008',
-    altContact: 'Kim Lee',
-    altEmail: 'kim@fedex.com',
-    altPhone: '+63 924 888 9008',
-    accountManager: 'Jake Reyes',
-    products: 8,
-    users: 12,
-    tickets: 0,
-    level: 'green',
-    cat: 'Warehouse',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/FedEx_Corporation_-_2016_Logo.svg/200px-FedEx_Corporation_-_2016_Logo.svg.png',
-    branches: ['Paranaque Depot'],
-    posCount: 4,
-    seats: 12,
-    site: 'Paranaque',
-    krunchNum: 'KRN-80223',
-    saStart: '2024-05-15',
-    saEnd: '2026-06-30',
-    licenseId: 'LIC-FDX-2024-0515',
-  },
-  {
-    id: 9,
-    name: 'IKEA',
-    contact: 'Lisa Park',
-    email: 'lisa@ikea.com',
-    phone: '+63 2 7888 9009',
-    altContact: 'Max Weber',
-    altEmail: 'max@ikea.com',
-    altPhone: '+63 925 999 1009',
-    accountManager: 'Maria Santos',
-    products: 22,
-    users: 15,
-    tickets: 3,
-    level: 'yellow',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Ikea_logo.svg/200px-Ikea_logo.svg.png',
-    branches: ['Pasay Store'],
-    posCount: 5,
-    seats: 15,
-    site: 'Pasay City',
-    krunchNum: 'KRN-90112',
-    saStart: '2024-07-01',
-    saEnd: '2026-05-10',
-    licenseId: 'LIC-IKA-2024-0701',
-  },
-  {
-    id: 10,
-    name: 'DHL Warehouse',
-    contact: 'Mike Sato',
-    email: 'mike@dhl.com',
-    phone: '+63 2 7777 1010',
-    altContact: 'Nina Cruz',
-    altEmail: 'nina@dhl.com',
-    altPhone: '+63 926 100 2010',
-    accountManager: 'Ana Mendez',
-    products: 11,
-    users: 18,
-    tickets: 1,
-    level: 'yellow',
-    cat: 'Warehouse',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/DHL_Logo.svg/200px-DHL_Logo.svg.png',
-    branches: ['Taguig Hub', 'Clark'],
-    posCount: 4,
-    seats: 20,
-    site: 'Taguig',
-    krunchNum: 'KRN-10045',
-    saStart: '2024-08-01',
-    saEnd: '2026-07-31',
-    licenseId: 'LIC-DHL-2024-0801',
-  },
-  {
-    id: 11,
-    name: "McDonald's",
-    contact: 'Amy Fox',
-    email: 'amy@mcdonalds.com',
-    phone: '+63 2 7666 1111',
-    altContact: 'Leo Santos',
-    altEmail: 'leo@mcdonalds.com',
-    altPhone: '+63 927 111 3011',
-    accountManager: 'Lisa Cruz',
-    products: 9,
-    users: 11,
-    tickets: 0,
-    level: 'green',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/McDonald%27s_Golden_Arches.svg/200px-McDonald%27s_Golden_Arches.svg.png',
-    branches: ['Makati', 'Manila', 'Cebu'],
-    posCount: 7,
-    seats: 15,
-    site: 'Manila',
-    krunchNum: 'KRN-11033',
-    saStart: '2024-10-01',
-    saEnd: '2026-04-15',
-    licenseId: 'LIC-MCD-2024-1001',
-    keysPerStore: 5,
-  },
-  {
-    id: 12,
-    name: 'Nike Retail',
-    contact: 'Chris Lee',
-    email: 'chris@nike.com',
-    phone: '+63 2 7555 1212',
-    altContact: 'Faye Uy',
-    altEmail: 'faye@nike.com',
-    altPhone: '+63 928 222 4012',
-    accountManager: 'Renz Tolentino',
-    products: 17,
-    users: 13,
-    tickets: 0,
-    level: 'green',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Logo_NIKE.svg/200px-Logo_NIKE.svg.png',
-    branches: ['SM Mall', 'Ayala'],
-    posCount: 4,
-    seats: 14,
-    site: 'SM MOA',
-    krunchNum: 'KRN-12044',
-    saStart: '2025-01-15',
-    saEnd: '2026-06-14',
-    licenseId: 'LIC-NKE-2025-0115',
-  },
-  {
-    id: 13,
-    name: 'Puma',
-    contact: 'Elena Torres',
-    email: 'elena@puma.com',
-    phone: '+63 2 7444 1313',
-    altContact: 'Roy Kim',
-    altEmail: 'roy@puma.com',
-    altPhone: '+63 929 333 5013',
-    accountManager: 'Jake Reyes',
-    products: 6,
-    users: 7,
-    tickets: 1,
-    level: 'yellow',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Puma_logo.svg/200px-Puma_logo.svg.png',
-    branches: ['Eastwood Store'],
-    posCount: 2,
-    seats: 7,
-    site: 'Eastwood',
-    krunchNum: 'KRN-13067',
-    saStart: '2024-11-01',
-    saEnd: '2027-10-31',
-    licenseId: 'LIC-PMA-2024-1101',
-  },
-  {
-    id: 14,
-    name: 'Jollibee',
-    contact: 'Rico Santos',
-    email: 'rico@jollibee.com',
-    phone: '+63 2 7333 1414',
-    altContact: 'Lena Delos Reyes',
-    altEmail: 'lena@jollibee.com',
-    altPhone: '+63 930 444 6014',
-    accountManager: 'Maria Santos',
-    products: 10,
-    users: 14,
-    tickets: 3,
-    level: 'yellow',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/8/84/Jollibee_logo.svg/200px-Jollibee_logo.svg.png',
-    branches: ['Manila', 'Davao', 'Cebu'],
-    posCount: 5,
-    seats: 18,
-    site: 'Manila',
-    krunchNum: 'KRN-14023',
-    saStart: '2024-12-01',
-    saEnd: '2027-11-30',
-    licenseId: 'LIC-JLB-2024-1201',
-    keysPerStore: 4,
-  },
-  {
-    id: 15,
-    name: 'UPS Supply Chain',
-    contact: 'Drew Campbell',
-    email: 'drew@ups.com',
-    phone: '+63 2 7222 1515',
-    altContact: 'Sandy Ho',
-    altEmail: 'sandy@ups.com',
-    altPhone: '+63 931 555 7015',
-    accountManager: 'Ana Mendez',
-    products: 18,
-    users: 22,
-    tickets: 0,
-    level: 'green',
-    cat: 'Warehouse',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/UPS_Logo_Shield_2017.svg/200px-UPS_Logo_Shield_2017.svg.png',
-    branches: ['NLEX Hub'],
-    posCount: 6,
-    seats: 25,
-    site: 'Bulacan',
-    krunchNum: 'KRN-15099',
-    saStart: '2025-02-01',
-    saEnd: '2027-01-31',
-    licenseId: 'LIC-UPS-2025-0201',
-  },
-];
-
-export const CLIENT_USERS: Record<number, ClientUser[]> = {
-  3: [
-    { name: 'John Doe', email: 'john@popeyes.com', role: 'System Admin', status: 'Active', branch: 'Manila Branch', position: 'Store Manager' },
-    { name: 'Ana Reyes', email: 'ana@popeyes.com', role: 'User', status: 'Active', branch: 'Manila Branch', position: 'Cashier' },
-    { name: 'Carlo Bautista', email: 'carlo@popeyes.com', role: 'User', status: 'Active', branch: 'Makati Branch', position: 'Cashier' },
-  ],
-  1: [
-    { name: 'Martin Roberts', email: 'martin@starbucks.com', role: 'System Admin', status: 'Active', branch: 'Makati', position: 'Regional Manager' },
-    { name: 'Sarah Lim', email: 'sarah@starbucks.com', role: 'Manager', status: 'Active', branch: 'BGC', position: 'Branch Manager' },
-  ],
-};
-
-export const GLOBAL_USERS: GlobalUser[] = [
-  { name: 'Martin Roberts', email: 'martin@starbucks.com', role: 'System Admin', status: 'Active', company: 'Starbucks', position: 'Regional Manager' },
-  { name: 'John Kent', email: 'john@ace.com', role: 'Manager', status: 'Active', company: 'Ace Hardware', position: 'Store Manager' },
-  { name: 'John Doe', email: 'john@popeyes.com', role: 'System Admin', status: 'Active', company: 'Popeyes', position: 'Store Manager' },
-  { name: 'Kyle Jennings', email: 'kyle@7eleven.com', role: 'User', status: 'Active', company: '7-Eleven', position: 'Cashier' },
-  { name: 'Walter King', email: 'walter@wolfganggrill.com', role: 'System Admin', status: 'Active', company: 'Wolfgang Grill', position: 'GM' },
-  { name: 'James Blue', email: 'james@rolex.com', role: 'Manager', status: 'Inactive', company: 'Rolex', position: 'Boutique Manager' },
-  { name: 'Sara Chen', email: 'sara@amazon.com', role: 'System Admin', status: 'Active', company: 'Amazon Fulfillment', position: 'Operations Lead' },
-  { name: 'Tom Harris', email: 'tom@fedex.com', role: 'Manager', status: 'Active', company: 'FedEx Depot', position: 'Depot Manager' },
-  { name: 'Lisa Park', email: 'lisa@ikea.com', role: 'System Admin', status: 'Active', company: 'IKEA', position: 'Store Admin' },
-  { name: 'Mike Sato', email: 'mike@dhl.com', role: 'User', status: 'Active', company: 'DHL Warehouse', position: 'Warehouse Staff' },
-];
-
-export const ALL_TICKETS: TicketGroup = {
-  open: [
-    { id: 'TKT-001', subject: 'POS crash on receipt print', priority: 'critical', status: 'open', time: '2h ago', client: 'Popeyes' },
-    { id: 'TKT-002', subject: 'Inventory sync error', priority: 'high', status: 'open', time: '4h ago', client: 'IKEA' },
-    { id: 'TKT-003', subject: 'Login issue for new staff', priority: 'normal', status: 'open', time: '5h ago', client: 'Ace Hardware' },
-    { id: 'TKT-004', subject: 'Barcode scanner not reading', priority: 'high', status: 'open', time: '1d ago', client: 'Jollibee' },
-    { id: 'TKT-005', subject: 'Network timeout on reports', priority: 'normal', status: 'open', time: '1d ago', client: 'Amazon Fulfillment' },
-    { id: 'TKT-006', subject: 'Card payment declined error', priority: 'critical', status: 'open', time: '2d ago', client: 'Rolex' },
-    { id: 'TKT-007', subject: 'Drawer not opening', priority: 'normal', status: 'open', time: '2d ago', client: 'Popeyes' },
-    { id: 'TKT-008', subject: 'End-of-day report mismatch', priority: 'high', status: 'open', time: '3d ago', client: 'DHL Warehouse' },
-  ],
-  pending: [
-    { id: 'TKT-009', subject: 'POS update installation pending', priority: 'normal', status: 'pending', time: '1d ago', client: 'Puma' },
-    { id: 'TKT-010', subject: 'User access change request', priority: 'low', status: 'pending', time: '2d ago', client: 'Starbucks' },
-    { id: 'TKT-011', subject: 'Hardware replacement awaiting delivery', priority: 'high', status: 'pending', time: '3d ago', client: 'IKEA' },
-  ],
-  closed: Array.from({ length: 42 }, (_, i) => ({
-    id: `TKT-CL-${String(i + 1).padStart(3, '0')}`,
-    subject: `Resolved issue #${i + 1}`,
-    priority: (['low', 'normal', 'high', 'critical'] as TicketPriority[])[i % 4],
-    status: 'closed' as TicketStatus,
-    time: `${i + 1}d ago`,
-    client: CLIENTS[i % CLIENTS.length].name,
-  })),
-};
-
-
-/* ═══════════════════════════════════════════════
-   SECTION 3: UTILITY FUNCTIONS
-   ═══════════════════════════════════════════════ */
-
-/** Returns uppercase initials from a full name (max 2 chars). */
 export function getInitials(name: string): string {
   const parts = name.trim().split(' ');
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Returns a stable gradient pair [start, end] derived from the user's name. */
 export const AVATAR_GRADIENTS: [string, string][] = [
   ['#7c3aed', '#a855f7'],
   ['#0d9488', '#22d3ee'],
@@ -608,27 +207,34 @@ export function getDaysLeft(dateStr: string | undefined): number | null {
   return Math.ceil((end.getTime() - now.getTime()) / 86400000);
 }
 
+export function getBranchLicense(client: Client, branch: string): string {
+  if (client.cat === 'F&B') {
+    return client.branchLicenses?.[branch] || '';
+  }
+  return client.licenseId || '';
+}
+
 export function generatePOSDevices(client: Client): POSDevice[] {
-  const models = ['PAX A920', 'Sunmi T2', 'Ingenico Move5000', 'Verifone T650P', 'PAX S300'];
+  const models     = ['PAX A920', 'Sunmi T2', 'Ingenico Move5000', 'Verifone T650P', 'PAX S300'];
   const osVersions = ['Windows 11', 'Windows 10', 'Windows 10', 'Windows 8.1', 'Windows 7'];
-  const branches = client.branches || ['Main Branch'];
+  const branches   = client.branches || ['Main Branch'];
   const devices: POSDevice[] = [];
 
   for (let i = 0; i < client.posCount; i++) {
-    const branch = branches[i % branches.length];
+    const branch       = branches[i % branches.length];
     const msaStartYear = 2022 + (i % 3);
-    const msaStart = `${msaStartYear}-0${(i % 9) + 1}-01`;
-    const msaEnd = `${msaStartYear + 2}-0${(i % 9) + 1}-01`;
+    const msaStart     = `${msaStartYear}-0${(i % 9) + 1}-01`;
+    const msaEnd       = `${msaStartYear + 2}-0${(i % 9) + 1}-01`;
     const warrantyDate = `${msaStartYear + 3}-0${(i % 9) + 1}-01`;
 
     devices.push({
-      id: `POS-${client.id}-${String(i + 1).padStart(3, '0')}`,
-      model: models[i % models.length],
-      serial: `SN-${String(client.id).padStart(3, '0')}${String(10000 + i * 39044).slice(-5)}-${String(i + 1).padStart(5, '0')}`,
-      ip: `192.168.${client.id}.${10 + i}`,
-      os: osVersions[i % osVersions.length],
+      id:            `POS-${client.id}-${String(i + 1).padStart(3, '0')}`,
+      model:         models[i % models.length],
+      licenseNumber: getBranchLicense(client, branch),
+      ip:            `192.168.${client.id}.${10 + i}`,
+      os:            osVersions[i % osVersions.length],
       branch,
-      status: i % 8 === 0 ? 'offline' : i % 12 === 0 ? 'maintenance' : 'online',
+      status:       i % 8 === 0 ? 'offline' : i % 12 === 0 ? 'maintenance' : 'online',
       assignedUser: i % 3 === 0 ? client.contact : undefined,
       msaStart,
       msaEnd,
@@ -643,35 +249,36 @@ export function filterUsers(
   users: GlobalUser[],
   activeRoles: Set<string>,
   activeStatuses: Set<string>,
-  activeCompanies: Set<string>,
-  searchQuery: string
+  activePositions: Set<string>,
+  searchQuery: string,
 ): GlobalUser[] {
   const q = searchQuery.toLowerCase().trim();
-  return users.filter((u) => {
-    const roleMatch = activeRoles.size === 0 || activeRoles.has(u.role);
-    const statusMatch = activeStatuses.size === 0 || activeStatuses.has(u.status);
-    const companyMatch = activeCompanies.size === 0 || activeCompanies.has(u.company);
-    const searchMatch =
+  return users.filter(u => {
+    const roleMatch     = activeRoles.size === 0     || activeRoles.has(u.role);
+    const statusMatch   = activeStatuses.size === 0  || activeStatuses.has(u.status);
+    const positionMatch = activePositions.size === 0 || activePositions.has(u.position);
+    const searchMatch   =
       !q ||
       u.name.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q) ||
-      u.company.toLowerCase().includes(q) ||
       u.position.toLowerCase().includes(q);
-    return roleMatch && statusMatch && companyMatch && searchMatch;
+    return roleMatch && statusMatch && positionMatch && searchMatch;
   });
 }
 
-export function getPriorityInfo(priority: TicketPriority): { class: string; color: string; bg: string } {
+export function getPriorityInfo(
+  priority: TicketPriority,
+): { class: string; color: string; bg: string } {
   switch (priority) {
-    case 'critical': return { class: 'critical', color: '#dc2626', bg: 'rgba(220,38,38,0.1)' };
-    case 'high':     return { class: 'high',     color: '#d97706', bg: 'rgba(217,119,6,0.1)' };
-    case 'normal':   return { class: 'normal',   color: '#0284c7', bg: 'rgba(2,132,199,0.1)' };
+    case 'critical': return { class: 'critical', color: '#dc2626', bg: 'rgba(220,38,38,0.1)'  };
+    case 'high':     return { class: 'high',     color: '#d97706', bg: 'rgba(217,119,6,0.1)'  };
+    case 'normal':   return { class: 'normal',   color: '#0284c7', bg: 'rgba(2,132,199,0.1)'  };
     case 'low':      return { class: 'low',      color: '#64748b', bg: 'rgba(100,116,139,0.1)' };
   }
 }
 
 export function formatTimeWidget(): { date: string; time: string } {
-  const now = new Date();
+  const now  = new Date();
   const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   return { date, time };
@@ -685,17 +292,17 @@ export function buildNewUser(
   company: string,
   position: string,
   phone: string,
-  status: string = 'Active'
+  status: string = 'Active',
 ): GlobalUser | null {
   if (!fname.trim() || !lname.trim() || !email.trim() || !role || !company) return null;
   return {
-    name: `${fname.trim()} ${lname.trim()}`,
-    email: email.trim(),
-    role: role as UserRole,
-    status: status as UserStatus,
+    name:     `${fname.trim()} ${lname.trim()}`,
+    email:    email.trim(),
+    role:     role as UserRole,
+    status:   status as UserStatus,
     company,
     position: position.trim(),
-    phone: phone.trim(),
+    phone:    phone.trim(),
   };
 }
 
@@ -706,23 +313,344 @@ export const SETTINGS_SECTIONS: {
   colorClass: string;
 }[] = [
   { id: 'general',       label: 'General',       icon: '⚙️', colorClass: 'style_purple' },
-  { id: 'notifications', label: 'Notifications', icon: '🔔', colorClass: 'style_amber' },
-  { id: 'security',      label: 'Security',      icon: '🔒', colorClass: 'style_red' },
-  { id: 'integrations',  label: 'Integrations',  icon: '🔗', colorClass: 'style_sky' },
-  { id: 'profile',       label: 'Profile',       icon: '👤', colorClass: 'style_green' },
-  { id: 'billing',       label: 'Billing',       icon: '💳', colorClass: 'style_teal' },
+  { id: 'notifications', label: 'Notifications', icon: '🔔', colorClass: 'style_amber'  },
+  { id: 'security',      label: 'Security',      icon: '🔒', colorClass: 'style_red'    },
+  { id: 'integrations',  label: 'Integrations',  icon: '🔗', colorClass: 'style_sky'    },
+  { id: 'profile',       label: 'Profile',       icon: '👤', colorClass: 'style_green'  },
+  { id: 'billing',       label: 'Billing',       icon: '💳', colorClass: 'style_teal'   },
 ];
 
-export const ACCOUNT_MANAGERS = ['Lisa Cruz', 'Renz Tolentino', 'Maria Santos', 'Jake Reyes', 'Ana Mendez'];
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SECTION 3 — TICKETS PANEL CHART HELPERS
+   Mirror the analytics_func.ts helpers for the per-client Tickets panel.
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
+import type { ClientTicketTrend, ClientBacklogData, ClientTicketItem } from '../../Sample_Data/Company_Database_sample';
 
+export interface ClientTrendChartPoints {
+  mkPts:  (d: number[]) => string;
+  mkArea: (d: number[]) => string;
+  gridYs: number[];
+  W: number;
+  H: number;
+}
 
+/**
+ * Builds SVG path/point helpers for the ClientTrendChart component.
+ * Uses a fixed 400×120 viewBox (same as the Analytics page TrendChart).
+ */
+export function buildClientTrendChartPoints(trend: ClientTicketTrend): ClientTrendChartPoints {
+  const W = 400, H = 120;
+  const { newTickets, resolved, critical } = trend;
+  const days = newTickets.length;
+  const maxV = Math.max(...newTickets, ...resolved, ...critical, 1);
+  const toY  = (v: number) => H - 10 - (v / maxV) * (H - 20);
+  const toX  = (i: number) => (i / Math.max(days - 1, 1)) * W;
+  const mkPts  = (d: number[]) => d.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+  const mkArea = (d: number[]) =>
+    `M${toX(0)},${H} ` + d.map((v, i) => `L${toX(i)},${toY(v)}`).join(' ') + ` L${toX(days - 1)},${H} Z`;
+  const gridYs = [25, 50, 75].map(p => H - 10 - (p / 100) * (H - 20));
+  return { mkPts, mkArea, gridYs, W, H };
+}
 
+/**
+ * Returns the bar width % for a category row relative to the total.
+ */
+export function getClientCategoryBarWidthPct(n: number, catTotal: number): number {
+  if (catTotal === 0) return 0;
+  return Math.round((n / catTotal) * 100);
+}
 
+export interface ClientBacklogStatItem {
+  n:     number;
+  label: string;
+  sub:   string;
+  bg:    string;
+  bdr:   string;
+  col:   string;
+}
 
+/**
+ * Builds the three backlog stat tile objects (fresh / aging / overdue).
+ * Mirrors buildBacklogStatItems in analytics_func.ts.
+ */
+export function buildClientBacklogStatItems(backlog: ClientBacklogData): ClientBacklogStatItem[] {
+  return [
+    {
+      n:     backlog.fresh,
+      label: 'Fresh',
+      sub:   '< 24h open',
+      bg:    'rgba(22,163,74,0.07)',
+      bdr:   'rgba(22,163,74,0.2)',
+      col:   '#16a34a',
+    },
+    {
+      n:     backlog.aging,
+      label: 'Aging',
+      sub:   '24h – 72h open',
+      bg:    'rgba(217,119,6,0.07)',
+      bdr:   'rgba(217,119,6,0.2)',
+      col:   '#d97706',
+    },
+    {
+      n:     backlog.overdue,
+      label: 'Overdue',
+      sub:   '> 72h open',
+      bg:    'rgba(220,38,38,0.07)',
+      bdr:   'rgba(220,38,38,0.2)',
+      col:   '#dc2626',
+    },
+  ];
+}
 
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SECTION 4 — REAL-DATA HELPERS (moved from dashboard_overview_users.tsx)
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * Converts a relative time string like "3h ago", "2d ago", "45m ago"
+ * into an approximate number of hours.
+ */
+export function parseTicketHoursAgo(time: string): number {
+  const n = parseInt(time, 10);
+  if (isNaN(n)) return 0;
+  if (time.includes('m')) return n / 60;
+  if (time.includes('h')) return n;
+  if (time.includes('d')) return n * 24;
+  if (time.includes('w')) return n * 24 * 7;
+  return 0;
+}
 
+/**
+ * Computes average resolution time (hours) from real closed ticket
+ * time strings in CLIENT_TICKET_ANALYTICS[clientId].tickets.closed.
+ * Returns a float rounded to 1 decimal place.
+ */
+export function computeAvgResolutionHrs(
+  analytics: { tickets: { closed: ClientTicketItem[] } } | undefined,
+): number {
+  if (!analytics || analytics.tickets.closed.length === 0) return 0;
 
+  const priorityHours: Record<string, number> = {
+    critical: 1.2,
+    high:     1.8,
+    normal:   2.2,
+    low:      2.5,
+  };
 
+  const totalHrs = analytics.tickets.closed.reduce(
+    (sum, t) => sum + (priorityHours[t.priority] ?? 2.0),
+    0,
+  );
 
+  return parseFloat((totalHrs / analytics.tickets.closed.length).toFixed(1));
+}
+
+/**
+ * Builds a real ClientBacklogData object derived from the actual
+ * open ticket list in CLIENT_TICKET_ANALYTICS[clientId].tickets.open.
+ */
+export function buildRealBacklog(clientId: number): ClientBacklogData {
+  const { CLIENT_TICKET_ANALYTICS } = require('../../Sample_Data/Company_Database_sample');
+  const analytics   = CLIENT_TICKET_ANALYTICS[clientId];
+  const openTickets = analytics?.tickets?.open ?? [];
+
+  let fresh = 0, aging = 0, overdue = 0;
+  for (const t of openTickets) {
+    const h = parseTicketHoursAgo(t.time);
+    if (h < 24)       fresh++;
+    else if (h <= 72) aging++;
+    else              overdue++;
+  }
+
+  const total      = openTickets.length || 1;
+  const freshPct   = Math.round((fresh   / total) * 100);
+  const agingPct   = Math.round((aging   / total) * 100);
+  const overduePct = Math.max(0, 100 - freshPct - agingPct);
+
+  const urgencyLabel =
+    overdue > total * 0.4
+      ? 'escalation is strongly recommended'
+      : overdue > total * 0.2
+        ? 'escalation is recommended'
+        : 'within acceptable range';
+
+  return {
+    fresh, aging, overdue,
+    freshPct, agingPct, overduePct,
+    summary:
+      overdue === 0
+        ? `All ${total} open ticket${total !== 1 ? 's' : ''} are within SLA. Fresh tickets make up ${freshPct}% of the backlog.`
+        : `${overdue} ticket${overdue !== 1 ? 's' : ''} open >72h — ${urgencyLabel}. Fresh tickets make up ${freshPct}% of the backlog.`,
+  };
+}
+
+/* ─── Category classification ─────────────────────────────────────────────── */
+
+export const CATEGORY_DEFS: { label: string; color: string; keywords: string[] }[] = [
+  {
+    label: 'POS Hardware',
+    color: '#7c3aed',
+    keywords: [
+      'pos', 'printer', 'scanner', 'touchscreen', 'drawer', 'card reader',
+      'receipt', 'terminal', 'handheld', 'screen', 'head', 'jam', 'display',
+      'hardware', 'device', 'button', 'cash', 'unit', 'slow boot', 'startup',
+      'reboot', 'battery', 'replacement', 'calibration', 'unresponsive',
+    ],
+  },
+  {
+    label: 'Software / App',
+    color: '#0284c7',
+    keywords: [
+      'software', 'app', 'update', 'patch', 'sync', 'report', 'os',
+      'firmware', 'crash', 'freeze', 'error', 'bug', 'install', 'boot',
+      'system', 'z-report', 'wms', 'integration', 'duplicate', 'split',
+      'void', 'processing', 'font', 'log', 'closing', 'mismatch',
+    ],
+  },
+  {
+    label: 'Network',
+    color: '#0d9488',
+    keywords: [
+      'network', 'wi-fi', 'wifi', 'connection', 'connectivity', 'internet',
+      'latency', 'timeout', 'drop', 'offline', 'online', 'router', 'switch',
+      'ap', 'cable', 'ethernet', 'intermittent', 'conveyor', 'hub',
+    ],
+  },
+  {
+    label: 'Account / Access',
+    color: '#d97706',
+    keywords: [
+      'login', 'access', 'account', 'user', 'pin', 'password', 'credential',
+      'lockout', 'permission', 'onboarding', 'reactivation', 'provisioning',
+      'staff', 'creation', 'reset', 'revoked', 'restored',
+    ],
+  },
+];
+
+export function classifySubject(subject: string): string {
+  const lower = subject.toLowerCase();
+  for (const def of CATEGORY_DEFS) {
+    if (def.keywords.some(kw => lower.includes(kw))) return def.label;
+  }
+  return 'Other';
+}
+
+export interface RealCategory {
+  label:    string;
+  color:    string;
+  n:        number;
+  thisWeek: number;
+  lastWeek: number;
+  change:   number;
+  dir:      'up' | 'dn' | 'flat';
+}
+
+export function buildRealCategories(clientId: number): RealCategory[] {
+  const { CLIENT_TICKET_ANALYTICS } = require('../../Sample_Data/Company_Database_sample');
+  const analytics = CLIENT_TICKET_ANALYTICS[clientId];
+  if (!analytics) return [];
+
+  const allTickets = [
+    ...analytics.tickets.open,
+    ...analytics.tickets.pending,
+    ...analytics.tickets.closed,
+  ];
+
+  const map: Record<string, { color: string; n: number; thisWeek: number; lastWeek: number }> = {};
+  for (const def of CATEGORY_DEFS) {
+    map[def.label] = { color: def.color, n: 0, thisWeek: 0, lastWeek: 0 };
+  }
+  map['Other'] = { color: '#6b7280', n: 0, thisWeek: 0, lastWeek: 0 };
+
+  for (const ticket of allTickets) {
+    const label = classifySubject(ticket.subject);
+    const hours = parseTicketHoursAgo(ticket.time);
+    map[label].n++;
+    if (hours <= 168)       map[label].thisWeek++;
+    else if (hours <= 336)  map[label].lastWeek++;
+  }
+
+  return Object.entries(map)
+    .filter(([, v]) => v.n > 0)
+    .map(([label, v]) => {
+      let change = 0;
+      let dir: 'up' | 'dn' | 'flat' = 'flat';
+      if (v.lastWeek > 0) {
+        const raw    = Math.round(((v.thisWeek - v.lastWeek) / v.lastWeek) * 100);
+        const capped = Math.max(-30, Math.min(30, raw));
+        change = Math.round(capped / 5) * 5;
+        dir    = change > 0 ? 'up' : change < 0 ? 'dn' : 'flat';
+      }
+      return { label, color: v.color, n: v.n, thisWeek: v.thisWeek, lastWeek: v.lastWeek, change, dir };
+    })
+    .sort((a, b) => b.n - a.n);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SECTION 5 — FALLBACK ANALYTICS GENERATOR
+   Returns real analytics if they exist; otherwise synthesises a full
+   ClientTicketAnalytics object using the same deterministic helpers as
+   Company_Database_sample.ts — so every client (including DB-only ones
+   like "Rain") renders the Tickets panel fully without errors.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+import type { ClientTicketAnalytics } from '../../Sample_Data/Company_Database_sample';
+
+function _buildFallbackTrend(seed: number, base: number): ClientTicketTrend {
+  const newTickets = Array.from({ length: 30 }, (_, i) =>
+    Math.max(1, Math.round(
+      base +
+      Math.sin((i + seed) / 3.2) * (base * 0.4) +
+      Math.sin((i * 0.7 + seed)) * (base * 0.2),
+    )),
+  );
+  const resolved = newTickets.map(n => Math.max(0, n - Math.round(n * 0.25)));
+  const critical  = newTickets.map(n => Math.max(0, Math.round(n * 0.12)));
+  return { newTickets, resolved, critical };
+}
+
+function _buildFallbackBacklog(openCount: number, seed: number): ClientBacklogData {
+  const freshPct   = Math.min(70, Math.max(30, 52 + (seed % 20) - 10));
+  const agingPct   = Math.min(40, Math.max(15, 31 - (seed % 12)));
+  const overduePct = 100 - freshPct - agingPct;
+  const fresh   = Math.round(openCount * freshPct   / 100);
+  const aging   = Math.round(openCount * agingPct   / 100);
+  const overdue = openCount - fresh - aging;
+  const label   = overdue > openCount * 0.25
+    ? 'escalation is recommended'
+    : 'within acceptable range';
+  return {
+    fresh, aging, overdue, freshPct, agingPct, overduePct,
+    summary: openCount === 0
+      ? 'No open tickets at this time. Backlog is clear.'
+      : `${overdue} ticket${overdue !== 1 ? 's' : ''} open >72h — ${label}. Fresh tickets make up ${freshPct}% of the backlog.`,
+  };
+}
+
+/**
+ * Returns CLIENT_TICKET_ANALYTICS[clientId] if it exists.
+ * Otherwise synthesises a full ClientTicketAnalytics object using the
+ * same deterministic helpers as Company_Database_sample.ts, so every
+ * client card (including dynamically created DB clients) renders without errors.
+ */
+export function getClientAnalytics(clientId: number): ClientTicketAnalytics {
+  const { CLIENT_TICKET_ANALYTICS } = require('../../Sample_Data/Company_Database_sample');
+  if (CLIENT_TICKET_ANALYTICS[clientId]) return CLIENT_TICKET_ANALYTICS[clientId];
+
+  // Deterministic per-client base rate: 2–9 new tickets/day
+  const seed = clientId;
+  const base = Math.max(2, (seed % 8) + 2);
+
+  return {
+    trend: _buildFallbackTrend(seed, base),
+    categories: [
+      { label: 'POS Hardware',     n: base * 3, color: '#7c3aed', change: 0, dir: 'flat' },
+      { label: 'Software / App',   n: base * 2, color: '#0284c7', change: 0, dir: 'flat' },
+      { label: 'Network',          n: base,     color: '#0d9488', change: 0, dir: 'flat' },
+      { label: 'Account / Access', n: Math.max(1, base - 1), color: '#d97706', change: 0, dir: 'flat' },
+    ],
+    backlog: _buildFallbackBacklog(0, seed),
+    tickets: { open: [], pending: [], closed: [] },
+  };
+}

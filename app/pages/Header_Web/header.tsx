@@ -150,7 +150,7 @@ export default function Header({
   onNotificationClick,
   onLogout,
 }: HeaderProps) {
-  const [now,          setNow]          = useState(new Date());
+  const [now,          setNow]          = useState<Date | null>(null);
   const [collapsed,    setCollapsed]    = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut,   setLoggingOut]   = useState(false);
@@ -159,6 +159,7 @@ export default function Header({
 
   /* Clock tick */
   useEffect(() => {
+    setNow(new Date());
     intervalRef.current = setInterval(() => setNow(new Date()), 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
@@ -256,9 +257,9 @@ export default function Header({
             <rect x="1" y="2" width="12" height="11" rx="1.5" />
             <path d="M1 6h12M4 1v2M10 1v2" />
           </svg>
-          <span className="text-[12px] font-medium" style={{ color: "var(--gxh-t2)" }}>{formatDate(now)}</span>
+          <span className="text-[12px] font-medium" style={{ color: "var(--gxh-t2)" }}>{now ? formatDate(now) : ''}</span>
           <div className="w-px h-3.5" style={{ background: "var(--gxh-border-md)" }} />
-          <span className="gxh-clock text-[13px] font-bold" style={{ color: "var(--gxh-purple)" }}>{formatTime(now)}</span>
+          <span className="gxh-clock text-[13px] font-bold" style={{ color: "var(--gxh-purple)" }}>{now ? formatTime(now) : ''}</span>
         </div>
 
         {/* ── Notification Button ── */}

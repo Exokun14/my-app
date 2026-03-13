@@ -91,11 +91,17 @@ export interface EditInfoFormState {
   saStart: string;
   saEnd: string;
   krunchNum: string;
+  industryType?:   string;       // maps to company.industry_type (DB enum)
+  accountManager?: string;       // read-only display — pulled from client
+  userRole?:       string;       // read-only display — pulled from client
+  logoUrl?:        string;       // base64 data URL or https:// URL
+  logoFile?:       File;         // the raw File object from <input type="file">
 }
 
 export interface POSFormData {
   model: string;
-  serial: string;
+  /** License Number for this POS (auto-filled from branch for Retail/Warehouse; per-branch for Aloha) */
+  licenseNumber: string;
   ip: string;
   os: string;
   msaStart: string;
@@ -105,7 +111,7 @@ export interface POSFormData {
 
 export const BLANK_POS_FORM: POSFormData = {
   model: 'PAX A920',
-  serial: '',
+  licenseNumber: '',
   ip: '',
   os: 'Windows 10',
   msaStart: '',
@@ -257,6 +263,7 @@ export function EditSection({
 
 /* ─────────────────────────────────────────────
    POS FORM FIELDS — reusable inside branch modal
+   licenseReadOnly: if true, license field is read-only (Retail/Warehouse auto-fill)
 ───────────────────────────────────────────── */
 const POS_MODELS  = ['PAX A920', 'Sunmi T2', 'Ingenico Move5000', 'Verifone T650P', 'PAX S300'];
 const OS_OPTIONS  = ['Windows 11', 'Windows 10', 'Windows 8.1', 'Windows 8', 'Windows 7'];
@@ -265,10 +272,12 @@ export function POSFormFields({
   form,
   onChange,
   error,
+  licenseReadOnly = false,
 }: {
   form: POSFormData;
   onChange: (f: POSFormData) => void;
   error: string;
+  licenseReadOnly?: boolean;
 }) {
   const set = (key: keyof POSFormData, val: string) => onChange({ ...form, [key]: val });
 
@@ -281,6 +290,14 @@ export function POSFormFields({
     paddingRight: 28,
   };
 
+  const FInReadOnly: React.CSSProperties = {
+    ...FIn,
+    background: '#ede9fe',
+    color: '#7c3aed',
+    fontWeight: 600,
+    cursor: 'default',
+  };
+
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -291,8 +308,22 @@ export function POSFormFields({
           </select>
         </div>
         <div>
-          <label style={FLbl}>Serial Number <Asterisk /></label>
-          <input style={FIn} type="text" placeholder="e.g. SN10010001" value={form.serial} onChange={e => set('serial', e.target.value)} />
+          <label style={FLbl}>
+            License Number <Asterisk />
+            {licenseReadOnly && (
+              <span style={{ fontSize: 9, fontWeight: 600, color: '#7c3aed', marginLeft: 6, background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>
+                auto-filled
+              </span>
+            )}
+          </label>
+          <input
+            style={licenseReadOnly ? FInReadOnly : FIn}
+            type="text"
+            placeholder="e.g. LIC-XXXX-0001"
+            value={form.licenseNumber}
+            readOnly={licenseReadOnly}
+            onChange={e => !licenseReadOnly && set('licenseNumber', e.target.value)}
+          />
         </div>
       </div>
 
@@ -320,11 +351,6 @@ export function POSFormFields({
         </div>
       </div>
 
-      <div style={{ maxWidth: '50%', marginBottom: error ? 6 : 12 }}>
-        <label style={FLbl}>Warranty Date</label>
-        <input style={FIn} type="date" value={form.warrantyDate} onChange={e => set('warrantyDate', e.target.value)} />
-      </div>
-
       {error && (
         <div style={{ fontSize: 11, color: '#dc2626', marginBottom: 10, padding: '6px 10px', background: '#fee2e2', borderRadius: 7 }}>
           {error}
@@ -333,15 +359,3 @@ export function POSFormFields({
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-

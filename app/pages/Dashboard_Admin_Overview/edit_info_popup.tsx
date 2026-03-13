@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Client } from './dashboard_overview_func';
 import {
   MBtnS, MBtnP, MBtnXS,
@@ -8,6 +8,17 @@ import {
   Asterisk, EditSection,
   AltContact, EditInfoFormState,
 } from './popup_shared';
+
+/* ─────────────────────────────────────────────
+   SHARED STYLES
+───────────────────────────────────────────── */
+const FReadOnly: React.CSSProperties = {
+  ...FIn,
+  background: '#f5f4fc',
+  fontWeight: 600,
+  cursor: 'not-allowed',
+  userSelect: 'none' as const,
+};
 
 /* ─────────────────────────────────────────────
    PROPS
@@ -24,9 +35,13 @@ interface Props {
    COMPONENT
 ───────────────────────────────────────────── */
 export default function EditInfoPopup({ client, form, onChange, onSave, onClose }: Props) {
-  const isFnB   = client.cat === 'F&B';
-  const MAX_ALT = 2;
+  const MAX_ALT   = 2;
   const canAddAlt = form.altContacts.length < MAX_ALT;
+  const fileRef   = useRef<HTMLInputElement>(null);
+
+  const [logoPreview, setLogoPreview] = useState<string>(
+    form.logoUrl ?? (typeof client.logo === 'string' ? client.logo : '') ?? ''
+  );
 
   const set    = (key: keyof EditInfoFormState, val: string) => onChange({ ...form, [key]: val });
   const setAlt = (idx: number, field: keyof AltContact, val: string) =>
@@ -34,14 +49,32 @@ export default function EditInfoPopup({ client, form, onChange, onSave, onClose 
   const addAlt    = () => { if (!canAddAlt) return; onChange({ ...form, altContacts: [...form.altContacts, { name: '', email: '', phone: '' }] }); };
   const removeAlt = (idx: number) => onChange({ ...form, altContacts: form.altContacts.filter((_, i) => i !== idx) });
 
-  const FSel: React.CSSProperties = {
-    ...FIn,
-    appearance: 'none' as const,
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a76bc' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 10px center',
-    paddingRight: 28,
+  /* ── Logo: file upload ── */
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const url = ev.target?.result as string;
+      setLogoPreview(url);
+      onChange({ ...form, logoUrl: url, logoFile: file });
+    };
+    reader.readAsDataURL(file);
   };
+
+  const clearLogo = () => {
+    setLogoPreview('');
+    if (fileRef.current) fileRef.current.value = '';
+    onChange({ ...form, logoUrl: '', logoFile: undefined });
+  };
+
+  /* ── Initials fallback ── */
+  const initials = (() => {
+    const parts = (form.storeName || client.name || '').trim().split(' ');
+    return parts.length === 1
+      ? parts[0].slice(0, 2).toUpperCase()
+      : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  })();
 
   return (
     <div
@@ -54,7 +87,7 @@ export default function EditInfoPopup({ client, form, onChange, onSave, onClose 
       }}
     >
       <div style={{
-        width: 640, maxWidth: '96vw', maxHeight: '92vh',
+        width: 660, maxWidth: '96vw', maxHeight: '92vh',
         background: '#fff', borderRadius: 18,
         boxShadow: '0 20px 60px rgba(0,0,0,0.22)',
         overflow: 'hidden', fontFamily: "'DM Sans',sans-serif",
@@ -78,7 +111,7 @@ export default function EditInfoPopup({ client, form, onChange, onSave, onClose 
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Edit General Information</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
-              {client.name} — update contact, license &amp; account details
+              {client.name} — update contact &amp; account details
             </div>
           </div>
           <button
@@ -99,8 +132,124 @@ export default function EditInfoPopup({ client, form, onChange, onSave, onClose 
         {/* ── Scrollable Body ── */}
         <div style={{ overflowY: 'auto', flex: 1 }}>
 
-          {/* Primary Contact */}
+          {/* ════ COMPANY LOGO ════ */}
+          <EditSection icon="🖼️" label="Company Logo">
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+
+              {/* Preview box */}
+              <div style={{
+                width: 80, height: 80, borderRadius: 14, flexShrink: 0,
+                background: logoPreview ? '#fff' : '#f0edfb',
+                border: '1.5px dashed rgba(124,58,237,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden',
+              }}>
+                {logoPreview ? (
+                  <img
+                    src={logoPreview}
+                    alt="logo preview"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 8 }}
+                    onError={() => setLogoPreview('')}
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: '#c4b5fd', letterSpacing: '-0.03em' }}>
+                      {initials}
+                    </div>
+                    <div style={{ fontSize: 9, color: '#c4b5fd', marginTop: 2 }}>No logo</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload controls */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                {/* Upload from device label */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: '#4a3870' }}>Upload from device</span>
+                    <span style={{ fontSize: 10, color: '#b8aed8', fontStyle: 'italic' }}>(saved as company_name.ext)</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '7px 16px', borderRadius: 8,
+                        border: '1.5px solid rgba(124,58,237,0.25)',
+                        background: '#f5f3ff', color: '#4a3870',
+                        fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                        fontFamily: "'DM Sans',sans-serif", transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#ede9fe'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f5f3ff'; }}
+                    >
+                      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" width="12" height="12">
+                        <path d="M7 1v8M4 4L7 1l3 3M2 11v1a1 1 0 001 1h8a1 1 0 001-1v-1"/>
+                      </svg>
+                      Choose File
+                    </button>
+                    {logoPreview && (
+                      <button
+                        type="button"
+                        onClick={clearLogo}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '7px 12px', borderRadius: 8,
+                          border: '1.5px solid rgba(220,38,38,0.2)',
+                          background: '#fff5f5', color: '#dc2626',
+                          fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                          fontFamily: "'DM Sans',sans-serif",
+                        }}
+                      >
+                        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" width="10" height="10">
+                          <path d="M1 1l10 10M11 1L1 11"/>
+                        </svg>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* URL paste */}
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#4a3870', marginBottom: 6 }}>
+                    Or paste image URL
+                  </div>
+                  <input
+                    style={{ ...FIn, fontSize: 11.5 }}
+                    type="url"
+                    placeholder="https://example.com/logo.png"
+                    value={
+                      form.logoFile
+                        ? ''
+                        : (form.logoUrl?.startsWith('data:') ? '' : (form.logoUrl ?? ''))
+                    }
+                    onChange={e => {
+                      const url = e.target.value;
+                      setLogoPreview(url);
+                      onChange({ ...form, logoUrl: url, logoFile: undefined });
+                    }}
+                  />
+                </div>
+
+              </div>
+
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                style={{ display: 'none' }}
+                onChange={handleLogoFile}
+              />
+            </div>
+          </EditSection>
+
+          {/* ════ PRIMARY CONTACT ════ */}
           <EditSection icon="👤" label="Primary Contact">
+
+            {/* Row 1 — Company Name + Contact Person */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={FLbl}>Store / Company Name <Asterisk /></label>
@@ -111,6 +260,8 @@ export default function EditInfoPopup({ client, form, onChange, onSave, onClose 
                 <input style={FIn} type="text" value={form.contact} onChange={e => set('contact', e.target.value)} />
               </div>
             </div>
+
+            {/* Row 2 — Email + Phone */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={FLbl}>Email <Asterisk /></label>
@@ -121,9 +272,10 @@ export default function EditInfoPopup({ client, form, onChange, onSave, onClose 
                 <input style={FIn} type="tel" placeholder="+63 2 XXXX XXXX" value={form.phone} onChange={e => set('phone', e.target.value)} />
               </div>
             </div>
+
           </EditSection>
 
-          {/* Alternate Contact */}
+          {/* ════ ALTERNATE CONTACT ════ */}
           <EditSection
             icon="📋"
             label="Alternate Contact"
@@ -190,52 +342,8 @@ export default function EditInfoPopup({ client, form, onChange, onSave, onClose 
             ))}
           </EditSection>
 
-          {/* Account Details */}
-          <EditSection icon="🏢" label="Account Details">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div>
-                <label style={FLbl}>Site / Location</label>
-                <input style={FIn} type="text" placeholder="e.g. Makati CBD" value={form.site} onChange={e => set('site', e.target.value)} />
-              </div>
-              {isFnB ? (
-                <div>
-                  <label style={FLbl}>Keys per Store</label>
-                  <input style={FIn} type="number" min="0" value={form.keysPerStore} onChange={e => set('keysPerStore', e.target.value)} />
-                </div>
-              ) : (
-                <div>
-                  <label style={FLbl}>Seats</label>
-                  <input style={FIn} type="number" min="0" value={form.seats} onChange={e => set('seats', e.target.value)} />
-                </div>
-              )}
-            </div>
-          </EditSection>
+          
 
-          {/* License (non-F&B only) */}
-          {!isFnB && (
-            <EditSection icon="🔑" label="License" last>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={FLbl}>License ID</label>
-                  <input style={FIn} type="text" value={form.licenseId} onChange={e => set('licenseId', e.target.value)} />
-                </div>
-                <div>
-                  <label style={FLbl}>Krunch #</label>
-                  <input style={FIn} type="text" value={form.krunchNum} onChange={e => set('krunchNum', e.target.value)} />
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={FLbl}>License Start</label>
-                  <input style={FIn} type="date" value={form.saStart} onChange={e => set('saStart', e.target.value)} />
-                </div>
-                <div>
-                  <label style={FLbl}>License End</label>
-                  <input style={FIn} type="date" value={form.saEnd} onChange={e => set('saEnd', e.target.value)} />
-                </div>
-              </div>
-            </EditSection>
-          )}
         </div>
 
         {/* ── Footer ── */}
@@ -257,7 +365,6 @@ export default function EditInfoPopup({ client, form, onChange, onSave, onClose 
     </div>
   );
 }
-
 
 
 

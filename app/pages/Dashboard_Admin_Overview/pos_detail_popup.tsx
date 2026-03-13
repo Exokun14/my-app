@@ -18,26 +18,23 @@ interface Props {
    COMPONENT
 ───────────────────────────────────────────── */
 export default function POSDetailPopup({ pos, client, posIndex, onClose }: Props) {
-  const fmtDate = (d?: string) =>
-    d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '—';
+  const isAloha = client.cat === 'F&B';
 
   const specs = [
-    { label: 'Device Model',  value: pos.model },
-    { label: 'Serial Number', value: pos.serial },
-    { label: 'IP Address',    value: pos.ip },
-    { label: 'OS Version',    value: pos.os },
-    { label: 'Branch',        value: pos.branch },
-    { label: 'MSA Start',     value: fmtDate(pos.msaStart) },
-    { label: 'MSA End',       value: fmtDate(pos.msaEnd) },
-    { label: 'Warranty Date', value: fmtDate(pos.warrantyDate) },
+    { label: 'Device Model',    value: pos.model },
+    { label: 'License Number',  value: pos.licenseNumber || '—' },
+    { label: 'IP Address',      value: pos.ip },
+    { label: 'OS Version',      value: pos.os },
+    { label: 'Branch',          value: pos.branch },
   ];
 
-  // Highlight certain value columns
   const getValueColor = (label: string): string => {
-    if (label === 'MSA End' || label === 'Warranty Date') return '#0d9488';
+    if (label === 'License Number') return isAloha ? '#d97706' : '#7c3aed';
     if (label === 'OS Version') return '#7c3aed';
     return '#18103a';
   };
+
+  const catLabel = isAloha ? 'Aloha' : client.cat;
 
   return (
     <div
@@ -74,10 +71,10 @@ export default function POSDetailPopup({ pos, client, posIndex, onClose }: Props
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
-              POS {posIndex} — {pos.model}
+              {pos.model}
             </div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
-              {client.name} · {pos.branch}
+              {client.name} · {pos.branch} · {catLabel}
             </div>
           </div>
           <button
@@ -98,6 +95,22 @@ export default function POSDetailPopup({ pos, client, posIndex, onClose }: Props
 
         {/* ── Body ── */}
         <div style={{ padding: '18px 20px' }}>
+          {/* License type info pill */}
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: isAloha ? 'rgba(217,119,6,0.1)' : 'rgba(124,58,237,0.08)',
+            border: `1px solid ${isAloha ? 'rgba(217,119,6,0.22)' : 'rgba(124,58,237,0.18)'}`,
+            borderRadius: 20, padding: '3px 10px', marginBottom: 14,
+            fontSize: 9.5, fontWeight: 700,
+            color: isAloha ? '#92400e' : '#4c1d95',
+            letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+          }}>
+            <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="5.5" cy="8" r="3.5"/><path d="M8.5 8h4M11 6.5V8"/>
+            </svg>
+            {isAloha ? 'Branch-specific license' : 'Shared license (all branches)'}
+          </div>
+
           <div style={{
             fontSize: 9, fontWeight: 700, letterSpacing: '0.14em',
             textTransform: 'uppercase', color: '#b8aed8',
@@ -121,7 +134,7 @@ export default function POSDetailPopup({ pos, client, posIndex, onClose }: Props
                   background: i % 2 === 0 ? 'transparent' : 'rgba(124,58,237,0.015)',
                 }}
               >
-                <span style={{ fontSize: 11.5, color: '#8e7ec0', fontWeight: 500, flexShrink: 0, minWidth: 110 }}>
+                <span style={{ fontSize: 11.5, color: '#8e7ec0', fontWeight: 500, flexShrink: 0, minWidth: 120 }}>
                   {row.label}
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: getValueColor(row.label), textAlign: 'right', wordBreak: 'break-all' }}>
@@ -145,13 +158,3 @@ export default function POSDetailPopup({ pos, client, posIndex, onClose }: Props
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-

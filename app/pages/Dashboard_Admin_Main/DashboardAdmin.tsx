@@ -1,7 +1,7 @@
 /* ==============================================================
    DashboardAdmin.tsx  ·  Company Database — Front End
 
-   FIXES:
+   FIXES (from previous iteration):
    1. Accepts onLogout prop from root page.tsx and wires it to
       both <Sidebar onLogout> and <Header onLogout> so Sign Out
       actually works from either location.
@@ -11,6 +11,16 @@
       passes the result to <Header user={headerUser}> — fixes the
       "John Doe / System Admin" placeholder showing instead of the
       actual user's name, role, and company.
+
+   UPDATED (this iteration):
+   4. Client cards are now populated from the live Laravel API
+      (GET /api/companies) instead of the static CLIENTS seed.
+      A loading skeleton is shown while the request is in flight;
+      an error banner with Retry is shown on failure.
+   5. ClientCard uses React state (imgError) to handle broken logo
+      images instead of direct DOM mutation via innerHTML.
+   6. Added _shimmer / _pulse animation and CardSkeleton component.
+   7. Search box expands on focus (focus-within:w-[300px]).
    ============================================================== */
 
 'use client';
@@ -19,7 +29,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 
 import {
   Client, StatsBarData, LicenseItem, LicPeriod,
-  CLIENTS,
+  apiFetchCompanies,
   getInitials, getHealthLabel,
   formatDate,
   computeStatsBarData, filterClients, computeLicenseExpiry,
@@ -39,8 +49,10 @@ const GLOBAL_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
   @keyframes _fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
   @keyframes _mIn    { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
-  ._fadeUp { animation: _fadeUp 0.3s ease both; }
-  ._mIn    { animation: _mIn   0.26s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes _pulse  { 0%,100%{opacity:0.45} 50%{opacity:1} }
+  ._fadeUp  { animation: _fadeUp 0.3s ease both; }
+  ._mIn     { animation: _mIn   0.26s cubic-bezier(0.16,1,0.3,1); }
+  ._shimmer { animation: _pulse 1.4s ease-in-out infinite; }
   * { scrollbar-width:thin; scrollbar-color:rgba(124,58,237,0.15) transparent; }
   ::-webkit-scrollbar       { width:4px; height:4px; }
   ::-webkit-scrollbar-thumb { background:rgba(124,58,237,0.18); border-radius:4px; }
@@ -60,24 +72,20 @@ interface DashboardAdminProps {
 type AdminView = 'overview' | 'learning';
 
 /* ─── AppShell ──────────────────────────────────────────────────────────────
-   Extracted from DashboardAdmin.renderShell to be a stable component reference.
-   Previously defined as an inline `const` inside the component body, which
-   caused React to unmount/remount children (including AdminLearningDashboard)
-   on every parent re-render — triggering duplicate API fetches.
+   Stable component reference — keeps children from unmounting on re-render.
+   Injects GLOBAL_STYLES via useEffect to avoid SSR hydration mismatch.
    ─────────────────────────────────────────────────────────────────────────── */
 interface AppShellProps {
-  activePage:   string;
-  children:     React.ReactNode;
-  onNavigate:   (view: string) => void;
-  onLogout?:    () => void;
-  headerUser:   ReturnType<typeof useAuthUser>['headerUser'];
+  activePage:  string;
+  children:    React.ReactNode;
+  onNavigate:  (view: string) => void;
+  onLogout?:   () => void;
+  headerUser:  ReturnType<typeof useAuthUser>['headerUser'];
 }
 
 function AppShell({ activePage, children, onNavigate, onLogout, headerUser }: AppShellProps) {
-  // FIX: inject styles via useEffect so SSR and client render the same initial
-  // HTML, avoiding the hydration mismatch caused by dangerouslySetInnerHTML
-  // differing between server (login page styles) and client (dashboard styles).
   useEffect(() => {
+    console.log(`[AppShell] mounted — activePage="${activePage}" | user="${headerUser?.fullName ?? '(loading)'}" | role="${headerUser?.role ?? '—'}"`);
     const id = 'dashboard-global-styles';
     if (document.getElementById(id)) return;
     const el = document.createElement('style');
@@ -89,23 +97,16 @@ function AppShell({ activePage, children, onNavigate, onLogout, headerUser }: Ap
 
   return (
     <>
-      {/* Sidebar: onNavigate drives view switching; onLogout from root page.tsx */}
       <Sidebar
         activePage={activePage}
         onNavigate={onNavigate}
         onLogout={onLogout}
       />
-
       <div
         style={{ marginLeft: 'var(--gxh-sw, 220px)', marginTop: 54 }}
         className="flex flex-col min-h-screen transition-[margin-left] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
-        {/* Header: real user from API; onLogout from root page.tsx */}
-        <Header
-          user={headerUser}
-          onLogout={onLogout}
-        />
-
+        <Header user={headerUser} onLogout={onLogout} />
         {children}
       </div>
     </>
@@ -122,29 +123,72 @@ export default function DashboardAdmin({ onClientSelect, onLogout }: DashboardAd
 
   /* ── Navigation handler passed to <Sidebar onNavigate> ── */
   const handleNavigate = useCallback((view: string) => {
-    if (view === 'learning') {
-      setCurrentView('learning');
-    } else {
-      setCurrentView('overview');
-    }
+    const next = view === 'learning' ? 'learning' : 'overview';
+    console.log(`[DashboardAdmin] navigate: "${view}" → currentView="${next}"`);
+    setCurrentView(next);
   }, []);
 
-  const [cdbPanel, setCdbPanel]     = useState(0);
-  const [clients, setClients]       = useState<Client[]>(CLIENTS);
-  const [activeCats, setActiveCats] = useState<Set<string>>(new Set());
+  const [cdbPanel, setCdbPanel] = useState(0);
+
+  /* ── Live data state ── */
+  const [clients, setClients]               = useState<Client[]>([]);
+  const [loadingClients, setLoadingClients] = useState(true);
+  const [fetchError, setFetchError]         = useState<string | null>(null);
+
+  /* ── Filter / search state ── */
+  const [activeCats, setActiveCats]     = useState<Set<string>>(new Set());
   const [activeHealth, setActiveHealth] = useState<Set<string>>(new Set());
-  const [search, setSearch]         = useState('');
-  const [licPeriod, setLicPeriod]   = useState<LicPeriod>('all');
-  const [licSearch, setLicSearch]   = useState('');
-  const [licFilters, setLicFilters] = useState<Set<string>>(new Set());
-  const [modalOpen, setModalOpen]   = useState(false);
-  const [toastMsg, setToastMsg]     = useState('');
-  const [toastOn, setToastOn]       = useState(false);
+  const [search, setSearch]             = useState('');
+  const [licPeriod, setLicPeriod]       = useState<LicPeriod>('all');
+  const [licSearch, setLicSearch]       = useState('');
+  const [licFilters, setLicFilters]     = useState<Set<string>>(new Set());
+  const [modalOpen, setModalOpen]       = useState(false);
+  const [toastMsg, setToastMsg]         = useState('');
+  const [toastOn, setToastOn]           = useState(false);
   const timerRef   = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragStartX = React.useRef<number | null>(null);
-  const [dragOffset, setDragOffset] = useState(0);
+  const [dragOffset, setDragOffset]     = useState(0);
+
+  /* ── Fetch companies on mount ── */
+  useEffect(() => {
+    let cancelled = false;
+    const t0 = performance.now();
+    console.group('[DashboardAdmin] mount fetch');
+    console.log('🔵 Starting apiFetchCompanies…');
+
+    (async () => {
+      try {
+        setLoadingClients(true);
+        setFetchError(null);
+        const data = await apiFetchCompanies();
+        const ms = Math.round(performance.now() - t0);
+        if (cancelled) {
+          console.warn(`⚠️ fetch resolved in ${ms} ms but component was unmounted — discarding`);
+          console.groupEnd();
+          return;
+        }
+        console.log(`✅ apiFetchCompanies resolved in ${ms} ms — ${data.length} companies`);
+        console.groupEnd();
+        setClients(data);
+      } catch (err: any) {
+        const ms = Math.round(performance.now() - t0);
+        if (cancelled) { console.groupEnd(); return; }
+        console.error(`❌ apiFetchCompanies failed in ${ms} ms:`, err?.message ?? err);
+        console.groupEnd();
+        setFetchError(err?.message ?? 'Failed to load companies.');
+      } finally {
+        if (!cancelled) setLoadingClients(false);
+      }
+    })();
+
+    return () => {
+      console.log('[DashboardAdmin] useEffect cleanup — cancelling in-flight fetch');
+      cancelled = true;
+    };
+  }, []);
 
   const toast = useCallback((msg: string) => {
+    console.log(`[DashboardAdmin] toast: "${msg}"`);
     setToastMsg(msg); setToastOn(true);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setToastOn(false), 2800);
@@ -182,181 +226,251 @@ export default function DashboardAdmin({ onClientSelect, onLogout }: DashboardAd
     upcoming: licItems.filter(c => c._status === 'upcoming').length,
   };
 
-  /* ────────────────────────────────────────────────────────
-     Shared chrome: Sidebar + Header always rendered the same
-     way regardless of which content view is active.
-  ──────────────────────────────────────────────────────── */
-
   /* ── Learning Center view ── */
   if (currentView === 'learning') {
     return (
-    <AppShell
-      activePage="learning"
-      onNavigate={handleNavigate}
-      onLogout={onLogout}
-      headerUser={headerUser}
-    >
-      <AdminLearningDashboard onBack={() => setCurrentView('overview')} />
-    </AppShell>
-  );
+      <AppShell activePage="learning" onNavigate={handleNavigate} onLogout={onLogout} headerUser={headerUser}>
+        <AdminLearningDashboard onBack={() => setCurrentView('overview')} />
+      </AppShell>
+    );
   }
 
   /* ── Company Database view (default) ── */
   return (
-    <AppShell
-      activePage="customers"
-      onNavigate={handleNavigate}
-      onLogout={onLogout}
-      headerUser={headerUser}
-    >
-    <>
-      <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{
-          background: `
-            radial-gradient(ellipse 60% 50% at 0% 0%,   rgba(124,58,237,0.06) 0%, transparent 60%),
-            radial-gradient(ellipse 50% 50% at 100% 100%, rgba(13,148,136,0.05) 0%, transparent 60%),
-            #f8f7ff
-          `,
-        }}
-      />
-      <canvas id="rc" className="fixed inset-0 z-0 pointer-events-none" />
+    <AppShell activePage="customers" onNavigate={handleNavigate} onLogout={onLogout} headerUser={headerUser}>
+      <>
+        <div
+          className="fixed inset-0 z-0 pointer-events-none"
+          style={{
+            background: `
+              radial-gradient(ellipse 60% 50% at 0% 0%,   rgba(124,58,237,0.06) 0%, transparent 60%),
+              radial-gradient(ellipse 50% 50% at 100% 100%, rgba(13,148,136,0.05) 0%, transparent 60%),
+              #f8f7ff
+            `,
+          }}
+        />
+        <canvas id="rc" className="fixed inset-0 z-0 pointer-events-none" />
 
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative z-[1] h-screen">
-        <div className="flex-1 overflow-hidden relative">
-          <div className="absolute inset-0 flex flex-col overflow-hidden z-[2]" style={{ padding: '20px 28px 50px' }}>
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative z-[1] h-screen">
+          <div className="flex-1 overflow-hidden relative">
+            <div className="absolute inset-0 flex flex-col overflow-hidden z-[2]" style={{ padding: '20px 28px 50px' }}>
 
-            {/* ── Page header ── */}
-            <div className="flex items-center gap-[10px] mb-4 flex-shrink-0">
-              <h1
-                className="text-[21px] font-normal text-[#18103a] whitespace-nowrap"
-                style={{ fontFamily: "'DM Serif Display', serif" }}
-              >
-                Company <em className="italic text-[#7c3aed]">Database</em>
-              </h1>
+              {/* ── Page header ── */}
+              <div className="flex items-center gap-[10px] mb-4 flex-shrink-0">
+                <h1
+                  className="text-[21px] font-normal text-[#18103a] whitespace-nowrap"
+                  style={{ fontFamily: "'DM Serif Display', serif" }}
+                >
+                  Company <em className="italic text-[#7c3aed]">Lists</em>
+                </h1>
 
-              <div className="flex items-center gap-[5px] ml-2">
-                <span className="text-[9.5px] font-semibold text-[#8e7ec0] uppercase tracking-[0.08em]">
-                  {cdbPanel === 0 ? 'Company Database' : 'License Expiry'}
-                </span>
-                {[0, 1].map(i => (
-                  <div
-                    key={i}
-                    onClick={() => setCdbPanel(i)}
-                    className="cursor-pointer transition-all duration-[220ms]"
-                    style={{
-                      width:        i === cdbPanel ? 18 : 6,
-                      height:       6,
-                      borderRadius: i === cdbPanel ? 3 : '50%',
-                      background:   i === cdbPanel ? '#7c3aed' : 'rgba(124,58,237,0.2)',
-                    }}
-                  />
-                ))}
+                <div className="flex items-center gap-[5px] ml-2">
+                  <span className="text-[9.5px] font-semibold text-[#8e7ec0] uppercase tracking-[0.08em]">
+                    {cdbPanel === 0 ? 'Company Database' : 'License Expiry'}
+                  </span>
+                  {[0, 1].map(i => (
+                    <div
+                      key={i}
+                      onClick={() => setCdbPanel(i)}
+                      className="cursor-pointer transition-all duration-[220ms]"
+                      style={{
+                        width:        i === cdbPanel ? 18 : 6,
+                        height:       6,
+                        borderRadius: i === cdbPanel ? 3 : '50%',
+                        background:   i === cdbPanel ? '#7c3aed' : 'rgba(124,58,237,0.2)',
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <div className="flex-1 h-px" style={{ background: 'linear-gradient(to right,rgba(124,58,237,0.15),transparent)' }} />
+
+                <div className="flex gap-2 flex-shrink-0">
+                  {cdbPanel === 0 && (
+                    <button
+                      onClick={() => setModalOpen(true)}
+                      className="inline-flex items-center gap-[7px] text-white font-semibold border-none cursor-pointer whitespace-nowrap transition-all duration-[160ms] hover:-translate-y-px"
+                      style={{ padding: '8px 18px', fontSize: 12, borderRadius: 10, background: 'linear-gradient(135deg,#7c3aed,#0d9488)', boxShadow: '0 3px 14px rgba(124,58,237,0.32)', marginBottom: 20 }}
+                    >
+                      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M7 1v12M1 7h12" /></svg>
+                      Add Company
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="flex-1 h-px" style={{ background: 'linear-gradient(to right,rgba(124,58,237,0.15),transparent)' }} />
-
-              <div className="flex gap-2 flex-shrink-0">
-                {cdbPanel === 0 && (
-                  <button
-                    onClick={() => setModalOpen(true)}
-                    className="inline-flex items-center gap-[7px] text-white font-semibold border-none cursor-pointer whitespace-nowrap transition-all duration-[160ms] hover:-translate-y-px"
-                    style={{ padding: '8px 18px', fontSize: 12, borderRadius: 10, background: 'linear-gradient(135deg,#7c3aed,#0d9488)', boxShadow: '0 3px 14px rgba(124,58,237,0.32)', marginBottom: 20 }}
-                  >
-                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M7 1v12M1 7h12" /></svg>
-                    Add Company
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ── Swipe container ── */}
-            <div
-              className="flex-1 overflow-hidden relative"
-              onTouchStart={e => onDragStart(e.touches[0].clientX)}
-              onTouchMove={e  => onDragMove(e.touches[0].clientX)}
-              onTouchEnd={onDragEnd}
-              onMouseDown={e  => onDragStart(e.clientX)}
-              onMouseMove={e  => { if (dragStartX.current !== null) onDragMove(e.clientX); }}
-              onMouseUp={onDragEnd}
-              onMouseLeave={onDragEnd}
-              style={{ cursor: 'default' }}
-            >
+              {/* ── Swipe container ── */}
               <div
-                className="flex h-full"
-                style={{
-                  transform:  `translateX(calc(-${cdbPanel * 100}% + ${dragOffset}px))`,
-                  transition: dragOffset !== 0 ? 'none' : 'transform 0.38s cubic-bezier(0.4,0,0.2,1)',
-                }}
+                className="flex-1 overflow-hidden relative"
+                onTouchStart={e => onDragStart(e.touches[0].clientX)}
+                onTouchMove={e  => onDragMove(e.touches[0].clientX)}
+                onTouchEnd={onDragEnd}
+                onMouseDown={e  => onDragStart(e.clientX)}
+                onMouseMove={e  => { if (dragStartX.current !== null) onDragMove(e.clientX); }}
+                onMouseUp={onDragEnd}
+                onMouseLeave={onDragEnd}
+                style={{ cursor: 'default' }}
               >
-                {/* Panel 0 — Company Database */}
-                <div className="w-full flex-shrink-0 flex flex-col overflow-hidden" style={{ gap: 0 }}>
-                  <StatsBar data={stats} onCategoryClick={toggleCat} />
-                  <FilterBar
-                    activeCats={activeCats} activeHealth={activeHealth}
-                    onToggleCat={toggleCat} onToggleHealth={toggleHealth}
-                    stats={stats} search={search} onSearch={setSearch}
-                    totalVisible={filtered.length}
-                  />
-                  <div className="flex-1 overflow-y-auto min-h-0">
-                    <div className="grid grid-cols-3 gap-[10px] content-start pb-3">
-                      {filtered.map((c, i) => (
-                        <ClientCard
-                          key={c.id}
-                          client={c}
-                          index={i}
-                          onClick={() => onClientSelect?.(c)}
-                        />
-                      ))}
-                    </div>
-                    {filtered.length === 0 && (
-                      <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                        <div className="text-[28px] opacity-50">🔍</div>
-                        <div className="text-[13px] font-semibold text-[#4a3870]">No companies found</div>
-                        <div className="text-[11px] text-[#8e7ec0]">Try adjusting your filters or search query</div>
+                <div
+                  className="flex h-full"
+                  style={{
+                    transform:  `translateX(calc(-${cdbPanel * 100}% + ${dragOffset}px))`,
+                    transition: dragOffset !== 0 ? 'none' : 'transform 0.38s cubic-bezier(0.4,0,0.2,1)',
+                  }}
+                >
+                  {/* Panel 0 — Company Database */}
+                  <div className="w-full flex-shrink-0 flex flex-col overflow-hidden" style={{ gap: 0 }}>
+                    <StatsBar data={stats} onCategoryClick={toggleCat} />
+                    <FilterBar
+                      activeCats={activeCats} activeHealth={activeHealth}
+                      onToggleCat={toggleCat} onToggleHealth={toggleHealth}
+                      stats={stats} search={search} onSearch={setSearch}
+                      totalVisible={filtered.length}
+                    />
+
+                    {/* ── Error banner ── */}
+                    {fetchError && (
+                      <div style={{
+                        marginBottom: 12, padding: '10px 14px', borderRadius: 10,
+                        background: '#fef2f2', border: '1px solid #fecaca',
+                        fontSize: 12, color: '#dc2626', fontWeight: 600,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                      }}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="7" cy="7" r="5.5"/><path d="M7 4.5v3M7 9.5v.5"/></svg>
+                        {fetchError}
+                        <button
+                          onClick={() => {
+                            console.group('[DashboardAdmin] retry fetch');
+                            console.log('🔵 Retrying apiFetchCompanies…');
+                            const t0 = performance.now();
+                            setFetchError(null);
+                            setLoadingClients(true);
+                            apiFetchCompanies()
+                              .then(d => {
+                                console.log(`✅ retry resolved in ${Math.round(performance.now()-t0)} ms — ${d.length} companies`);
+                                console.groupEnd();
+                                setClients(d);
+                              })
+                              .catch(e => {
+                                console.error(`❌ retry failed in ${Math.round(performance.now()-t0)} ms:`, e?.message ?? e);
+                                console.groupEnd();
+                                setFetchError(e?.message ?? 'Failed to load companies.');
+                              })
+                              .finally(() => setLoadingClients(false));
+                          }}
+                          style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#dc2626', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
+                        >
+                          Retry
+                        </button>
                       </div>
                     )}
+
+                    <div className="flex-1 overflow-y-auto min-h-0">
+                      {/* ── Loading skeleton ── */}
+                      {loadingClients ? (
+                        <div className="grid grid-cols-3 gap-[10px] content-start pb-3">
+                          {Array.from({ length: 6 }).map((_, i) => (
+                            <CardSkeleton key={i} />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-[10px] content-start pb-3">
+                          {filtered.map((c, i) => (
+                            <ClientCard
+                              key={c.id}
+                              client={c}
+                              index={i}
+                              onClick={() => onClientSelect?.(c)}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {!loadingClients && filtered.length === 0 && !fetchError && (
+                        <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                          <div className="text-[28px] opacity-50">🔍</div>
+                          <div className="text-[13px] font-semibold text-[#4a3870]">No companies found</div>
+                          <div className="text-[11px] text-[#8e7ec0]">Try adjusting your filters or search query</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Panel 1 — License Expiry */}
+                  <div className="w-full flex-shrink-0 flex flex-col overflow-hidden" style={{ gap: 12 }}>
+                    <LicensePanel
+                      items={licFiltered} stats={licStats} period={licPeriod}
+                      onPeriodChange={(p: LicPeriod) => { setLicPeriod(p); setLicFilters(new Set()); }}
+                      search={licSearch} onSearch={setLicSearch}
+                      filters={licFilters}
+                      onToggleFilter={(s: string) => setLicFilters(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n; })}
+                      onRemoveFilter={(s: string) => setLicFilters(p => { const n = new Set(p); n.delete(s); return n; })}
+                      onDndStart={cancelSwipe}
+                    />
                   </div>
                 </div>
-
-                {/* Panel 1 — License Expiry */}
-                <div className="w-full flex-shrink-0 flex flex-col overflow-hidden" style={{ gap: 12 }}>
-                  <LicensePanel
-                    items={licFiltered} stats={licStats} period={licPeriod}
-                    onPeriodChange={(p: LicPeriod) => { setLicPeriod(p); setLicFilters(new Set()); }}
-                    search={licSearch} onSearch={setLicSearch}
-                    filters={licFilters}
-                    onToggleFilter={(s: string) => setLicFilters(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n; })}
-                    onRemoveFilter={(s: string) => setLicFilters(p => { const n = new Set(p); n.delete(s); return n; })}
-                    onDndStart={cancelSwipe}
-                  />
-                </div>
               </div>
-            </div>
 
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Add Company Modal ── */}
-      {modalOpen && (
-        <AddCompanyPopup
-          onAdd={newClient => setClients(p => [newClient, ...p])}
-          onClose={() => setModalOpen(false)}
-          showToast={toast}
-        />
-      )}
+        {/* ── Add Company Modal ── */}
+        {modalOpen && (
+          <AddCompanyPopup
+            onAdd={newClient => {
+              console.log('[DashboardAdmin] new client added:', newClient.name, '| id:', newClient.id, '| cat:', newClient.cat);
+              setClients(p => [newClient, ...p]);
+            }}
+            onClose={() => setModalOpen(false)}
+            showToast={toast}
+          />
+        )}
 
-      {/* ── Toast ── */}
-      <div
-        className={`fixed bottom-6 left-1/2 z-[9999] flex items-center gap-2 rounded-[10px] text-[12.5px] font-semibold text-white whitespace-nowrap pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${toastOn ? 'opacity-100 -translate-x-1/2 translate-y-0' : 'opacity-0 -translate-x-1/2 translate-y-5'}`}
-        style={{ padding: '10px 18px', background: '#18103a', boxShadow: '0 8px 30px rgba(0,0,0,0.25)' }}
-      >
-        <div className="w-[6px] h-[6px] rounded-full flex-shrink-0 bg-[#0d9488]" />
-        <span>{toastMsg}</span>
-      </div>
-    </>,
+        {/* ── Toast ── */}
+        <div
+          className={`fixed bottom-6 left-1/2 z-[9999] flex items-center gap-2 rounded-[10px] text-[12.5px] font-semibold text-white whitespace-nowrap pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${toastOn ? 'opacity-100 -translate-x-1/2 translate-y-0' : 'opacity-0 -translate-x-1/2 translate-y-5'}`}
+          style={{ padding: '10px 18px', background: '#18103a', boxShadow: '0 8px 30px rgba(0,0,0,0.25)' }}
+        >
+          <div className="w-[6px] h-[6px] rounded-full flex-shrink-0 bg-[#0d9488]" />
+          <span>{toastMsg}</span>
+        </div>
+      </>
     </AppShell>
+  );
+}
+
+/* ─── CardSkeleton ──────────────────────────────────────────────────────────── */
+function CardSkeleton() {
+  return (
+    <div
+      className="_shimmer"
+      style={{
+        background: '#f2f0fb',
+        borderRadius: 16,
+        minHeight: 152,
+        display: 'flex',
+        flexDirection: 'row',
+        overflow: 'hidden',
+        border: '1px solid rgba(124,58,237,0.09)',
+      }}
+    >
+      {/* left logo area */}
+      <div style={{ width: 160, flexShrink: 0, background: 'rgba(124,58,237,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid rgba(124,58,237,0.06)' }}>
+        <div style={{ width: 80, height: 80, borderRadius: 16, background: 'rgba(124,58,237,0.1)' }} />
+      </div>
+      {/* right info area */}
+      <div style={{ flex: 1, padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center' }}>
+        <div style={{ height: 14, width: '70%', borderRadius: 6, background: 'rgba(124,58,237,0.1)' }} />
+        <div style={{ height: 11, width: '55%', borderRadius: 6, background: 'rgba(124,58,237,0.07)' }} />
+        <div style={{ height: 10, width: '65%', borderRadius: 6, background: 'rgba(124,58,237,0.06)' }} />
+        <div style={{ height: 1, background: 'rgba(124,58,237,0.08)', marginTop: 4 }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+          <div style={{ height: 10, width: '30%', borderRadius: 6, background: 'rgba(124,58,237,0.07)' }} />
+          <div style={{ height: 10, width: '24%', borderRadius: 6, background: 'rgba(124,58,237,0.07)' }} />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -394,9 +508,9 @@ const CAT = {
 /* ─── StatsBar ──────────────────────────────────────────────────────────────── */
 function StatsBar({ data, onCategoryClick }: { data: StatsBarData; onCategoryClick: (c: string) => void }) {
   const cats = [
-    { key: 'F&B'       as const, num: data.fb.count,       sub: 'Aloha',              tickets: data.fb.tickets },
-    { key: 'Retail'    as const, num: data.retail.count,    sub: 'Stores & Boutiques', tickets: data.retail.tickets },
-    { key: 'Warehouse' as const, num: data.warehouse.count, sub: 'Logistics & Supply', tickets: data.warehouse.tickets },
+    { key: 'F&B'       as const, num: data.fb.count,       sub: 'Aloha',                      tickets: data.fb.tickets },
+    { key: 'Retail'    as const, num: data.retail.count,    sub: 'Retail Pro',                 tickets: data.retail.tickets },
+    { key: 'Warehouse' as const, num: data.warehouse.count, sub: 'Warehouse Management System', tickets: data.warehouse.tickets },
   ];
   return (
     <div className="flex items-stretch gap-2 flex-shrink-0 flex-wrap mb-3">
@@ -512,7 +626,7 @@ function FilterBar({ activeCats, activeHealth, onToggleCat, onToggleHealth, stat
       <div className="flex-1" />
 
       <div
-        className="flex items-center bg-[#f2f0fb] border border-[rgba(124,58,237,0.1)] transition-all duration-[180ms] focus-within:bg-white focus-within:border-[rgba(124,58,237,0.22)] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.07)]"
+        className="flex items-center bg-[#f2f0fb] border border-[rgba(124,58,237,0.1)] transition-all duration-[180ms] focus-within:bg-white focus-within:border-[rgba(124,58,237,0.22)] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.07)] focus-within:w-[300px]"
         style={{ gap: 8, padding: '7px 12px', borderRadius: 9, width: 260 }}
       >
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" className="flex-shrink-0" style={{ width: 12, height: 12, color: '#8e7ec0' }}>
@@ -553,7 +667,8 @@ const dotStyle: Record<string, React.CSSProperties> = {
 };
 
 function ClientCard({ client, index, onClick }: { client: Client; index: number; onClick?: () => void }) {
-  const [hovered, setHovered] = React.useState(false);
+  const [hovered,  setHovered]  = React.useState(false);
+  const [imgError, setImgError] = React.useState(false);
 
   return (
     <div
@@ -577,6 +692,7 @@ function ClientCard({ client, index, onClick }: { client: Client; index: number;
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {/* Hover arrow indicator */}
       <div style={{
         position: 'absolute', top: 10, right: 10, zIndex: 10,
         width: 22, height: 22, borderRadius: '50%',
@@ -590,30 +706,64 @@ function ClientCard({ client, index, onClick }: { client: Client; index: number;
         <svg viewBox="0 0 12 12" fill="none" stroke="#7c3aed" strokeWidth="2" width="10" height="10"><path d="M4 2l4 4-4 4"/></svg>
       </div>
 
-      <div style={{ width: 160, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '18px 14px', position: 'relative', borderRight: '1px solid rgba(124,58,237,0.08)', background: logoBg[client.cat] || logoBg['Warehouse'] }}>
-        <div style={{ width: 108, height: 108, borderRadius: 20, flexShrink: 0, background: '#fff', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 18px rgba(0,0,0,0.12),0 0 0 1px rgba(0,0,0,0.06)' }}>
-          {client.logo ? (
-            <img src={client.logo} alt={client.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 11 }}
-              onError={e => { (e.target as HTMLImageElement).parentElement!.innerHTML = `<div style="font-size:36px;font-weight:800;letter-spacing:-0.03em;color:#9c82d4;width:100%;height:100%;display:flex;align-items:center;justify-content:center">${getInitials(client.name)}</div>`; }}
+      {/* ── Logo panel ── */}
+      <div style={{
+        width: 160, flexShrink: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 10, padding: '18px 14px', position: 'relative',
+        borderRight: '1px solid rgba(124,58,237,0.08)',
+        background: logoBg[client.cat] || logoBg['Warehouse'],
+      }}>
+        <div style={{
+          width: 108, height: 108, borderRadius: 20, flexShrink: 0,
+          background: '#fff', overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 18px rgba(0,0,0,0.12),0 0 0 1px rgba(0,0,0,0.06)',
+        }}>
+          {client.logo && !imgError ? (
+            <img
+              src={client.logo}
+              alt={client.name}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 11 }}
+              onError={() => setImgError(true)}
             />
           ) : (
-            <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.03em', color: '#9c82d4', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{
+              fontSize: 36, fontWeight: 800, letterSpacing: '-0.03em', color: '#9c82d4',
+              width: '100%', height: '100%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
               {getInitials(client.name)}
             </div>
           )}
         </div>
       </div>
+
+      {/* ── Info panel ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '13px 14px 12px', minWidth: 0 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#18103a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25, letterSpacing: '-0.01em' }}>{client.name}</div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: '#4a3870', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 4 }}>{client.contact}</div>
-          <div style={{ fontSize: 11, fontWeight: 500, color: '#8e7ec0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{client.email}</div>
+          {/* company_name */}
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#18103a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25, letterSpacing: '-0.01em' }}>
+            {client.name}
+          </div>
+          {/* contact_person */}
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: '#4a3870', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 4 }}>
+            {client.contact}
+          </div>
+          {/* email */}
+          <div style={{ fontSize: 11, fontWeight: 500, color: '#8e7ec0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>
+            {client.email}
+          </div>
         </div>
+
+        {/* ── Footer: status dot + industry badge ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 9, marginTop: 8, borderTop: '1px solid rgba(124,58,237,0.1)' }}>
+          {/* level → always 'green' (Healthy) for DB-sourced clients */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 600, color: '#4a3870' }}>
             <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', flexShrink: 0, ...dotStyle[client.level] }} />
             {getHealthLabel(client.level)}
           </div>
+          {/* industry_type badge */}
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '3px 8px', borderRadius: 20, display: 'inline-flex', whiteSpace: 'nowrap', ...catBadgeCard[client.cat] }}>
             {CAT_LABEL[client.cat] ?? client.cat}
           </span>
@@ -688,6 +838,7 @@ function LicensePanel({ items, stats, period, onPeriodChange, search, onSearch, 
 
   return (
     <>
+      {/* ── Toolbar ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginTop: 25 }}>
         <div style={{ display: 'flex', gap: 2, background: '#f2f0fb', border: '1px solid rgba(124,58,237,0.1)', borderRadius: 9, padding: 3, flexShrink: 0 }}>
           {(['all','3m','6m','1y'] as const).map(id => {
@@ -706,6 +857,7 @@ function LicensePanel({ items, stats, period, onPeriodChange, search, onSearch, 
         </div>
       </div>
 
+      {/* ── Draggable stat cards ── */}
       <div className="flex flex-shrink-0" style={{ gap: 8, marginBottom: 10 }}>
         {pills.map(p => {
           const isActive   = filters.has(p.id);
@@ -764,6 +916,7 @@ function LicensePanel({ items, stats, period, onPeriodChange, search, onSearch, 
         })}
       </div>
 
+      {/* ── Drop zone + table ── */}
       <div
         style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, borderRadius: 12, border: isDragOver ? '2px dashed #7c3aed' : '1px solid rgba(124,58,237,0.1)', boxShadow: isDragOver ? '0 0 0 4px rgba(124,58,237,0.08)' : undefined, background: isDragOver ? 'rgba(124,58,237,0.02)' : '#fff', transition: 'border 0.15s, box-shadow 0.15s, background 0.15s', position: 'relative', overflow: 'hidden' }}
         onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}

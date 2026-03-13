@@ -608,10 +608,19 @@ const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onLogout, user 
   const companyId = user?.company_id ?? null;
 
   const {
-    company, branches, posDevices, licenses,
-    uiNotifs, info, setInfo,
+    company,
+    branches: rawBranches,
+    posDevices: rawPosDevices,
+    licenses: rawLicenses,
+    uiNotifs: rawUiNotifs,
+    info, setInfo,
     loading, markRead, markAllRead,
   } = useOverviewData(companyId);
+
+  const branches   = Array.isArray(rawBranches)   ? rawBranches   : [];
+  const posDevices = Array.isArray(rawPosDevices)  ? rawPosDevices : [];
+  const licenses   = Array.isArray(rawLicenses)    ? rawLicenses   : [];
+  const uiNotifs   = Array.isArray(rawUiNotifs)    ? rawUiNotifs   : [];
 
   const [selectedPOS,    setSelectedPOS]    = useState<PosDevice | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);

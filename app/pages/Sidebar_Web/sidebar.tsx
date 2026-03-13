@@ -272,10 +272,12 @@ export default function Sidebar({ activePage, onNavigate, onLogout }: SidebarPro
   }, []);
 
   const handleNav = (item: NavItem) => {
-    if (onNavigate && item.view) {
-      onNavigate(item.view);
-    } else if (item.href) {
+    // Items with a real Next.js route (users, analytics) always use the router.
+    // Items without an href (learning center) use the onNavigate state callback.
+    if (item.href) {
       router.push(item.href);
+    } else if (onNavigate && item.view) {
+      onNavigate(item.view);
     }
   };
 
