@@ -24,19 +24,22 @@ export interface ChapterContent {
 }
 
 export interface Chapter {
-  title: string;
-  type:  ChapterType;
-  done:  boolean;
+  id?:     number;
+  title:   string;
+  type:    ChapterType;
+  done:    boolean;
   content: ChapterContent;
 }
 
 export interface Module {
+  id?:      number;
   title:    string;
   done:     boolean;
   chapters: Chapter[];
 }
 
 export interface Course {
+  id?:         number;
   title:       string;
   desc:        string;
   time:        string;
@@ -46,6 +49,8 @@ export interface Course {
   enrolled:    boolean;
   progress:    number;
   active:      boolean;
+  completed?:  boolean;
+  time_spent?: number;
   companies?:  string[] | null;
   modules?:    Module[];
 }
@@ -53,13 +58,15 @@ export interface Course {
 // ── PROGRESS ─────────────────────────────────────────────
 export type ProgressStatus = "Completed" | "In Progress" | "Not Started";
 export interface ProgressRecord {
-  name:      string;
-  company:   string;
-  course:    string;
-  progress:  number;
-  started:   string | null;
-  completed: string | null;
-  status:    ProgressStatus;
+  id?:        number;
+  name:       string;
+  company:    string;
+  course:     string;
+  progress:   number;
+  started:    string | null;
+  completed:  string | null;
+  status:     ProgressStatus;
+  time_spent?: number;
 }
 
 // ── LEARNING PORTAL ───────────────────────────────────────

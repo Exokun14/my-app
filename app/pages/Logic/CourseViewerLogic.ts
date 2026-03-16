@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Course, Module, ChapterType, ChapterTypeMeta, Particle } from "../../Data/types";
+import api from "../../Services/api.service";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -344,6 +345,44 @@ export function useCourseViewer(
   const contentRef  = useRef<HTMLDivElement>(null);
   const originElRef = useRef<HTMLElement | null>(null);
 
+  // ── FIX: Load per-user chapter completion from user_chapter_progress.
+  // Previously `completed` was seeded from `chapter.done` on the shared
+  // chapters table, so every user saw the same completion state.
+  // Now we fetch only the authenticated user's rows and build the
+  // "mi:ci" key set that the rest of the viewer logic already uses.
+  useEffect(() => {
+    if (!course.id || modules.length === 0) return;
+
+    api.progress.getChapterProgress(course.id).then(res => {
+      if (!res.success || !res.data) return;
+
+      // Build a lookup: chapter DB id → done
+      const doneChapterIds = new Set<number>(
+        res.data.filter(r => r.done).map(r => r.chapter_id)
+      );
+
+      if (doneChapterIds.size === 0) return;
+
+      // Map DB chapter ids back to "mi:ci" keys used by the viewer
+      const initialCompleted = new Set<string>();
+      modules.forEach((m, mi) => {
+        m.chapters.forEach((ch, ci) => {
+          if (ch.id && doneChapterIds.has(ch.id)) {
+            initialCompleted.add(`${mi}:${ci}`);
+          }
+        });
+      });
+
+      if (initialCompleted.size > 0) {
+        setCompleted(initialCompleted);
+      }
+    }).catch(() => {
+      // Non-fatal — viewer still works, just starts with no prior completion
+      console.warn('[CourseViewer] Could not load chapter progress from server');
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course.id]);
+
   const mod        = modules[selMod];
   const ch         = mod?.chapters[selCh];
   const chKey      = `${selMod}:${selCh}`;
@@ -388,6 +427,17 @@ export function useCourseViewer(
     setSparkTrigger(t => t + 1);
     setCompleteBanner(true);
     setTimeout(() => setCompleteBanner(false), 2300);
+
+    // FIX: Persist completion to user_chapter_progress (per-user).
+    // Previously nothing was saved here, or chapter.done was written
+    // on the shared table. Now we write to the user-scoped table via
+    // the chapter's DB id so the server can correctly track per-user state.
+    const chapterId = ch?.id;
+    if (chapterId) {
+      api.courses.markChapterDone(chapterId).catch(err => {
+        console.warn('[CourseViewer] markChapterDone failed for chapter', chapterId, err);
+      });
+    }
   };
 
   const navigate = (dir: 1 | -1) => {

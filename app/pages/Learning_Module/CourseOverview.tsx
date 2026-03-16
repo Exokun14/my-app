@@ -266,7 +266,10 @@ export default function CourseOverview({
   };
 
   const totalChapters = modules.reduce((sum, m) => sum + m.chapters.length, 0);
-  const completedChapters = modules.reduce((sum, m) => sum + m.chapters.filter((c: any) => c.done).length, 0);
+  // FIX: ch.done is a shared flag on the chapters table — it reflects whoever
+  // last completed the chapter, not the current user. Derive completedChapters
+  // from the progress prop instead, which is already correctly per-user.
+  const completedChapters = totalChapters > 0 ? Math.round((progress / 100) * totalChapters) : 0;
 
   const TM: Record<string, { bg: string; color: string; icon: string; label: string }> = {
     lesson: { bg: "#e0f2fe", color: "#0284c7", icon: "📖", label: "Lesson" },
@@ -441,11 +444,15 @@ export default function CourseOverview({
                           </div>
                           {mod.chapters.map((ch: any, chIdx: number) => {
                             const meta = TM[ch.type] || TM.lesson;
+                            // FIX: ch.done is shared — don't show tick marks here
+                            // as they reflect other users' completions.
+                            // Curriculum is a structural view only; progress bar
+                            // above already correctly shows per-user completion.
                             return (
-                              <div key={chIdx} className={`co-chapter${ch.done ? ' done' : ''}`}>
+                              <div key={chIdx} className="co-chapter">
                                 <div className="co-chapter-icon" style={{ background:meta.bg, color:meta.color }}>{meta.icon}</div>
                                 <div className="co-chapter-title">{ch.title}</div>
-                                <div className="co-chapter-check">{ch.done && '✓'}</div>
+                                <div className="co-chapter-check" />
                               </div>
                             );
                           })}

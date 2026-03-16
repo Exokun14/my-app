@@ -47,7 +47,9 @@ function AIBanner({ courses, onOpenCourse, onGoToCatalog }: {
 }) {
   const enrolled   = courses.filter(c => c.enrolled || (c.progress??0)>0);
   const completed  = courses.filter(c => c.completed || (c.progress??0)>=100);
-  const inProg     = enrolled.filter(c => !c.completed && (c.progress??0)>0 && (c.progress??0)<100);
+  // FIX: a course is "In Progress" once enrolled, even at 0% — progress only
+  // updates after the first chapter is completed due to React state batching.
+  const inProg     = enrolled.filter(c => !c.completed && (c.progress??0)<100);
   const notStarted = courses.filter(c => !(c.enrolled||(c.progress??0)>0));
   const avg = enrolled.length ? Math.round(enrolled.reduce((s,c)=>s+(c.progress??0),0)/enrolled.length) : 0;
   const rec    = inProg[0] ?? notStarted[0] ?? null;
@@ -171,7 +173,7 @@ function StatChip({ n, label, emoji, cls, delay, courses, onOpenCourse }: {
   const items = courses.map((c,i)=>({c,i})).filter(({c}) => {
     const pct=c.progress??0, done=c.completed||pct>=100, enr=c.enrolled||pct>0;
     if(label==="Enrolled")    return enr;
-    if(label==="In Progress") return enr&&!done;
+    if(label==="In Progress") return enr&&!done&&(c.progress??0)<100;
     if(label==="Completed")   return done;
     if(label==="Available")   return !enr;
     return false;
@@ -371,7 +373,7 @@ function FeaturedShelf({ courses, onOpenCourse, onGoToCatalog }: {
 export default function Dashboard({ courses, onOpenCourse, onGoToCatalog }: DashboardProps) {
   const enrolled  = courses.filter(c=>c.enrolled||(c.progress??0)>0);
   const completed = courses.filter(c=>c.completed||(c.progress??0)>=100);
-  const inProg    = enrolled.filter(c=>!c.completed&&(c.progress??0)>0&&(c.progress??0)<100);
+  const inProg    = enrolled.filter(c=>!c.completed&&(c.progress??0)<100);
   const avg       = enrolled.length ? Math.round(enrolled.reduce((s,c)=>s+(c.progress??0),0)/enrolled.length) : 0;
   const totalTime = courses.reduce((s,c)=>s+(c.time_spent??0),0);
 

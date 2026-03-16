@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import EditCourseModal from "./EditCourseModal";
 import CourseModuleModal from "./CourseModuleModal";
+import EditCompaniesModal from "../../Components/EditCompaniesModal";
 import LoadingPopup from "../../Components/LoadingPopup";
 import EnrollWizard from "../../Components/EnrollWizard";
 
@@ -188,6 +189,7 @@ export default function CourseCatalog({
   const [moduleLoadingIdx,   setModuleLoadingIdx]   = useState<number | null>(null);
   const [saveAsTplIdx,       setSaveAsTplIdx]       = useState<number | null>(null);
   const [savingAsTpl,        setSavingAsTpl]        = useState(false);
+  const [editCompaniesIdx,   setEditCompaniesIdx]   = useState<number | null>(null);
 
   const withLoader = (msg: string, fn: () => Promise<void> | void, duration = 1000) => {
     console.log("[withLoader] 🔵 Starting:", msg);
@@ -437,6 +439,11 @@ export default function CourseCatalog({
                         <button className="ws-btn-mod" onClick={() => withLoader("Loading modules...", () => openModules(realIdx), 800)}>
                           <svg width="9" height="9" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg>
                           Modules
+                        </button>
+
+                        <button className="ws-btn-mod" style={{ borderColor:"rgba(109,40,217,0.2)", background:"rgba(109,40,217,0.06)", color:"#7c3aed" }} onClick={e => { e.stopPropagation(); setEditCompaniesIdx(realIdx); }}>
+                          <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 13V7l6-4 6 4v6H2z"/><rect x="6" y="9" width="4" height="4"/></svg>
+                          Companies
                         </button>
 
                         <button className="ws-btn-edit" onClick={() => withLoader("Loading editor...", () => openEdit(realIdx), 800)}>
@@ -854,6 +861,10 @@ export default function CourseCatalog({
                   <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg>
                   Edit modules
                 </button>
+                <button className="ov-item" onClick={() => { closeMenu(); setEditCompaniesIdx(menuIdx); }}>
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 13V7l6-4 6 4v6H2z"/><rect x="6" y="9" width="4" height="4"/></svg>
+                  Edit companies
+                </button>
                 {canPublish && (
                   <button className="ov-item" style={{ color:"#7c3aed", fontWeight:700 }} onClick={() => { closeMenu(); openPromote(menuIdx); }}>
                     <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M7 1v8M4 6l3-5 3 5M3 11h8"/></svg>
@@ -898,6 +909,19 @@ export default function CourseCatalog({
         onClose={closeMod}
         onSave={(idx, data) => withLoader("Saving modules...", () => handleModSave(idx, data), 1200)}
         toast={toast} publishedActivities={publishedActivities} />
+      <EditCompaniesModal
+        open={editCompaniesIdx !== null}
+        course={editCompaniesIdx !== null ? courses[editCompaniesIdx] : null}
+        onClose={() => setEditCompaniesIdx(null)}
+        onSave={updatedCompanies => {
+          if (editCompaniesIdx === null) return;
+          setCourses((prev: typeof courses) =>
+            prev.map((c, i) => i === editCompaniesIdx ? { ...c, companies: updatedCompanies } : c)
+          );
+          setEditCompaniesIdx(null);
+        }}
+        toast={toast}
+      />
       <LoadingPopup visible={saving} message={savingMsg} />
       {enrollWizardOpen && enrollTargetCourse && (
         <EnrollWizard course={enrollTargetCourse} onClose={() => { setEnrollWizardOpen(false); setEnrollTargetCourse(null); }} toast={toast} />

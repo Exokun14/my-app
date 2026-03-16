@@ -27,6 +27,7 @@ interface UnifiedBlock {
 }
 
 interface Chapter {
+  id?: number;
   title: string;
   type: "lesson" | "quiz" | "assessment";
   done: boolean;
@@ -41,6 +42,7 @@ interface Chapter {
 }
 
 interface Module {
+  id?: number;
   title: string;
   done: boolean;
   chapters: Chapter[];
@@ -1150,12 +1152,15 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const [scrollProgress,   setScrollProgress]   = useState(0);
   const [videoWatched,     setVideoWatched]     = useState<Record<string, boolean>>({});
   const chapterStartRef = useRef(Date.now());
-  const totalTimeRef    = useRef(0);
+  const totalTimeRef    = useRef(0); // accumulated seconds
   const calcTimeSpent = () => {
     const ms = Date.now() - chapterStartRef.current;
     if (ms <= 0 || isNaN(ms)) return 0;
-    return Math.max(1, Math.round(ms / 1000));
+    // Return seconds — convert to minutes at the API boundary
+    return Math.max(0, Math.floor(ms / 1000));
   };
+  // Convert accumulated seconds to minutes for storage (minimum 1 min if any time spent)
+  const secondsToMinutes = (secs: number) => secs > 0 ? Math.max(1, Math.floor(secs / 60)) : 0;
 
   const [quizAttempts,    setQuizAttempts]    = useState<Record<string, number>>({});
   const [showQuizPopup,   setShowQuizPopup]   = useState(false);
@@ -1173,13 +1178,32 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const [savingMsg, setSavingMsg] = useState("Saving progress...");
   const [showCompletionPopup,    setShowCompletionPopup]    = useState(false);
 
-  const [doneChapters, setDoneChapters] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    modules.forEach((mod, mi) =>
-      mod.chapters.forEach((ch, ci) => { if (ch.done) s.add(`${mi}-${ci}`); })
-    );
-    return s;
-  });
+  // FIX: doneChapters must NOT be seeded from ch.done — that flag lives on
+  // the shared chapters table and reflects whoever last completed the chapter,
+  // not the current user. Start empty and hydrate from user_chapter_progress.
+  const [doneChapters, setDoneChapters] = useState<Set<string>>(new Set());
+
+  // Load this user's chapter completion from the server on mount
+  useEffect(() => {
+    if (!course.id) return;
+    api.progress.getChapterProgress(course.id).then(res => {
+      if (!res.success || !res.data) return;
+      const doneIds = new Set<number>(
+        res.data.filter(r => r.done).map(r => r.chapter_id)
+      );
+      if (doneIds.size === 0) return;
+      const initial = new Set<string>();
+      modules.forEach((mod, mi) =>
+        mod.chapters.forEach((ch: any, ci) => {
+          if (ch.id && doneIds.has(ch.id)) initial.add(`${mi}-${ci}`);
+        })
+      );
+      if (initial.size > 0) setDoneChapters(initial);
+    }).catch(() => {
+      console.warn('[CourseViewer] Could not load chapter progress');
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course.id]);
 
   const mainRef = useRef<HTMLDivElement>(null);
 
@@ -1193,15 +1217,24 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const currentAssessmentAttempts = assessmentAttempts[chapterKey] ?? 0;
   const previousAssessmentScores  = assessmentScores[chapterKey] ?? [];
 
+  // Declared here so the wasAlreadyCompleted useEffect below can reference it
+  const totalChapters     = modules.reduce((s,m)=>s+m.chapters.length,0);
+  const completedChapters = doneChapters.size;
+  const progressPercent   = totalChapters > 0 ? Math.round((completedChapters/totalChapters)*100) : 0;
+
   useEffect(() => {
-    setWasAlreadyCompleted(modules.every(mod => mod.chapters.every(ch => ch.done)));
-  }, []);
+    // FIX: use doneChapters (per-user) not ch.done (shared table)
+    setWasAlreadyCompleted(doneChapters.size >= totalChapters && totalChapters > 0);
+  }, [doneChapters, totalChapters]);
 
   const areAllPreviousChaptersComplete = () => {
+    // FIX: check doneChapters (per-user Set) not ch.done (shared table flag)
     for (let m = 0; m <= selMod; m++) {
-      const mod = modules[m];
+      const mod  = modules[m];
       const maxCh = m === selMod ? selCh - 1 : mod.chapters.length - 1;
-      for (let c = 0; c <= maxCh; c++) { if (!mod.chapters[c].done) return false; }
+      for (let c = 0; c <= maxCh; c++) {
+        if (!doneChapters.has(`${m}-${c}`)) return false;
+      }
     }
     return true;
   };
@@ -1214,7 +1247,7 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
       const progress = scrollHeight > 0 ? (el.scrollTop / scrollHeight) * 100 : 0;
       setScrollProgress(progress);
 
-      if (progress >= 95 && currentChapter && !currentChapter.done) {
+      if (progress >= 95 && currentChapter && !doneChapters.has(`${selMod}-${selCh}`)) {
         if (currentChapter.type === 'quiz' || currentChapter.type === 'assessment') return;
         const blocks = (currentChapter.content.blocks || []) as UnifiedBlock[];
         const hasVideo    = blocks.some(b => b.type === 'media');
@@ -1232,12 +1265,12 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
         }
         markChapterDone(selMod, selCh);
         const total = modules.reduce((s,m)=>s+m.chapters.length,0);
-        const done  = modules.reduce((s,m)=>s+m.chapters.filter(c=>c.done).length,0);
-        const elapsed = calcTimeSpent();
+        const done  = doneChapters.size + 1;
+        const elapsed = calcTimeSpent(); // seconds
         totalTimeRef.current += elapsed;
         chapterStartRef.current = Date.now();
         setSaving(true); setSavingMsg("Saving progress...");
-        onProgress(total > 0 ? Math.round((done/total)*100) : 0, elapsed);
+        onProgress(total > 0 ? Math.round((done/total)*100) : 0, secondsToMinutes(elapsed));
         setTimeout(()=>setSaving(false), 1200);
       }
     };
@@ -1254,7 +1287,7 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     setFlashcardIndex(0);
     setFlashcardFlipped(false);
 
-    if (currentChapter?.type === 'assessment' && !currentChapter.done) {
+    if (currentChapter?.type === 'assessment' && !doneChapters.has(chapterKey)) {
       if (!areAllPreviousChaptersComplete()) {
         toast("⚠️ Please complete all previous chapters before taking this assessment.");
         if (selCh > 0) setSelCh(selCh - 1);
@@ -1265,10 +1298,6 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     }
   }, [selMod, selCh]);
 
-  const totalChapters     = modules.reduce((s,m)=>s+m.chapters.length,0);
-  const completedChapters = doneChapters.size;
-  const progressPercent   = totalChapters > 0 ? Math.round((completedChapters/totalChapters)*100) : 0;
-
   const advanceChapter = () => {
     if (selCh < currentModule.chapters.length - 1) setSelCh(selCh + 1);
     else if (selMod < modules.length - 1) { setSelMod(selMod + 1); setSelCh(0); }
@@ -1276,26 +1305,28 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
 
   const markChapterDone = (modIdx: number, chIdx: number) => {
     const key = `${modIdx}-${chIdx}`;
-    if (modules[modIdx]?.chapters[chIdx]) {
-      modules[modIdx].chapters[chIdx].done = true;
-    }
     setDoneChapters(prev => { const n = new Set(prev); n.add(key); return n; });
-    const chapterId = (modules[modIdx]?.chapters[chIdx] as any)?.id;
+    const chapterId = modules[modIdx]?.chapters[chIdx]?.id;
     if (chapterId) {
       api.courses.markChapterDone(chapterId).catch(err =>
-        console.error('Failed to persist chapter done:', err)
+        console.error('[CourseViewer] markChapterDone API failed for chapter id', chapterId, err)
       );
+    } else {
+      console.warn('[CourseViewer] markChapterDone: chapter has no id — cannot persist to DB.',
+        'mod:', modIdx, 'ch:', chIdx, modules[modIdx]?.chapters[chIdx]);
     }
   };
 
-  const saveProgress = (msg = "Saving progress...", score?: number) => {
-    const total = modules.reduce((s,m)=>s+m.chapters.length,0);
-    const done  = modules.reduce((s,m)=>s+m.chapters.filter(c=>c.done).length,0);
-    const elapsed = calcTimeSpent();
+  const saveProgress = (msg = "Saving progress...", score?: number, extraDone = 0) => {
+    const total   = modules.reduce((s,m)=>s+m.chapters.length,0);
+    const done    = doneChapters.size + extraDone;
+    const elapsed = calcTimeSpent(); // seconds
     totalTimeRef.current += elapsed;
     chapterStartRef.current = Date.now();
+    const pct = total > 0 ? Math.round((done/total)*100) : 0;
+    console.log('[CourseViewer] saveProgress — done:', done, '/', total, '=', pct, '% | elapsed:', elapsed, 'sec | total:', totalTimeRef.current, 'sec');
     setSaving(true); setSavingMsg(msg);
-    onProgress(total > 0 ? Math.round((done/total)*100) : 0, elapsed, score);
+    onProgress(pct, secondsToMinutes(elapsed), score);
     setTimeout(()=>setSaving(false), 1200);
   };
 
@@ -1311,9 +1342,9 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     setLastCorrectCount(correctCount);
     setSubmitted(true);
     setShowQuizPopup(true);
-    if ((allCorrect || exhausted) && !currentChapter.done) {
+    if ((allCorrect || exhausted) && !doneChapters.has(chapterKey)) {
       markChapterDone(selMod, selCh);
-      saveProgress(allCorrect ? "Saving quiz result..." : "Saving progress...");
+      saveProgress(allCorrect ? "Saving quiz result..." : "Saving progress...", undefined, 1);
     }
   };
 
@@ -1321,11 +1352,13 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     setShowQuizPopup(false);
     const isLast = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
     if (isLast && !wasAlreadyCompleted) {
-      const elapsed = calcTimeSpent();
+      const elapsed = calcTimeSpent(); // seconds
       totalTimeRef.current += elapsed;
       chapterStartRef.current = Date.now();
+      const totalMins = secondsToMinutes(totalTimeRef.current);
+      console.log('[CourseViewer] quiz LAST — totalTime:', totalTimeRef.current, 'sec =', totalMins, 'min');
       setSaving(true); setSavingMsg("Completing course...");
-      onProgress(100, totalTimeRef.current);
+      onProgress(100, totalMins);
       setTimeout(() => { setSaving(false); setShowCompletionPopup(true); }, 800);
     } else {
       advanceChapter();
@@ -1341,17 +1374,19 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
   const markComplete = () => {
     if (!currentChapter || currentChapter.type === 'quiz' || currentChapter.type === 'assessment') return;
     markChapterDone(selMod, selCh);
-    const elapsed = calcTimeSpent();
+    const elapsed = calcTimeSpent(); // seconds
     totalTimeRef.current += elapsed;
     chapterStartRef.current = Date.now();
     const isLast = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
     if (isLast) {
+      const totalMins = secondsToMinutes(totalTimeRef.current);
+      console.log('[CourseViewer] markComplete LAST — totalTime:', totalTimeRef.current, 'sec =', totalMins, 'min');
       setSaving(true); setSavingMsg("Completing course...");
-      onProgress(100, totalTimeRef.current);
+      onProgress(100, totalMins);
       setTimeout(() => { setSaving(false); setShowCompletionPopup(true); }, 800);
       return;
     }
-    saveProgress("Saving progress...");
+    saveProgress("Saving progress...", undefined, 1);
     advanceChapter();
   };
 
@@ -1371,11 +1406,12 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     if (passed) {
       const isLast = selMod === modules.length - 1 && selCh === currentModule.chapters.length - 1;
       if (isLast) {
-        const elapsed = calcTimeSpent();
+        const elapsed = calcTimeSpent(); // seconds
         totalTimeRef.current += elapsed;
         chapterStartRef.current = Date.now();
+        const totalMins = secondsToMinutes(totalTimeRef.current);
         setSaving(true); setSavingMsg("Completing course...");
-        onProgress(100, totalTimeRef.current);
+        onProgress(100, totalMins);
         setTimeout(() => { setSaving(false); setShowCompletionPopup(true); }, 800);
       } else {
         advanceChapter();

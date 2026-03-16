@@ -99,17 +99,17 @@ export interface Branch {
   site?: string;
   seats?: number;
   license_tag?: string;
-  date_of_implementation?: string | null;  // date branch went live
-  activation_code?: string | null;          // per-branch activation code
-  krunch_id?: string | null;                // per-branch Krunch POS ID
-  active?: boolean;                         // branch active status
+  date_of_implementation?: string | null;
+  activation_code?: string | null;
+  krunch_id?: string | null;
+  active?: boolean;
 }
 
 export interface PosDevice {
   id?: number;
   company_id: number;
   branch_id?: number | null;
-  status?: string;        // 'active' | 'offline' | 'maintenance'
+  status?: string;
   model?: string;
   serial?: string;
   ip_address?: string;
@@ -117,15 +117,15 @@ export interface PosDevice {
   msa_start?: string;
   msa_end?: string;
   warranty_end?: string;
-  under_warranty?: boolean | null;  // explicit warranty status: null = not assessed, true = under, false = out
+  under_warranty?: boolean | null;
 }
 
 export interface License {
   id?: number;
   company_id: number;
   license_key?: string;
-  activation_code?: string | null;  // license-level activation code
-  seats?: number | null;            // max branches/seats allowed under this license
+  activation_code?: string | null;
+  seats?: number | null;
   sa_start?: string;
   sa_end?: string;
   krunch_version?: string;
@@ -213,16 +213,19 @@ async function apiRequest<T>(
     }
   }
 
+  // FIX: Removed hardcoded 'X-User-Id': '1'.
+  // Auth is session/cookie-based via Laravel Sanctum — the backend
+  // scopes all queries to the authenticated user automatically.
+  // Sending a hardcoded ID was wrong and could cause data leaks.
   try {
     const response = await fetch(fullUrl, {
       headers: {
         'Content-Type': 'application/json',
         'Accept':       'application/json',
-        'X-User-Id':    '1',
         ...csrfHeaders,
         ...options.headers,
       },
-      credentials: 'include',
+      credentials: 'include', // sends the Sanctum session cookie
       ...options,
     });
 
@@ -299,7 +302,7 @@ export const coursesAPI = {
     apiRequest(`/courses/${id}/modules`, { method: 'PUT', body: JSON.stringify({ modules }) }),
   clone: async (id: number): Promise<ApiResponse<{ id: number; course: Course; message: string }>> =>
     apiRequest(`/courses/${id}/clone`, { method: 'POST' }),
-  markChapterDone: async (chapterId: number): Promise<ApiResponse<{ message: string }>> =>
+  markChapterDone: async (chapterId: number): Promise<ApiResponse<{ message: string; module_done: boolean }>> =>
     apiRequest(`/chapters/${chapterId}/done`, { method: 'PUT' }),
 };
 
@@ -328,10 +331,19 @@ export const activitiesAPI = {
 // Progress
 // ─────────────────────────────────────────────────────────────────────────────
 export const progressAPI = {
-  getAll: async (filters?: { company?: string; status?: string }): Promise<ApiResponse<UserProgress[]>> => {
+  // FIX: Added `user_id` as an optional filter so callers can explicitly
+  // scope requests when needed (e.g. admin viewing another user's progress).
+  // For the logged-in user's own progress, omit user_id — Laravel Sanctum
+  // session scopes the query automatically via Auth::user().
+  getAll: async (filters?: {
+    company?:  string;
+    status?:   string;
+    user_id?:  number; // optional override; omit for own progress
+  }): Promise<ApiResponse<UserProgress[]>> => {
     const params = new URLSearchParams();
     if (filters?.company) params.append('company', filters.company);
     if (filters?.status)  params.append('status',  filters.status);
+    if (filters?.user_id) params.append('user_id', String(filters.user_id));
     const query = params.toString();
     return apiRequest<UserProgress[]>(`/progress${query ? `?${query}` : ''}`, { method: 'GET' });
   },
@@ -339,6 +351,20 @@ export const progressAPI = {
     apiRequest('/progress', { method: 'POST', body: JSON.stringify(progress) }),
   update: async (id: number, progress: Partial<UserProgress>): Promise<ApiResponse<{ message: string }>> =>
     apiRequest(`/progress/${id}`, { method: 'PUT', body: JSON.stringify(progress) }),
+
+  // Per-user chapter completion — backed by user_chapter_progress table.
+  // Pass course_id to scope to a single course's chapters.
+  getChapterProgress: async (courseId?: number): Promise<ApiResponse<{ chapter_id: number; done: boolean }[]>> => {
+    const query = courseId ? `?course_id=${courseId}` : '';
+    return apiRequest(`/progress/chapters${query}`, { method: 'GET' });
+  },
+
+  // Per-user module completion — backed by user_module_progress table.
+  // Pass course_id to scope to a single course's modules.
+  getModuleProgress: async (courseId?: number): Promise<ApiResponse<{ module_id: number; done: boolean }[]>> => {
+    const query = courseId ? `?course_id=${courseId}` : '';
+    return apiRequest(`/progress/modules${query}`, { method: 'GET' });
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -503,7 +529,8 @@ export const uploadAPI = {
     formData.append('file', file);
     try {
       const token = getCsrfToken();
-      const headers: Record<string, string> = { 'X-User-Id': '1' };
+      // FIX: Removed hardcoded 'X-User-Id': '1' here too
+      const headers: Record<string, string> = {};
       if (token) headers['X-XSRF-TOKEN'] = token;
       const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST', body: formData, headers, credentials: 'include',

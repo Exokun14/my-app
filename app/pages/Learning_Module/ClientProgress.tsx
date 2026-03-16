@@ -293,17 +293,39 @@ function ClientLearnerProgress({ toast, courses = [], onOpenCourse }: {
 }) {
   const [data,    setData]    = useState<ProgressRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  // FIX: Added fetchError state so the UI can show what went wrong
+  // instead of silently displaying an empty table.
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [search,  setSearch]  = useState("");
   const [filter,  setFilter]  = useState("All");
 
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setFetchError(null);
       try {
+        // FIX: No user_id needed — Laravel Sanctum session cookie scopes
+        // this automatically to the logged-in user. Removed the previous
+        // silent `catch {}` which was hiding all API errors.
         const r = await api.progress.getAll();
-        if (r.success && r.data) setData(r.data as ProgressRecord[]);
-      } catch {}
-      finally { setLoading(false); }
+        if (r.success && r.data) {
+          setData(r.data as ProgressRecord[]);
+        } else {
+          // Surface the actual error from the API
+          const msg = r.error ?? "Failed to load progress data.";
+          console.error("[ClientProgress] ❌ API error:", msg);
+          setFetchError(msg);
+          toast(`Error: ${msg}`);
+        }
+      } catch (e) {
+        // Surface unexpected network/runtime errors
+        const msg = e instanceof Error ? e.message : "Unexpected error loading progress.";
+        console.error("[ClientProgress] ❌ Unexpected error:", e);
+        setFetchError(msg);
+        toast(`Error: ${msg}`);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -369,6 +391,21 @@ function ClientLearnerProgress({ toast, courses = [], onOpenCourse }: {
           </div>
           <ExportMenu data={safe} toast={toast} />
         </div>
+
+        {/* FIX: Show a visible error banner if the fetch failed */}
+        {fetchError && (
+          <div style={{ background:"rgba(239,68,68,.06)", border:"1.5px solid rgba(239,68,68,.2)", borderRadius:12, padding:"12px 16px", marginBottom:18, display:"flex", alignItems:"center", gap:10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            <div>
+              <div style={{ fontSize:12.5, fontWeight:700, color:"#dc2626" }}>Could not load progress data</div>
+              <div style={{ fontSize:11.5, color:"#ef4444", marginTop:2 }}>{fetchError}</div>
+            </div>
+            <button onClick={() => { setFetchError(null); setLoading(true); api.progress.getAll().then(r => { if (r.success && r.data) setData(r.data as ProgressRecord[]); else setFetchError(r.error ?? "Failed"); }).catch(e => setFetchError(e?.message ?? "Error")).finally(() => setLoading(false)); }}
+              style={{ marginLeft:"auto", padding:"5px 12px", borderRadius:7, border:"1.5px solid rgba(239,68,68,.25)", background:"rgba(239,68,68,.06)", color:"#dc2626", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* AI overview + Carousel — side by side, grid enforces equal height */}
         {!loading && (
