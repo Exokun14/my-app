@@ -3,9 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import constants from "../Data/test_data.json";
 import type { Course, Client } from "../Data/types";
+import api from "../Services/api.service";
+import type { Company } from "../Services/api.service";
+import IconCropper from "./IconCropper";
+import ThumbnailCropper from "./ThumbnailCropper";
 
-const { CLIENTS, CC_COLORS, DEFAULT_CATEGORIES } = constants as {
-  CLIENTS: Client[];
+const { CC_COLORS, DEFAULT_CATEGORIES } = constants as {
   CC_COLORS: string[];
   DEFAULT_CATEGORIES: string[];
 };
@@ -26,24 +29,28 @@ const CAT_ICONS: Record<string, string> = {
 };
 
 const STEPS = [
-  { id: 1, label: "Identity",  icon: "✦", desc: "Name & describe your course" },
+  { id: 1, label: "Identity",  icon: "✦", desc: "Name, icon & describe your course" },
   { id: 2, label: "Details",   icon: "◈", desc: "Category, duration & media" },
   { id: 3, label: "Audience",  icon: "◉", desc: "Assign to companies" },
   { id: 4, label: "Save",      icon: "◆", desc: "Review & save as draft" },
 ];
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface CourseIcon {
+  id: number;
+  url: string;
+  name: string;
+}
 
 const WIZARD_STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
 .wiz-wrap *, .wiz-wrap *::before, .wiz-wrap *::after { box-sizing: border-box; margin: 0; padding: 0; }
 .wiz-wrap { font-family: 'Plus Jakarta Sans', sans-serif; }
-
-/* Scrollbar */
 .wiz-wrap * { scrollbar-width: thin; scrollbar-color: rgba(109,40,217,0.15) transparent; }
 .wiz-wrap ::-webkit-scrollbar { width: 4px; }
 .wiz-wrap ::-webkit-scrollbar-thumb { background: rgba(109,40,217,0.18); border-radius: 4px; }
 
-/* ── Keyframes ── */
 @keyframes wiz-in      { from{opacity:0;transform:translateY(18px) scale(0.98)} to{opacity:1;transform:translateY(0) scale(1)} }
 @keyframes wiz-out     { from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-12px) scale(0.98)} }
 @keyframes wiz-stepFwd { from{opacity:0;transform:translateX(28px)} to{opacity:1;transform:translateX(0)} }
@@ -58,20 +65,17 @@ const WIZARD_STYLES = `
 .wiz-step-fwd   { animation: wiz-stepFwd 0.36s cubic-bezier(0.16,1,0.3,1) both; }
 .wiz-step-bck   { animation: wiz-stepBck 0.36s cubic-bezier(0.16,1,0.3,1) both; }
 
-/* ── Sidebar step items ── */
 .wiz-step-item { transition: background 0.18s, transform 0.18s; cursor: default; }
 .wiz-step-item:hover:not(.active):not(.done) { background: rgba(109,40,217,0.05) !important; transform: translateX(3px); }
 .wiz-step-item.done { cursor: pointer; }
 .wiz-step-item.done:hover { background: rgba(109,40,217,0.06) !important; transform: translateX(3px); }
 
-/* ── Input fields — matches existing .f-in style ── */
 .wiz-input {
   width: 100%; padding: 11px 14px; border-radius: 10px;
   border: 1.5px solid rgba(109,40,217,0.15);
   background: #fff; color: #18103a;
   font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 500;
-  transition: border-color 0.18s, box-shadow 0.18s;
-  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s; outline: none;
 }
 .wiz-input:focus { border-color: rgba(109,40,217,0.5); box-shadow: 0 0 0 3px rgba(109,40,217,0.07); }
 .wiz-input::placeholder { color: rgba(24,16,58,0.3); }
@@ -86,18 +90,29 @@ const WIZARD_STYLES = `
 .wiz-textarea:focus { border-color: rgba(109,40,217,0.5); box-shadow: 0 0 0 3px rgba(109,40,217,0.07); }
 .wiz-textarea::placeholder { color: rgba(24,16,58,0.3); }
 
-/* ── Emoji picker ── */
-.wiz-emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
-.wiz-emoji-btn {
-  aspect-ratio: 1; border-radius: 10px; border: 1.5px solid rgba(109,40,217,0.09);
-  background: #fff; font-size: 20px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: transform 0.14s, background 0.14s, border-color 0.14s, box-shadow 0.14s;
+/* Icon picker grid */
+.wiz-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
 }
-.wiz-emoji-btn:hover { transform: scale(1.14); background: #f5f3ff; border-color: rgba(109,40,217,0.2); box-shadow: 0 2px 10px rgba(109,40,217,0.1); }
-.wiz-emoji-btn.selected { border-color: rgba(109,40,217,0.45); background: #ede9fe; transform: scale(1.08); box-shadow: 0 2px 12px rgba(109,40,217,0.15); }
+.wiz-icon-cell {
+  position: relative; aspect-ratio: 1; border-radius: 12px;
+  border: 2px solid rgba(109,40,217,0.1); background: #fff;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; transition: all 0.15s;
+}
+.wiz-icon-cell:hover { border-color: rgba(109,40,217,0.4); box-shadow: 0 0 0 3px rgba(109,40,217,0.08); transform: scale(1.04); }
+.wiz-icon-cell.selected { border-color: #7c3aed; background: #f5f3ff; box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+.wiz-icon-img { width: 58%; height: 58%; object-fit: contain; }
+.wiz-icon-del {
+  position: absolute; top: 3px; right: 3px; width: 17px; height: 17px;
+  border-radius: 50%; background: rgba(220,38,38,0.85); color: #fff;
+  border: none; font-size: 10px; cursor: pointer; line-height: 1;
+  display: none; align-items: center; justify-content: center; padding: 0;
+}
+.wiz-icon-cell:hover .wiz-icon-del { display: flex; }
 
-/* ── Company chips ── */
 .wiz-company-item {
   display: flex; align-items: center; gap: 9px; padding: 9px 12px;
   border-radius: 11px; border: 1.5px solid rgba(109,40,217,0.1);
@@ -107,7 +122,6 @@ const WIZARD_STYLES = `
 .wiz-company-item:hover { border-color: rgba(109,40,217,0.25); transform: translateX(2px); box-shadow: 0 2px 10px rgba(109,40,217,0.07); }
 .wiz-company-item.selected { border-color: rgba(109,40,217,0.4); background: #f5f3ff; }
 
-/* ── CTA next button — matches existing .btn.btn-p style ── */
 .wiz-btn-next {
   position: relative; overflow: hidden;
   padding: 11px 24px; border-radius: 11px; border: none; cursor: pointer;
@@ -119,14 +133,7 @@ const WIZARD_STYLES = `
 }
 .wiz-btn-next:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(124,58,237,0.38); filter: brightness(1.05); }
 .wiz-btn-next:active { transform: scale(0.97); }
-.wiz-btn-next::after {
-  content:''; position:absolute; inset:0;
-  background: linear-gradient(90deg,transparent,rgba(255,255,255,0.16),transparent);
-  transform: translateX(-100%); transition: transform 0.5s;
-}
-.wiz-btn-next:hover::after { transform: translateX(100%); }
 
-/* ── Back button — matches existing .btn.btn-s style ── */
 .wiz-btn-back {
   padding: 11px 18px; border-radius: 11px; cursor: pointer;
   font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 600;
@@ -136,16 +143,6 @@ const WIZARD_STYLES = `
 }
 .wiz-btn-back:hover { background: #f5f3ff; transform: translateX(-2px); border-color: rgba(109,40,217,0.3); }
 
-/* ── Launch action cards ── */
-.wiz-launch-card {
-  border-radius: 14px; padding: 16px 18px; cursor: pointer;
-  border: 1.5px solid rgba(109,40,217,0.1); background: #fff;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s;
-  display: flex; align-items: flex-start; gap: 14px;
-}
-.wiz-launch-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(109,40,217,0.1); border-color: rgba(109,40,217,0.2); }
-
-/* ── Category tag ── */
 .wiz-cat-tag {
   padding: 6px 14px; border-radius: 20px; font-size: 11.5px; font-weight: 600;
   cursor: pointer; border: 1.5px solid rgba(109,40,217,0.12);
@@ -155,7 +152,6 @@ const WIZARD_STYLES = `
 .wiz-cat-tag:hover { transform: translateY(-1px); background: #ede9fe; border-color: rgba(109,40,217,0.25); color: #6d28d9; }
 .wiz-cat-tag.on { background: #ede9fe; border-color: rgba(109,40,217,0.45); color: #6d28d9; font-weight: 700; }
 
-/* ── Live preview card ── */
 .wiz-preview-card {
   border-radius: 16px; overflow: hidden; background: #fff;
   box-shadow: 0 4px 22px rgba(109,40,217,0.12);
@@ -163,24 +159,32 @@ const WIZARD_STYLES = `
   animation: wiz-cardIn 0.4s ease both;
 }
 
-/* ── Cat manager row ── */
 .wiz-cat-manager-row {
   display: flex; align-items: center; gap: 6px; padding: 6px 10px;
   border-radius: 8px; background: #f8f7ff;
   border: 1px solid rgba(109,40,217,0.09);
 }
 
-/* ── Search box ── */
 .wiz-search {
   display: flex; align-items: center; gap: 7px;
   padding: 7px 11px; border-radius: 10px;
-  border: 1.5px solid rgba(109,40,217,0.13);
-  background: #fff;
+  border: 1.5px solid rgba(109,40,217,0.13); background: #fff;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .wiz-search:focus-within { border-color: rgba(109,40,217,0.4); box-shadow: 0 0 0 3px rgba(109,40,217,0.06); }
 .wiz-search input { border: none; outline: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; color: #18103a; width: 100%; }
 .wiz-search input::placeholder { color: rgba(24,16,58,0.32); }
+
+/* ── Emoji picker ── */
+.wiz-emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.wiz-emoji-btn {
+  aspect-ratio: 1; border-radius: 10px; border: 1.5px solid rgba(109,40,217,0.09);
+  background: #fff; font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: transform 0.14s, background 0.14s, border-color 0.14s, box-shadow 0.14s;
+}
+.wiz-emoji-btn:hover { transform: scale(1.14); background: #f5f3ff; border-color: rgba(109,40,217,0.2); box-shadow: 0 2px 10px rgba(109,40,217,0.1); }
+.wiz-emoji-btn.selected { border-color: rgba(109,40,217,0.45); background: #ede9fe; transform: scale(1.08); box-shadow: 0 2px 12px rgba(109,40,217,0.15); }
 `;
 
 interface CourseCreationWizardProps {
@@ -200,39 +204,228 @@ export default function CourseCreationWizard({
   const [key,     setKey]     = useState(0);
 
   // Step 1 — Identity
-  const [title,       setTitle]       = useState("");
-  const [desc,        setDesc]        = useState("");
-  const [thumbEmoji,  setThumbEmoji]  = useState("📚");
+  const [title,          setTitle]          = useState("");
+  const [desc,           setDesc]           = useState("");
+  // Icon: emoji (premade) OR user-uploaded image
+  const [thumbEmoji,     setThumbEmoji]     = useState("📚");
+  const [iconTab,        setIconTab]        = useState<"premade"|"mine">("premade");
+  // User-uploaded icons from DB
+  const [selectedIcon,   setSelectedIcon]   = useState<CourseIcon | null>(null);
+  const [userIcons,      setUserIcons]      = useState<CourseIcon[]>([]);
+  const [loadingIcons,   setLoadingIcons]   = useState(false);
+  const [uploadingIcon,  setUploadingIcon]  = useState(false);
+  const iconFileRef = useRef<HTMLInputElement>(null);
 
   // Step 2 — Details
-  const [cat,         setCat]         = useState("");
-  const [duration,    setDuration]    = useState("");
-  const [thumbUrl,    setThumbUrl]    = useState("");
-  const [showCatMgr,  setShowCatMgr]  = useState(false);
-  const [newCatName,  setNewCatName]  = useState("");
-  const [renameCat,   setRenameCat]   = useState<string|null>(null);
-  const [renameVal,   setRenameVal]   = useState("");
+  const [cat,            setCat]            = useState("");
+  const [duration,       setDuration]       = useState("");
+  const [thumbUrl,       setThumbUrl]       = useState("");
+  const [uploadingThumb,   setUploadingThumb]   = useState(false);
+  const thumbFileRef = useRef<HTMLInputElement>(null);
+  const [iconCropFile,  setIconCropFile]  = useState<File | null>(null);
+  const [thumbCropFile, setThumbCropFile] = useState<File | null>(null);
+  const [showCatMgr,     setShowCatMgr]     = useState(false);
+  const [newCatName,     setNewCatName]     = useState("");
+  const [renameCat,      setRenameCat]      = useState<string|null>(null);
+  const [renameVal,      setRenameVal]      = useState("");
+  const [loadingCats,    setLoadingCats]    = useState(false);
 
-  // Step 3 — Audience
-  const [selectedCos, setSelectedCos] = useState<Set<number>>(new Set());
-  const [indFilter,   setIndFilter]   = useState("All");
-  const [coSearch,    setCoSearch]    = useState("");
+  // Step 3 — Audience (from DB)
+  const [companies,     setCompanies]      = useState<Company[]>([]);
+  const [loadingCos,    setLoadingCos]     = useState(false);
+  const [selectedCos,   setSelectedCos]    = useState<Set<number>>(new Set());
+  const [indFilter,     setIndFilter]      = useState("All");
+  const [coSearch,      setCoSearch]       = useState("");
 
-  // Step 4 — Save mode: draft | template
-  const [saveMode, setSaveMode] = useState<"draft" | "template">("draft");
-  const [launched,    setLaunched]    = useState(false);
+  // Step 4 — Save
+  const [saveMode,          setSaveMode]          = useState<"draft"|"template">("draft");
+  const [launched,          setLaunched]          = useState(false);
   const [showModulesPrompt, setShowModulesPrompt] = useState(false);
   const pendingCourseData = useRef<Course | null>(null);
 
-  const confettiRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  // ─── Fetch icons + categories + companies on mount ────────────────────────
 
-  const filteredClients = CLIENTS.filter(c => {
-    const indOk  = indFilter === "All" || c.cat === indFilter;
+  useEffect(() => {
+    fetchUserIcons();
+    fetchCategories();
+    fetchCompanies();
+  }, []);
+
+  const fetchUserIcons = async () => {
+    setLoadingIcons(true);
+    try {
+      const res = await api.courseIcons.getAll();
+      if (res.success && Array.isArray(res.data)) setUserIcons(res.data);
+    } catch (e) {
+      console.error("[Wizard] icons fetch failed", e);
+    } finally {
+      setLoadingIcons(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    setLoadingCats(true);
+    try {
+      const res = await api.settings.getCategories();
+      if (res.success && Array.isArray(res.data) && res.data.length) {
+        setCategories(res.data);
+      }
+    } catch (e) {
+      console.error("[Wizard] categories fetch failed", e);
+    } finally {
+      setLoadingCats(false);
+    }
+  };
+
+  const fetchCompanies = async () => {
+    setLoadingCos(true);
+    try {
+      const res = await api.companies.getAll();
+      if (res.success && Array.isArray(res.data)) setCompanies(res.data as Company[]);
+    } catch (e) {
+      console.error("[Wizard] companies fetch failed", e);
+    } finally {
+      setLoadingCos(false);
+    }
+  };
+
+  // ─── Icon upload / delete ─────────────────────────────────────────────────
+
+  const handleIconFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIconCropFile(file);
+    if (iconFileRef.current) iconFileRef.current.value = "";
+  };
+
+  const handleIconCropConfirm = async (cropped: File) => {
+    setIconCropFile(null);
+    setUploadingIcon(true);
+    try {
+      const res = await api.courseIcons.upload(cropped);
+      if (res.success && res.data) {
+        setUserIcons(prev => [res.data!, ...prev]);
+        setSelectedIcon(res.data);
+        toast("Icon uploaded!");
+      } else {
+        toast(res.error ?? "Failed to upload icon");
+      }
+    } catch {
+      toast("Failed to upload icon");
+    } finally {
+      setUploadingIcon(false);
+    }
+  };
+
+  const handleDeleteIcon = async (icon: CourseIcon, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Delete icon "${icon.name}"?`)) return;
+    try {
+      const res = await api.courseIcons.delete(icon.id);
+      if (res.success) {
+        setUserIcons(prev => prev.filter(i => i.id !== icon.id));
+        if (selectedIcon?.id === icon.id) setSelectedIcon(null);
+        toast("Icon deleted");
+      } else {
+        toast(res.error ?? "Failed to delete icon");
+      }
+    } catch {
+      toast("Failed to delete icon");
+    }
+  };
+
+  // ─── Thumbnail upload ─────────────────────────────────────────────────────
+
+  const handleThumbFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setThumbCropFile(file);
+    if (thumbFileRef.current) thumbFileRef.current.value = "";
+  };
+
+  const handleThumbCropConfirm = async (cropped: File) => {
+    setThumbCropFile(null);
+    setUploadingThumb(true);
+    try {
+      const res = await api.upload.uploadFile(cropped);
+      if (res.success && res.data) {
+        setThumbUrl(res.data.url);
+        toast("Thumbnail uploaded!");
+      } else {
+        toast(res.error ?? "Upload failed");
+      }
+    } catch {
+      toast("Failed to upload thumbnail");
+    } finally {
+      setUploadingThumb(false);
+    }
+  };
+
+  // ─── Category CRUD — persisted to DB ──────────────────────────────────────
+
+  const addCategory = async () => {
+    const v = newCatName.trim();
+    if (!v) { toast("Enter a category name."); return; }
+    if (categories.includes(v)) { toast("Category already exists."); return; }
+    try {
+      const res = await api.settings.createCategory(v);
+      if (res.success) {
+        setCategories(prev => [...prev, v].sort());
+        setNewCatName("");
+        toast(`"${v}" added!`);
+      } else {
+        toast(res.error ?? "Failed to add category");
+      }
+    } catch {
+      toast("Failed to add category");
+    }
+  };
+
+  const deleteCategory = async (c: string) => {
+    try {
+      const res = await api.settings.deleteCategory(c);
+      if (res.success) {
+        setCategories(prev => prev.filter(x => x !== c));
+        if (cat === c) setCat("");
+        toast("Category removed.");
+      } else {
+        toast(res.error ?? "Failed to delete");
+      }
+    } catch {
+      toast("Failed to delete category");
+    }
+  };
+
+  const saveRename = async () => {
+    const v = renameVal.trim();
+    if (!v) { toast("Name cannot be empty."); return; }
+    if (v !== renameCat && categories.includes(v)) { toast("Already exists."); return; }
+    try {
+      const res = await api.settings.renameCategory(renameCat!, v);
+      if (res.success) {
+        setCategories(prev => prev.map(x => x === renameCat ? v : x).sort());
+        if (cat === renameCat) setCat(v);
+        setRenameCat(null);
+        toast(`Renamed to "${v}".`);
+      } else {
+        toast(res.error ?? "Failed to rename");
+      }
+    } catch {
+      toast("Failed to rename category");
+    }
+  };
+
+  // ─── Audience helpers ─────────────────────────────────────────────────────
+
+  const industries = ["All", ...Array.from(new Set(companies.map(c => c.industry ?? "Other"))).sort()];
+
+  const filteredCompanies = companies.filter(c => {
+    const indOk  = indFilter === "All" || (c.industry ?? "Other") === indFilter;
     const srchOk = !coSearch || c.name.toLowerCase().includes(coSearch.toLowerCase());
     return indOk && srchOk;
   });
 
-  const allSelected = filteredClients.length > 0 && filteredClients.every(c => selectedCos.has(c.id));
+  const allSelected = filteredCompanies.length > 0 && filteredCompanies.every(c => selectedCos.has(c.id));
 
   const toggleCo = (id: number) => {
     setSelectedCos(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -241,35 +434,12 @@ export default function CourseCreationWizard({
   const toggleAll = (checked: boolean) => {
     setSelectedCos(prev => {
       const n = new Set(prev);
-      filteredClients.forEach(c => checked ? n.add(c.id) : n.delete(c.id));
+      filteredCompanies.forEach(c => checked ? n.add(c.id) : n.delete(c.id));
       return n;
     });
   };
 
-  const addCategory = () => {
-    const v = newCatName.trim();
-    if (!v) { toast("Enter a category name."); return; }
-    if (categories.includes(v)) { toast("Category already exists."); return; }
-    setCategories(prev => [...prev, v]);
-    setNewCatName("");
-    toast(`"${v}" added!`);
-  };
-
-  const deleteCategory = (c: string) => {
-    setCategories(prev => prev.filter(x => x !== c));
-    if (cat === c) setCat("");
-    toast(`Category removed.`);
-  };
-
-  const saveRename = () => {
-    const v = renameVal.trim();
-    if (!v) { toast("Name cannot be empty."); return; }
-    if (v !== renameCat && categories.includes(v)) { toast("Already exists."); return; }
-    setCategories(prev => prev.map(x => x === renameCat ? v : x));
-    if (cat === renameCat) setCat(v);
-    setRenameCat(null);
-    toast(`Renamed to "${v}".`);
-  };
+  // ─── Navigation ───────────────────────────────────────────────────────────
 
   const goStep = (next: number) => {
     setDir(next > step ? "fwd" : "bck");
@@ -292,20 +462,25 @@ export default function CourseCreationWizard({
     if (step < 4) goStep(step + 1);
   };
 
+  // ─── Save ─────────────────────────────────────────────────────────────────
+
   const handleLaunch = () => {
-    const companies = CLIENTS.filter(c => selectedCos.has(c.id)).map(c => c.name);
+    const companyNames = Array.from(selectedCos)
+      .map(id => companies.find(c => c.id === id)?.name)
+      .filter(Boolean) as string[];
+
     pendingCourseData.current = {
-      title: title.trim(),
-      desc: desc.trim() || "No description provided.",
-      time: duration.trim(),
-      thumb: thumbUrl || null,
-      thumbEmoji: !thumbUrl ? thumbEmoji : null,
+      title:      title.trim(),
+      desc:       desc.trim() || "No description provided.",
+      time:       duration.trim(),
+      thumb:      thumbUrl || null,
+      thumb_emoji: selectedIcon?.url ?? thumbEmoji,
       cat,
-      enrolled: false,
-      progress: 0,
-      active: false,
-      stage: saveMode,
-      companies: companies.length ? companies : null,
+      enrolled:   false,
+      progress:   0,
+      active:     false,
+      stage:      saveMode,
+      companies:  companyNames.length ? companyNames : null,
     } as Course;
     setShowModulesPrompt(true);
   };
@@ -329,35 +504,27 @@ export default function CourseCreationWizard({
     }
   }, [launched]);
 
-  const grad = THUMB_GRADIENTS[0];
+  const grad       = THUMB_GRADIENTS[0];
   const previewIcon = CAT_ICONS[cat] || thumbEmoji;
-
   const progressPct = ((step - 1) / 3) * 100;
 
   return (
     <>
     <div className="wiz-wrap" style={{
-      position: "fixed", inset: 0, zIndex: 600,
-      background: "#faf9ff",
-      display: "flex", flexDirection: "column",
-      overflow: "hidden",
+      position:"fixed", inset:0, zIndex:600,
+      background:"#faf9ff", display:"flex", flexDirection:"column", overflow:"hidden",
     }}>
       <style>{WIZARD_STYLES}</style>
 
-      {/* ── Subtle ambient orbs (light, airy) ── */}
+      {/* Ambient orbs */}
       <div style={{ position:"absolute", inset:0, overflow:"hidden", pointerEvents:"none" }}>
         <div style={{ position:"absolute", top:"-8%", right:"12%", width:440, height:440, borderRadius:"50%", background:"radial-gradient(circle,rgba(109,40,217,0.06),transparent 68%)" }} />
         <div style={{ position:"absolute", bottom:"-6%", left:"6%", width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle,rgba(13,148,136,0.07),transparent 68%)" }} />
         <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(109,40,217,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(109,40,217,0.025) 1px,transparent 1px)", backgroundSize:"48px 48px" }} />
       </div>
 
-      {/* ── Top bar — matches existing nav style ── */}
-      <div style={{
-        display:"flex", alignItems:"center", padding:"14px 28px", flexShrink:0, position:"relative", zIndex:2,
-        borderBottom:"1px solid rgba(109,40,217,0.09)",
-        background:"rgba(255,255,255,0.95)", backdropFilter:"blur(16px)",
-        boxShadow:"0 1px 0 rgba(109,40,217,0.06)",
-      }}>
+      {/* Top bar */}
+      <div style={{ display:"flex", alignItems:"center", padding:"14px 28px", flexShrink:0, position:"relative", zIndex:2, borderBottom:"1px solid rgba(109,40,217,0.09)", background:"rgba(255,255,255,0.95)", backdropFilter:"blur(16px)", boxShadow:"0 1px 0 rgba(109,40,217,0.06)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ width:34, height:34, borderRadius:10, background:"linear-gradient(135deg,#7c3aed,#0d9488)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 3px 12px rgba(124,58,237,0.3)" }}>
             <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="1.7">
@@ -370,42 +537,33 @@ export default function CourseCreationWizard({
           </div>
         </div>
 
-        {/* ── Linear progress bar ── */}
         <div style={{ flex:1, margin:"0 36px" }}>
           <div style={{ height:5, borderRadius:4, background:"#e9e6f8", overflow:"hidden" }}>
             <div style={{ height:"100%", borderRadius:4, background:"linear-gradient(90deg,#7c3aed,#0d9488)", width:`${progressPct}%`, transition:"width 0.6s cubic-bezier(0.16,1,0.3,1)" }} />
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
             {STEPS.map(s => (
-              <span key={s.id} style={{ fontSize:9.5, fontWeight:600, color: step >= s.id ? "#7c3aed" : "#c4bdd8", letterSpacing:".05em", textTransform:"uppercase", transition:"color 0.3s" }}>
+              <span key={s.id} style={{ fontSize:9.5, fontWeight:600, color:step >= s.id ? "#7c3aed" : "#c4bdd8", letterSpacing:".05em", textTransform:"uppercase", transition:"color 0.3s" }}>
                 {s.label}
               </span>
             ))}
           </div>
         </div>
 
-        <button
-          onClick={onCancel}
-          style={{ width:32, height:32, borderRadius:8, border:"1.5px solid rgba(109,40,217,0.15)", background:"#f5f3ff", color:"#7c65a8", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.14s, border-color 0.14s" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#ede9fe"; e.currentTarget.style.borderColor = "rgba(109,40,217,0.3)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "#f5f3ff"; e.currentTarget.style.borderColor = "rgba(109,40,217,0.15)"; }}
-        >
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M1 1l9 9M10 1L1 10"/>
-          </svg>
+        <button onClick={onCancel} style={{ width:32, height:32, borderRadius:8, border:"1.5px solid rgba(109,40,217,0.15)", background:"#f5f3ff", color:"#7c65a8", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l9 9M10 1L1 10"/></svg>
         </button>
       </div>
 
-      {/* ── Main content ── */}
+      {/* Main content */}
       <div style={{ flex:1, display:"flex", overflow:"hidden", position:"relative", zIndex:2 }}>
 
-        {/* ── Left sidebar — matches #f8f7ff sidebar pattern ── */}
-        <div style={{ width:248, flexShrink:0, padding:"28px 18px 28px", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(109,40,217,0.09)", background:"#f5f3ff" }}>
+        {/* Left sidebar */}
+        <div style={{ width:248, flexShrink:0, padding:"28px 18px", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(109,40,217,0.09)", background:"#f5f3ff" }}>
           <div style={{ fontSize:10, fontWeight:700, color:"#a89dc8", letterSpacing:".12em", textTransform:"uppercase", marginBottom:18, paddingLeft:8 }}>Steps</div>
 
           <div style={{ display:"flex", flexDirection:"column", gap:3, position:"relative" }}>
-            {/* connector line */}
-            <div style={{ position:"absolute", left:21, top:34, width:2, height:`calc(100% - 34px)`, background:"#e5e0f5", borderRadius:2 }}>
+            <div style={{ position:"absolute", left:21, top:34, width:2, height:"calc(100% - 34px)", background:"#e5e0f5", borderRadius:2 }}>
               <div style={{ width:"100%", background:"linear-gradient(180deg,#7c3aed,#0d9488)", borderRadius:2, height:`${Math.min(100,((step-1)/3)*100)}%`, transition:"height 0.6s cubic-bezier(0.16,1,0.3,1)" }} />
             </div>
 
@@ -413,57 +571,37 @@ export default function CourseCreationWizard({
               const isActive = step === s.id;
               const isDone   = step > s.id;
               return (
-                <div
-                  key={s.id}
-                  className={`wiz-step-item${isActive ? " active" : ""}${isDone ? " done" : ""}`}
+                <div key={s.id} className={`wiz-step-item${isActive ? " active" : ""}${isDone ? " done" : ""}`}
                   onClick={() => isDone ? goStep(s.id) : undefined}
-                  style={{
-                    display:"flex", alignItems:"center", gap:11, padding:"10px 10px 10px 8px",
-                    borderRadius:11, position:"relative",
-                    background: isActive ? "#fff" : "transparent",
-                    border: isActive ? "1px solid rgba(109,40,217,0.18)" : "1px solid transparent",
-                    boxShadow: isActive ? "0 2px 12px rgba(109,40,217,0.08)" : "none",
-                  }}
+                  style={{ display:"flex", alignItems:"center", gap:11, padding:"10px 10px 10px 8px", borderRadius:11, position:"relative", background:isActive ? "#fff" : "transparent", border:isActive ? "1px solid rgba(109,40,217,0.18)" : "1px solid transparent", boxShadow:isActive ? "0 2px 12px rgba(109,40,217,0.08)" : "none" }}
                 >
-                  {/* Circle indicator */}
-                  <div style={{
-                    width:26, height:26, borderRadius:"50%", flexShrink:0, zIndex:1,
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    background: isDone ? "linear-gradient(135deg,#7c3aed,#0d9488)" : isActive ? "#7c3aed" : "#e5e0f5",
-                    boxShadow: isActive ? "0 2px 10px rgba(124,58,237,0.35)" : isDone ? "0 2px 8px rgba(124,58,237,0.25)" : "none",
-                    transition:"all 0.3s",
-                  }}>
+                  <div style={{ width:26, height:26, borderRadius:"50%", flexShrink:0, zIndex:1, display:"flex", alignItems:"center", justifyContent:"center", background:isDone ? "linear-gradient(135deg,#7c3aed,#0d9488)" : isActive ? "#7c3aed" : "#e5e0f5", boxShadow:isActive ? "0 2px 10px rgba(124,58,237,0.35)" : isDone ? "0 2px 8px rgba(124,58,237,0.25)" : "none", transition:"all 0.3s" }}>
                     {isDone
                       ? <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.4"><path d="M2 6l3 3 5-5"/></svg>
-                      : <span style={{ color: isActive ? "#fff" : "#a89dc8", fontSize:10, fontWeight:700 }}>{s.id}</span>
+                      : <span style={{ color:isActive ? "#fff" : "#a89dc8", fontSize:10, fontWeight:700 }}>{s.id}</span>
                     }
                   </div>
-
                   <div>
-                    <div style={{ fontSize:12.5, fontWeight:700, color: isActive ? "#0f0a2a" : isDone ? "#6d28d9" : "#a89dc8", transition:"color 0.2s" }}>
-                      {s.label}
-                    </div>
-                    <div style={{ fontSize:10, color: isActive ? "#7c65a8" : "#c4bdd8", marginTop:1, lineHeight:1.3 }}>{s.desc}</div>
+                    <div style={{ fontSize:12.5, fontWeight:700, color:isActive ? "#0f0a2a" : isDone ? "#6d28d9" : "#a89dc8", transition:"color 0.2s" }}>{s.label}</div>
+                    <div style={{ fontSize:10, color:isActive ? "#7c65a8" : "#c4bdd8", marginTop:1, lineHeight:1.3 }}>{s.desc}</div>
                   </div>
-
-                  {isActive && (
-                    <div style={{ position:"absolute", right:10, width:6, height:6, borderRadius:"50%", background:"#7c3aed", animation:"wiz-pulse 2s ease infinite", boxShadow:"0 0 6px rgba(124,58,237,0.6)" }} />
-                  )}
+                  {isActive && <div style={{ position:"absolute", right:10, width:6, height:6, borderRadius:"50%", background:"#7c3aed", animation:"wiz-pulse 2s ease infinite", boxShadow:"0 0 6px rgba(124,58,237,0.6)" }} />}
                 </div>
               );
             })}
           </div>
 
-          {/* Live preview card at bottom of sidebar */}
+          {/* Live preview */}
           {(title || cat) && (
             <div style={{ marginTop:"auto", paddingTop:20 }}>
               <div style={{ fontSize:9.5, fontWeight:700, color:"#a89dc8", letterSpacing:".1em", textTransform:"uppercase", marginBottom:10, paddingLeft:2 }}>Live Preview</div>
               <div className="wiz-preview-card" style={{ borderRadius:14 }}>
                 <div style={{ height:72, background:`linear-gradient(135deg,${grad[0]},${grad[1]})`, display:"flex", alignItems:"flex-end", padding:"8px 10px", position:"relative" }}>
-                  <div style={{ position:"absolute", top:6, right:8, padding:"2px 7px", borderRadius:10, background:"rgba(0,0,0,0.3)", fontSize:8, fontWeight:700, color:"#fff" }}>
-                    Draft
-                  </div>
-                  <span style={{ fontSize:28 }}>{previewIcon}</span>
+                  <div style={{ position:"absolute", top:6, right:8, padding:"2px 7px", borderRadius:10, background:"rgba(0,0,0,0.3)", fontSize:8, fontWeight:700, color:"#fff" }}>Draft</div>
+                  {selectedIcon
+                    ? <img src={selectedIcon.url} alt="" style={{ width:32, height:32, objectFit:"contain", borderRadius:6 }} />
+                    : <span style={{ fontSize:28 }}>{CAT_ICONS[cat] || "📚"}</span>
+                  }
                 </div>
                 <div style={{ padding:"10px 11px 12px" }}>
                   <div style={{ fontSize:11, fontWeight:700, color:"#0f0a2a", lineHeight:1.3, marginBottom:3 }}>{title || "Course Title"}</div>
@@ -478,68 +616,116 @@ export default function CourseCreationWizard({
           )}
         </div>
 
-        {/* ── Right — step content ── */}
+        {/* Right — step content */}
         <div style={{ flex:1, overflowY:"auto", padding:"40px 48px 40px", background:"#faf9ff" }}>
-          <div key={key} className={exiting ? (dir === "fwd" ? "wiz-step-bck" : "wiz-step-fwd") : (dir === "fwd" ? "wiz-step-fwd" : "wiz-step-bck")} style={{ maxWidth:640, margin:"0 auto" }}>
+          <div key={key} className={exiting ? (dir==="fwd" ? "wiz-step-bck" : "wiz-step-fwd") : (dir==="fwd" ? "wiz-step-fwd" : "wiz-step-bck")} style={{ maxWidth:640, margin:"0 auto" }}>
 
             {/* ─── STEP 1: Identity ─── */}
             {step === 1 && (
               <div>
-                <div style={{ marginBottom:36 }}>
+                <div style={{ marginBottom:32 }}>
                   <div style={{ fontSize:11, fontWeight:700, letterSpacing:".12em", textTransform:"uppercase", color:"rgba(124,58,237,0.7)", marginBottom:8 }}>Step 1 of 4</div>
-                  <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>
-                    Give it an <em style={{ color:"#7c3aed" }}>identity</em>
-                  </h2>
-                  <p style={{ fontSize:13.5, color:"#7c65a8", lineHeight:1.6 }}>
-                    A great course starts with a clear title and purpose. This is what your learners will see first.
-                  </p>
+                  <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>Give it an <em style={{ color:"#7c3aed" }}>identity</em></h2>
+                  <p style={{ fontSize:13.5, color:"#7c65a8", lineHeight:1.6 }}>A great course starts with a clear title and purpose.</p>
                 </div>
 
                 {/* Title */}
                 <div style={{ marginBottom:22 }}>
-                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#4a3880", marginBottom:8, letterSpacing:".02em" }}>
-                    Course Title <span style={{ color:"#dc2626" }}>*</span>
-                  </label>
-                  <input
-                    className="wiz-input"
-                    type="text"
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                    placeholder="e.g. POS Advanced Training"
-                    autoFocus
-                    style={{ fontSize:15, fontWeight:600, padding:"14px 16px" }}
-                  />
+                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#4a3880", marginBottom:8 }}>Course Title <span style={{ color:"#dc2626" }}>*</span></label>
+                  <input className="wiz-input" type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. POS Advanced Training" autoFocus style={{ fontSize:15, fontWeight:600, padding:"14px 16px" }} />
                   <div style={{ fontSize:11, color:"#a89dc8", marginTop:6 }}>Make it descriptive and specific</div>
                 </div>
 
                 {/* Description */}
                 <div style={{ marginBottom:28 }}>
                   <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#4a3880", marginBottom:8 }}>Description</label>
-                  <textarea
-                    className="wiz-textarea"
-                    value={desc}
-                    onChange={e => setDesc(e.target.value)}
-                    placeholder="Briefly describe what this course covers and what learners will take away…"
-                    rows={3}
-                  />
+                  <textarea className="wiz-textarea" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Briefly describe what this course covers…" rows={3} />
                 </div>
 
-                {/* Emoji picker */}
+                {/* Course Icon — tabbed: Premade | My Icons */}
                 <div style={{ marginBottom:36 }}>
-                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#4a3880", marginBottom:8 }}>
-                    Course Icon
-                    <span style={{ fontSize:10.5, fontWeight:500, color:"#a89dc8", marginLeft:8 }}>Choose an emoji that represents this course</span>
-                  </label>
-                  <div style={{ padding:"16px", borderRadius:14, background:"#f5f3ff", border:"1px solid rgba(109,40,217,0.1)" }}>
-                    <div style={{ fontSize:32, textAlign:"center", marginBottom:12 }}>{thumbEmoji}</div>
-                    <div className="wiz-emoji-grid">
-                      {EMOJI_OPTIONS.map(e => (
-                        <button key={e} className={`wiz-emoji-btn${thumbEmoji === e ? " selected" : ""}`} onClick={() => setThumbEmoji(e)}>
-                          {e}
-                        </button>
-                      ))}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                    <label style={{ fontSize:12, fontWeight:700, color:"#4a3880" }}>Course Icon</label>
+                    {/* Selected preview */}
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ width:34, height:34, borderRadius:8, background:"#f5f3ff", border:"1.5px solid rgba(109,40,217,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, overflow:"hidden" }}>
+                        {selectedIcon
+                          ? <img src={selectedIcon.url} alt="" style={{ width:"100%", height:"100%", objectFit:"contain" }} />
+                          : thumbEmoji}
+                      </div>
                     </div>
                   </div>
+
+                  {/* Tabs */}
+                  <div style={{ display:"flex", gap:4, marginBottom:14, background:"#ede9fe", borderRadius:10, padding:4 }}>
+                    <button
+                      onClick={() => setIconTab("premade")}
+                      style={{ flex:1, padding:"7px 0", borderRadius:7, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", transition:"all 0.15s",
+                        background: iconTab === "premade" ? "#fff" : "transparent",
+                        color: iconTab === "premade" ? "#6d28d9" : "#a89dc8",
+                        boxShadow: iconTab === "premade" ? "0 1px 6px rgba(109,40,217,0.12)" : "none",
+                      }}
+                    >Premade Icons</button>
+                    <button
+                      onClick={() => setIconTab("mine")}
+                      style={{ flex:1, padding:"7px 0", borderRadius:7, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", transition:"all 0.15s",
+                        background: iconTab === "mine" ? "#fff" : "transparent",
+                        color: iconTab === "mine" ? "#6d28d9" : "#a89dc8",
+                        boxShadow: iconTab === "mine" ? "0 1px 6px rgba(109,40,217,0.12)" : "none",
+                      }}
+                    >My Icons {userIcons.length > 0 && <span style={{ marginLeft:4, padding:"1px 6px", borderRadius:9, background:"#7c3aed", color:"#fff", fontSize:9, fontWeight:700 }}>{userIcons.length}</span>}</button>
+                  </div>
+
+                  {/* Tab: Premade */}
+                  {iconTab === "premade" && (
+                    <div style={{ padding:14, borderRadius:14, background:"#f5f3ff", border:"1px solid rgba(109,40,217,0.1)" }}>
+                      <div className="wiz-emoji-grid">
+                        {EMOJI_OPTIONS.map(e => (
+                          <button key={e}
+                            className={`wiz-emoji-btn${!selectedIcon && thumbEmoji === e ? " selected" : ""}`}
+                            onClick={() => { setThumbEmoji(e); setSelectedIcon(null); }}
+                          >{e}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab: My Icons */}
+                  {iconTab === "mine" && (
+                    <div style={{ padding:14, borderRadius:14, background:"#f5f3ff", border:"1px solid rgba(109,40,217,0.1)" }}>
+                      <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
+                        <input ref={iconFileRef} type="file" accept="image/*" onChange={handleIconFileSelect} style={{ display:"none" }} />
+                        <button
+                          onClick={() => iconFileRef.current?.click()}
+                          disabled={uploadingIcon}
+                          style={{ padding:"6px 14px", borderRadius:9, border:"1.5px solid rgba(109,40,217,0.25)", background:"#fff", color:"#6d28d9", fontSize:11.5, fontWeight:700, cursor:"pointer", opacity:uploadingIcon ? 0.5 : 1 }}
+                        >
+                          {uploadingIcon ? "Uploading…" : "+ Upload Icon"}
+                        </button>
+                      </div>
+                      {loadingIcons ? (
+                        <div style={{ textAlign:"center", padding:20, fontSize:12, color:"#a89dc8" }}>Loading your icons…</div>
+                      ) : userIcons.length === 0 ? (
+                        <div style={{ textAlign:"center", padding:24 }}>
+                          <div style={{ fontSize:32, marginBottom:8 }}>🖼️</div>
+                          <div style={{ fontSize:12, fontWeight:600, color:"#7c65a8" }}>No icons yet</div>
+                          <div style={{ fontSize:11, color:"#a89dc8", marginTop:4 }}>Upload your first icon using the button above</div>
+                        </div>
+                      ) : (
+                        <div className="wiz-icon-grid">
+                          {userIcons.map(icon => {
+                            const isSel = selectedIcon?.id === icon.id;
+                            return (
+                              <div key={icon.id} className={`wiz-icon-cell${isSel ? " selected" : ""}`} onClick={() => setSelectedIcon(isSel ? null : icon)} title={icon.name}>
+                                <img src={icon.url} alt={icon.name} className="wiz-icon-img" />
+                                <button className="wiz-icon-del" onClick={e => handleDeleteIcon(icon, e)}>×</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display:"flex", justifyContent:"flex-end" }}>
@@ -556,53 +742,40 @@ export default function CourseCreationWizard({
               <div>
                 <div style={{ marginBottom:36 }}>
                   <div style={{ fontSize:11, fontWeight:700, letterSpacing:".12em", textTransform:"uppercase", color:"rgba(13,148,136,0.8)", marginBottom:8 }}>Step 2 of 4</div>
-                  <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>
-                    Set the <em style={{ color:"#0d9488" }}>details</em>
-                  </h2>
-                  <p style={{ fontSize:13.5, color:"#7c65a8", lineHeight:1.6 }}>
-                    Categorize your course and give learners a sense of what to expect.
-                  </p>
+                  <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>Set the <em style={{ color:"#0d9488" }}>details</em></h2>
+                  <p style={{ fontSize:13.5, color:"#7c65a8", lineHeight:1.6 }}>Categorize your course and give learners a sense of what to expect.</p>
                 </div>
 
                 {/* Category */}
                 <div style={{ marginBottom:22 }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-                    <label style={{ fontSize:12, fontWeight:700, color:"#4a3880" }}>
-                      Category <span style={{ color:"#dc2626" }}>*</span>
-                    </label>
-                    <button
-                      onClick={() => setShowCatMgr(v => !v)}
-                      style={{ fontSize:10.5, fontWeight:600, color:"#6d28d9", background:"#ede9fe", border:"1px solid rgba(109,40,217,0.2)", padding:"4px 10px", borderRadius:8, cursor:"pointer" }}
-                    >
+                    <label style={{ fontSize:12, fontWeight:700, color:"#4a3880" }}>Category <span style={{ color:"#dc2626" }}>*</span></label>
+                    <button onClick={() => setShowCatMgr(v => !v)} style={{ fontSize:10.5, fontWeight:600, color:"#6d28d9", background:"#ede9fe", border:"1px solid rgba(109,40,217,0.2)", padding:"4px 10px", borderRadius:8, cursor:"pointer" }}>
                       {showCatMgr ? "Close Manager" : "Manage Categories"}
                     </button>
                   </div>
 
-                  {/* Category tags */}
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:12 }}>
-                    {categories.filter(c => c !== "All").map(c => (
-                      <button
-                        key={c}
-                        className={`wiz-cat-tag${cat === c ? " on" : ""}`}
-                        onClick={() => setCat(c)}
-                        style={{
-                          background: cat === c ? "rgba(109,40,217,0.18)" : "rgba(255,255,255,0.06)",
-                          color: cat === c ? "#6d28d9" : "#7c65a8",
-                          borderColor: cat === c ? "rgba(109,40,217,0.5)" : "rgba(255,255,255,0.1)",
-                        }}
-                      >
-                        {CAT_ICONS[c] || "📁"} {c}
-                      </button>
-                    ))}
-                  </div>
+                  {loadingCats ? (
+                    <div style={{ fontSize:12, color:"#a89dc8", padding:"8px 0" }}>Loading categories…</div>
+                  ) : (
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:12 }}>
+                      {categories.filter(c => c !== "All").map((c, i) => (
+                        <button key={`cat-${i}-${c}`} className={`wiz-cat-tag${cat === c ? " on" : ""}`} onClick={() => setCat(c)}>
+                          {CAT_ICONS[c] || "📁"} {c}
+                        </button>
+                      ))}
+                      {categories.filter(c => c !== "All").length === 0 && (
+                        <span style={{ fontSize:12, color:"#a89dc8" }}>No categories yet — add one below</span>
+                      )}
+                    </div>
+                  )}
 
-                  {/* Category manager */}
                   {showCatMgr && (
-                    <div style={{ padding:"14px", borderRadius:14, background:"#f5f3ff", border:"1px solid rgba(109,40,217,0.1)", marginBottom:12, animation:"wiz-in 0.25s ease both" }}>
+                    <div style={{ padding:14, borderRadius:14, background:"#f5f3ff", border:"1px solid rgba(109,40,217,0.1)", marginBottom:12, animation:"wiz-in 0.25s ease both" }}>
                       <div style={{ fontSize:10.5, fontWeight:700, color:"#a89dc8", letterSpacing:".1em", textTransform:"uppercase", marginBottom:10 }}>Manage Categories</div>
                       <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:10, maxHeight:160, overflowY:"auto" }}>
-                        {categories.filter(c => c !== "All").map(c => (
-                          <div key={c} className="wiz-cat-manager-row">
+                        {categories.filter(c => c !== "All").map((c, i) => (
+                          <div key={`mgr-${i}-${c}`} className="wiz-cat-manager-row">
                             {renameCat === c ? (
                               <>
                                 <input className="wiz-input" style={{ flex:1, padding:"5px 9px", fontSize:12, height:30 }} value={renameVal} onChange={e => setRenameVal(e.target.value)} onKeyDown={e => e.key === "Enter" && saveRename()} autoFocus />
@@ -611,7 +784,7 @@ export default function CourseCreationWizard({
                             ) : (
                               <>
                                 <span style={{ flex:1, fontSize:12, color:"#2d1f5e" }}>{CAT_ICONS[c] || "📁"} {c}</span>
-                                <button onClick={() => { setRenameCat(c); setRenameVal(c); }} style={{ padding:"3px 8px", borderRadius:6, background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.4)", border:"none", fontSize:10.5, cursor:"pointer" }}>✏️</button>
+                                <button onClick={() => { setRenameCat(c); setRenameVal(c); }} style={{ padding:"3px 8px", borderRadius:6, background:"#fff", color:"#7c3aed", border:"1px solid rgba(109,40,217,0.15)", fontSize:10.5, cursor:"pointer" }}>✏️</button>
                               </>
                             )}
                             <button onClick={() => deleteCategory(c)} style={{ width:24, height:24, borderRadius:6, background:"rgba(220,38,38,0.07)", color:"#dc2626", border:"1px solid rgba(220,38,38,0.15)", fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
@@ -628,54 +801,46 @@ export default function CourseCreationWizard({
 
                 {/* Duration */}
                 <div style={{ marginBottom:22 }}>
-                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#4a3880", marginBottom:8 }}>
-                    Estimated Duration <span style={{ color:"#dc2626" }}>*</span>
-                  </label>
+                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#4a3880", marginBottom:8 }}>Estimated Duration <span style={{ color:"#dc2626" }}>*</span></label>
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
                     {["15 Mins","30 Mins","45 Mins","1 Hour","1.5 Hours","2 Hours"].map(d => (
-                      <button
-                        key={d}
-                        onClick={() => setDuration(d)}
-                        style={{
-                          padding:"7px 14px", borderRadius:10, fontSize:11.5, fontWeight:600, cursor:"pointer",
-                          background: duration === d ? "rgba(13,148,136,0.1)" : "#f5f3ff",
-                          color: duration === d ? "#0d9488" : "#7c65a8",
-                          border: duration === d ? "1.5px solid rgba(13,148,136,0.35)" : "1.5px solid rgba(109,40,217,0.12)",
-                          transition:"all 0.15s",
-                        }}
-                      >{d}</button>
+                      <button key={d} onClick={() => setDuration(d)} style={{ padding:"7px 14px", borderRadius:10, fontSize:11.5, fontWeight:600, cursor:"pointer", background:duration === d ? "rgba(13,148,136,0.1)" : "#f5f3ff", color:duration === d ? "#0d9488" : "#7c65a8", border:duration === d ? "1.5px solid rgba(13,148,136,0.35)" : "1.5px solid rgba(109,40,217,0.12)", transition:"all 0.15s" }}>{d}</button>
                     ))}
                   </div>
-                  <input
-                    className="wiz-input"
-                    type="text"
-                    value={duration}
-                    onChange={e => setDuration(e.target.value)}
-                    placeholder="Or type custom duration…"
-                  />
+                  <input className="wiz-input" type="text" value={duration} onChange={e => setDuration(e.target.value)} placeholder="Or type custom duration…" />
                 </div>
 
-                {/* Thumbnail URL */}
+                {/* Thumbnail — upload or paste URL */}
                 <div style={{ marginBottom:36 }}>
                   <label style={{ display:"block", fontSize:12, fontWeight:700, color:"#4a3880", marginBottom:8 }}>
-                    Thumbnail Image
-                    <span style={{ fontSize:10.5, fontWeight:500, color:"#a89dc8", marginLeft:8 }}>Optional</span>
+                    Thumbnail Image <span style={{ fontSize:10.5, fontWeight:500, color:"#a89dc8" }}>Optional</span>
                   </label>
-                  <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-                    <div style={{ width:64, height:48, borderRadius:10, flexShrink:0, overflow:"hidden", background:"linear-gradient(135deg,#4c1d95,#0d9488)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
+                    {/* Preview box */}
+                    <div
+                      onClick={() => thumbFileRef.current?.click()}
+                      style={{ width:64, height:48, borderRadius:10, flexShrink:0, overflow:"hidden", background:"linear-gradient(135deg,#4c1d95,#0d9488)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:"2px dashed rgba(109,40,217,0.2)" }}
+                      title="Click to upload"
+                    >
                       {thumbUrl
                         ? <img src={thumbUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={() => setThumbUrl("")} />
-                        : <span style={{ fontSize:22 }}>{previewIcon}</span>
+                        : <span style={{ fontSize:22 }}>{CAT_ICONS[cat] || "📚"}</span>
                       }
                     </div>
-                    <input
-                      className="wiz-input"
-                      type="text"
-                      value={thumbUrl}
-                      onChange={e => setThumbUrl(e.target.value)}
-                      placeholder="Paste image URL (optional)…"
-                      style={{ flex:1 }}
-                    />
+                    <div style={{ flex:1 }}>
+                      <input ref={thumbFileRef} type="file" accept="image/*" onChange={handleThumbFileSelect} style={{ display:"none" }} />
+                      <button
+                        onClick={() => thumbFileRef.current?.click()}
+                        disabled={uploadingThumb}
+                        style={{ marginBottom:8, padding:"7px 14px", borderRadius:9, border:"1.5px solid rgba(109,40,217,0.2)", background:"#f5f3ff", color:"#6d28d9", fontSize:11.5, fontWeight:700, cursor:"pointer", opacity:uploadingThumb ? 0.5 : 1 }}
+                      >
+                        {uploadingThumb ? "Uploading…" : "📤 Upload Image"}
+                      </button>
+                      <input className="wiz-input" type="text" value={thumbUrl} onChange={e => setThumbUrl(e.target.value)} placeholder="Or paste image URL (optional)…" style={{ flex:1 }} />
+                      {thumbUrl && (
+                        <button onClick={() => setThumbUrl("")} style={{ marginTop:4, fontSize:10, color:"#a89dc8", background:"none", border:"none", cursor:"pointer" }}>✕ Remove</button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -692,71 +857,62 @@ export default function CourseCreationWizard({
               </div>
             )}
 
-            {/* ─── STEP 3: Audience ─── */}
+            {/* ─── STEP 3: Audience — fetched from DB ─── */}
             {step === 3 && (
               <div>
                 <div style={{ marginBottom:36 }}>
                   <div style={{ fontSize:11, fontWeight:700, letterSpacing:".12em", textTransform:"uppercase", color:"rgba(14,165,233,0.8)", marginBottom:8 }}>Step 3 of 4</div>
-                  <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>
-                    Who's your <em style={{ color:"#0ea5e9" }}>audience?</em>
-                  </h2>
-                  <p style={{ fontSize:13.5, color:"#7c65a8", lineHeight:1.6 }}>
-                    Assign this course to specific client companies, or leave unselected to make it available to all.
-                  </p>
+                  <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>Who's your <em style={{ color:"#0ea5e9" }}>audience?</em></h2>
+                  <p style={{ fontSize:13.5, color:"#7c65a8", lineHeight:1.6 }}>Assign this course to specific client companies, or leave unselected to make it available to all.</p>
                 </div>
 
-                {/* Filters row */}
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap" }}>
-                  <label style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", fontSize:12, fontWeight:600, color:"#4a3880" }}>
-                    <input type="checkbox" checked={allSelected} onChange={e => toggleAll(e.target.checked)} style={{ width:13, height:13, accentColor:"#7c3aed" }} />
-                    All
-                  </label>
-                  <div style={{ width:1, height:18, background:"rgba(255,255,255,0.1)" }} />
-                  {["All","F&B","Retail","Warehouse"].map(ind => (
-                    <button key={ind}
-                      onClick={() => setIndFilter(ind)}
-                      style={{
-                        padding:"5px 12px", borderRadius:8, fontSize:11, fontWeight:600, cursor:"pointer",
-                        background: indFilter === ind ? "#ede9fe" : "#f5f3ff",
-                        color: indFilter === ind ? "#6d28d9" : "#7c65a8",
-                        border: indFilter === ind ? "1px solid rgba(109,40,217,0.35)" : "1px solid rgba(109,40,217,0.12)",
-                        transition:"all 0.14s",
-                      }}
-                    >{ind === "All" ? "All Industries" : ind}</button>
-                  ))}
-                  <div className="wiz-search" style={{ marginLeft:"auto", width:180 }}>
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#a89dc8" strokeWidth="1.6"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M11 11l3 3"/></svg>
-                    <input placeholder="Search companies…" value={coSearch} onChange={e => setCoSearch(e.target.value)} style={{ color:"#2d1f5e" }} />
-                  </div>
-                </div>
-
-                {/* Selected count */}
-                <div style={{ fontSize:11.5, color:"#a89dc8", marginBottom:12 }}>
-                  {selectedCos.size === 0
-                    ? "No companies selected — course will be visible to all"
-                    : `${selectedCos.size} compan${selectedCos.size === 1 ? "y" : "ies"} selected`
-                  }
-                </div>
-
-                {/* Company grid */}
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:8, marginBottom:36, maxHeight:360, overflowY:"auto", paddingRight:4 }}>
-                  {filteredClients.map((c, i) => (
-                    <div
-                      key={c.id}
-                      className={`wiz-company-item${selectedCos.has(c.id) ? " selected" : ""}`}
-                      onClick={() => toggleCo(c.id)}
-                    >
-                      <input type="checkbox" checked={selectedCos.has(c.id)} onChange={() => toggleCo(c.id)} onClick={e => e.stopPropagation()} style={{ accentColor:"#7c3aed", width:13, height:13 }} />
-                      <div style={{ width:30, height:30, borderRadius:8, background:CC_COLORS[i % CC_COLORS.length], display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, color:"white", flexShrink:0 }}>
-                        {c.name.split(" ").map((w:string) => w[0]).join("").slice(0,2).toUpperCase()}
-                      </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:12, fontWeight:600, color:"#0f0a2a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</div>
-                        <div style={{ fontSize:10, color:"#7c65a8" }}>{c.cat}</div>
+                {loadingCos ? (
+                  <div style={{ textAlign:"center", padding:40, fontSize:13, color:"#a89dc8" }}>Loading companies…</div>
+                ) : (
+                  <>
+                    {/* Filters */}
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+                      <label style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", fontSize:12, fontWeight:600, color:"#4a3880" }}>
+                        <input type="checkbox" checked={allSelected} onChange={e => toggleAll(e.target.checked)} style={{ width:13, height:13, accentColor:"#7c3aed" }} />
+                        All
+                      </label>
+                      {industries.map(ind => (
+                        <button key={ind} onClick={() => setIndFilter(ind)} style={{ padding:"5px 12px", borderRadius:8, fontSize:11, fontWeight:600, cursor:"pointer", background:indFilter === ind ? "#ede9fe" : "#f5f3ff", color:indFilter === ind ? "#6d28d9" : "#7c65a8", border:indFilter === ind ? "1px solid rgba(109,40,217,0.35)" : "1px solid rgba(109,40,217,0.12)", transition:"all 0.14s" }}>
+                          {ind === "All" ? "All Industries" : ind}
+                        </button>
+                      ))}
+                      <div className="wiz-search" style={{ marginLeft:"auto", width:180 }}>
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#a89dc8" strokeWidth="1.6"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M11 11l3 3"/></svg>
+                        <input placeholder="Search companies…" value={coSearch} onChange={e => setCoSearch(e.target.value)} style={{ color:"#2d1f5e" }} />
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    <div style={{ fontSize:11.5, color:"#a89dc8", marginBottom:12 }}>
+                      {selectedCos.size === 0
+                        ? "No companies selected — course will be visible to all"
+                        : `${selectedCos.size} compan${selectedCos.size === 1 ? "y" : "ies"} selected`}
+                    </div>
+
+                    {filteredCompanies.length === 0 ? (
+                      <div style={{ textAlign:"center", padding:24, color:"#a89dc8", fontSize:12 }}>No companies found</div>
+                    ) : (
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:8, marginBottom:36, maxHeight:360, overflowY:"auto", paddingRight:4 }}>
+                        {filteredCompanies.map((c, i) => (
+                          <div key={c.id} className={`wiz-company-item${selectedCos.has(c.id) ? " selected" : ""}`} onClick={() => toggleCo(c.id)}>
+                            <input type="checkbox" checked={selectedCos.has(c.id)} onChange={() => toggleCo(c.id)} onClick={e => e.stopPropagation()} style={{ accentColor:"#7c3aed", width:13, height:13 }} />
+                            <div style={{ width:30, height:30, borderRadius:8, background:CC_COLORS[i % CC_COLORS.length] || "#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, color:"white", flexShrink:0 }}>
+                              {c.name.split(" ").map((w:string) => w[0]).join("").slice(0,2).toUpperCase()}
+                            </div>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:12, fontWeight:600, color:"#0f0a2a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</div>
+                              <div style={{ fontSize:10, color:"#7c65a8" }}>{c.industry ?? "—"}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
 
                 <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
                   <button className="wiz-btn-back" onClick={() => goStep(2)}>
@@ -776,12 +932,8 @@ export default function CourseCreationWizard({
               <div>
                 <div style={{ marginBottom:24 }}>
                   <div style={{ fontSize:11, fontWeight:700, letterSpacing:".12em", textTransform:"uppercase", color:"rgba(236,72,153,0.8)", marginBottom:8 }}>Step 4 of 4</div>
-                  <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>
-                    How do you want to <em style={{ color:"#7c3aed" }}>save?</em>
-                  </h2>
-                  <p style={{ fontSize:13, color:"#7c65a8", lineHeight:1.6 }}>
-                    Save as a <strong>Draft</strong> to start building content right away, or as a <strong>Template</strong> to reuse this structure for future courses.
-                  </p>
+                  <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:32, fontWeight:700, color:"#0f0a2a", lineHeight:1.2, marginBottom:10 }}>How do you want to <em style={{ color:"#7c3aed" }}>save?</em></h2>
+                  <p style={{ fontSize:13, color:"#7c65a8", lineHeight:1.6 }}>Save as a <strong>Draft</strong> to start building content right away, or as a <strong>Template</strong> to reuse this structure.</p>
                 </div>
 
                 {/* Summary card */}
@@ -790,7 +942,10 @@ export default function CourseCreationWizard({
                   <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
                     <div style={{ width:68, height:52, borderRadius:10, overflow:"hidden", background:`linear-gradient(135deg,${grad[0]},${grad[1]})`, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, position:"relative" as const }}>
                       {thumbUrl ? <img src={thumbUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" as const, position:"absolute" as const, inset:0, opacity:0.4 }} /> : null}
-                      <span style={{ position:"relative" as const, zIndex:1 }}>{previewIcon}</span>
+                      {selectedIcon
+                        ? <img src={selectedIcon.url} alt="" style={{ width:32, height:32, objectFit:"contain", position:"relative", zIndex:1 }} />
+                        : <span style={{ position:"relative" as const, zIndex:1 }}>{CAT_ICONS[cat] || "📚"}</span>
+                      }
                     </div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:14, fontWeight:700, color:"#0f0a2a", marginBottom:4 }}>{title}</div>
@@ -805,34 +960,17 @@ export default function CourseCreationWizard({
 
                 {/* Mode selector */}
                 <div style={{ display:"flex", gap:12, marginBottom:28 }}>
-                  {/* Draft option */}
-                  <button
-                    onClick={() => setSaveMode("draft")}
-                    style={{ flex:1, padding:"16px 14px", borderRadius:14, border:`2px solid ${saveMode==="draft"?"#7c3aed":"rgba(109,40,217,0.14)"}`, background:saveMode==="draft"?"#f5f3ff":"#fafafa", cursor:"pointer", textAlign:"left" as const, fontFamily:"inherit", transition:"all .16s", boxShadow:saveMode==="draft"?"0 4px 18px rgba(124,58,237,0.18)":"none" }}>
+                  <button onClick={() => setSaveMode("draft")} style={{ flex:1, padding:"16px 14px", borderRadius:14, border:`2px solid ${saveMode==="draft"?"#7c3aed":"rgba(109,40,217,0.14)"}`, background:saveMode==="draft"?"#f5f3ff":"#fafafa", cursor:"pointer", textAlign:"left" as const, fontFamily:"inherit", transition:"all .16s", boxShadow:saveMode==="draft"?"0 4px 18px rgba(124,58,237,0.18)":"none" }}>
                     <div style={{ fontSize:26, marginBottom:8 }}>📝</div>
                     <div style={{ fontSize:13, fontWeight:800, color:saveMode==="draft"?"#6d28d9":"#0f0a2a", marginBottom:4 }}>Save as Draft</div>
                     <div style={{ fontSize:11, color:"#7c65a8", lineHeight:1.5 }}>Lands in the Workspace. Add modules, then promote to Catalog when ready.</div>
-                    {saveMode==="draft" && (
-                      <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:"#7c3aed" }}>
-                        <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 7l4 4 6-6"/></svg>
-                        Selected
-                      </div>
-                    )}
+                    {saveMode==="draft" && <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:"#7c3aed" }}><svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 7l4 4 6-6"/></svg>Selected</div>}
                   </button>
-
-                  {/* Template option */}
-                  <button
-                    onClick={() => setSaveMode("template")}
-                    style={{ flex:1, padding:"16px 14px", borderRadius:14, border:`2px solid ${saveMode==="template"?"#0ea5e9":"rgba(14,165,233,0.2)"}`, background:saveMode==="template"?"rgba(14,165,233,0.06)":"#fafafa", cursor:"pointer", textAlign:"left" as const, fontFamily:"inherit", transition:"all .16s", boxShadow:saveMode==="template"?"0 4px 18px rgba(14,165,233,0.18)":"none" }}>
+                  <button onClick={() => setSaveMode("template")} style={{ flex:1, padding:"16px 14px", borderRadius:14, border:`2px solid ${saveMode==="template"?"#0ea5e9":"rgba(14,165,233,0.2)"}`, background:saveMode==="template"?"rgba(14,165,233,0.06)":"#fafafa", cursor:"pointer", textAlign:"left" as const, fontFamily:"inherit", transition:"all .16s", boxShadow:saveMode==="template"?"0 4px 18px rgba(14,165,233,0.18)":"none" }}>
                     <div style={{ fontSize:26, marginBottom:8 }}>📋</div>
                     <div style={{ fontSize:13, fontWeight:800, color:saveMode==="template"?"#0369a1":"#0f0a2a", marginBottom:4 }}>Save as Template</div>
                     <div style={{ fontSize:11, color:"#7c65a8", lineHeight:1.5 }}>Saved to the Templates tab. Clone it any time to spin up new courses instantly.</div>
-                    {saveMode==="template" && (
-                      <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:"#0369a1" }}>
-                        <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 7l4 4 6-6"/></svg>
-                        Selected
-                      </div>
-                    )}
+                    {saveMode==="template" && <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:"#0369a1" }}><svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 7l4 4 6-6"/></svg>Selected</div>}
                   </button>
                 </div>
 
@@ -848,10 +986,10 @@ export default function CourseCreationWizard({
               </div>
             )}
 
-            {/* ─── SUCCESS ─── */}
+            {/* Success */}
             {launched && (
               <div style={{ textAlign:"center", paddingTop:40, animation:"wiz-pop 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
-                <div style={{ width:80, height:80, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#0d9488)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px", boxShadow:"0 12px 40px rgba(124,58,237,0.4)", animation:"wiz-pop 0.6s cubic-bezier(0.16,1,0.3,1) 0.1s both" }}>
+                <div style={{ width:80, height:80, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#0d9488)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 24px", boxShadow:"0 12px 40px rgba(124,58,237,0.4)" }}>
                   <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="white" strokeWidth="2.5"><path d="M6 18l8 8 16-16"/></svg>
                 </div>
                 <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:28, fontWeight:700, color:"#0f0a2a", marginBottom:10 }}>Draft Saved!</h2>
@@ -864,44 +1002,48 @@ export default function CourseCreationWizard({
       </div>
     </div>
 
-      {/* Modules prompt — overlays wizard, user must act before course is created */}
-      {showModulesPrompt && (
-        <div style={{ position:"fixed", inset:0, zIndex:700, background:"rgba(18,10,40,0.72)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", animation:"wiz-in 0.22s ease both" }}>
-          <div style={{ background:"#fff", borderRadius:20, width:"92%", maxWidth:440, overflow:"hidden", boxShadow:"0 24px 80px rgba(124,58,237,0.38)", border:"1.5px solid rgba(124,58,237,0.15)" }}>
-            <div style={{ height:5, background:"linear-gradient(90deg,#7c3aed,#0d9488)" }} />
-            <div style={{ padding:"28px 28px 26px", textAlign:"center" as const }}>
-              <div style={{ fontSize:52, marginBottom:12 }}>{pendingCourseData.current?.stage === "template" ? "📋" : "🎉"}</div>
-              <div style={{ fontSize:18, fontWeight:900, color:"#18103a", letterSpacing:"-.03em", marginBottom:8 }}>
-                {pendingCourseData.current?.stage === "template" ? "Template Saved!" : "Draft Saved!"}
-              </div>
-              <div style={{ fontSize:12.5, color:"#4a3870", lineHeight:1.65, marginBottom:20 }}>
-                {pendingCourseData.current?.stage === "template"
-                  ? <><strong style={{ color:"#0369a1" }}>"{title}"</strong> is saved as a Template. Find it in the <strong>Templates</strong> tab and clone it whenever you need a new course.</>
-                  : <><strong style={{ color:"#7c3aed" }}>"{title}"</strong> is now in your Workspace. Head there to add modules and chapters — then promote it to the Catalog when it's ready.</>
-                }
-              </div>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:22, background:"rgba(124,58,237,0.04)", borderRadius:10, padding:"12px 16px", border:"1.5px solid rgba(124,58,237,0.1)" }}>
-                {[{icon:"📝",label:"Modules"},{icon:"→",label:""},{icon:"📄",label:"Chapters"},{icon:"→",label:""},{icon:"🚀",label:"Promote!"}].map((s,i) =>
-                  s.icon === "→"
-                    ? <span key={i} style={{ color:"#c4bdd8", fontSize:14 }}>→</span>
-                    : <div key={i} style={{ display:"flex", flexDirection:"column" as const, alignItems:"center", gap:3 }}>
-                        <span style={{ fontSize:20 }}>{s.icon}</span>
-                        <span style={{ fontSize:9, fontWeight:700, color:"#a89dc8", textTransform:"uppercase" as const, letterSpacing:".05em" }}>{s.label}</span>
-                      </div>
-                )}
-              </div>
-              <div style={{ display:"flex", flexDirection:"column" as const, gap:9 }}>
-                <button onClick={handleDismissPrompt} style={{ width:"100%", padding:"13px", borderRadius:10, border:"none", background:pendingCourseData.current?.stage==="template"?"linear-gradient(135deg,#0ea5e9,#0284c7)":"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:13.5, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:pendingCourseData.current?.stage==="template"?"0 4px 18px rgba(14,165,233,0.35)":"0 4px 18px rgba(124,58,237,0.35)", fontFamily:"inherit" }}>
-                  {pendingCourseData.current?.stage === "template"
-                    ? <><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><rect x="1.5" y="1.5" width="11" height="11" rx="2"/><path d="M4 5h6M4 7h6M4 9h4"/></svg> Go to Templates</>
-                    : <><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M2 4l5-2 5 2v4c0 2-2 3.5-5 4.5-3-1-5-2.5-5-4.5V4z"/></svg> Go to Workspace</>
-                  }
-                </button>
-              </div>
+    {/* Modules prompt */}
+    {showModulesPrompt && (
+      <div style={{ position:"fixed", inset:0, zIndex:700, background:"rgba(18,10,40,0.72)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"center", animation:"wiz-in 0.22s ease both" }}>
+        <div style={{ background:"#fff", borderRadius:20, width:"92%", maxWidth:440, overflow:"hidden", boxShadow:"0 24px 80px rgba(124,58,237,0.38)", border:"1.5px solid rgba(124,58,237,0.15)" }}>
+          <div style={{ height:5, background:"linear-gradient(90deg,#7c3aed,#0d9488)" }} />
+          <div style={{ padding:"28px 28px 26px", textAlign:"center" as const }}>
+            <div style={{ fontSize:52, marginBottom:12 }}>{pendingCourseData.current?.stage === "template" ? "📋" : "🎉"}</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#18103a", letterSpacing:"-.03em", marginBottom:8 }}>
+              {pendingCourseData.current?.stage === "template" ? "Template Saved!" : "Draft Saved!"}
             </div>
+            <div style={{ fontSize:12.5, color:"#4a3870", lineHeight:1.65, marginBottom:20 }}>
+              {pendingCourseData.current?.stage === "template"
+                ? <><strong style={{ color:"#0369a1" }}>"{title}"</strong> is saved as a Template. Find it in the <strong>Templates</strong> tab and clone it whenever you need a new course.</>
+                : <><strong style={{ color:"#7c3aed" }}>"{title}"</strong> is now in your Workspace. Head there to add modules and chapters — then promote it to the Catalog when it's ready.</>
+              }
+            </div>
+            <button onClick={handleDismissPrompt} style={{ width:"100%", padding:13, borderRadius:10, border:"none", background:pendingCourseData.current?.stage==="template"?"linear-gradient(135deg,#0ea5e9,#0284c7)":"linear-gradient(135deg,#7c3aed,#0d9488)", color:"#fff", fontSize:13.5, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:pendingCourseData.current?.stage==="template"?"0 4px 18px rgba(14,165,233,0.35)":"0 4px 18px rgba(124,58,237,0.35)", fontFamily:"inherit" }}>
+              {pendingCourseData.current?.stage === "template" ? "Go to Templates" : "Go to Workspace"}
+            </button>
           </div>
         </div>
-      )}
+      </div>
+    )}
+
+    {/* Icon cropper */}
+    {iconCropFile && (
+      <IconCropper
+        file={iconCropFile}
+        onConfirm={handleIconCropConfirm}
+        onCancel={() => setIconCropFile(null)}
+      />
+    )}
+
+    {/* Thumbnail cropper */}
+    {thumbCropFile && (
+      <ThumbnailCropper
+        file={thumbCropFile}
+        courseTitle={title || "Course Preview"}
+        onConfirm={handleThumbCropConfirm}
+        onCancel={() => setThumbCropFile(null)}
+      />
+    )}
     </>
   );
 }

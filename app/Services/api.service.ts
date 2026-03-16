@@ -2,7 +2,9 @@
 // DEBUG BUILD — verbose logs on every request to help trace issues.
 // Search for "🔵", "✅", "❌" in the browser console.
 
-const API_BASE_URL = 'http://localhost/api';
+// Relative URL — routes through Next.js proxy (next.config.ts rewrites /api/* → Laravel)
+// Never use http://localhost/api directly — that bypasses the proxy and breaks cookies/CORS
+const API_BASE_URL = '/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared types
@@ -169,6 +171,12 @@ export interface PortalUser {
   created_at?: string;
 }
 
+export interface CourseIcon {
+  id: number;
+  url: string;
+  name: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -213,10 +221,6 @@ async function apiRequest<T>(
     }
   }
 
-  // FIX: Removed hardcoded 'X-User-Id': '1'.
-  // Auth is session/cookie-based via Laravel Sanctum — the backend
-  // scopes all queries to the authenticated user automatically.
-  // Sending a hardcoded ID was wrong and could cause data leaks.
   try {
     const response = await fetch(fullUrl, {
       headers: {
@@ -225,7 +229,7 @@ async function apiRequest<T>(
         ...csrfHeaders,
         ...options.headers,
       },
-      credentials: 'include', // sends the Sanctum session cookie
+      credentials: 'include',
       ...options,
     });
 
@@ -331,14 +335,10 @@ export const activitiesAPI = {
 // Progress
 // ─────────────────────────────────────────────────────────────────────────────
 export const progressAPI = {
-  // FIX: Added `user_id` as an optional filter so callers can explicitly
-  // scope requests when needed (e.g. admin viewing another user's progress).
-  // For the logged-in user's own progress, omit user_id — Laravel Sanctum
-  // session scopes the query automatically via Auth::user().
   getAll: async (filters?: {
     company?:  string;
     status?:   string;
-    user_id?:  number; // optional override; omit for own progress
+    user_id?:  number;
   }): Promise<ApiResponse<UserProgress[]>> => {
     const params = new URLSearchParams();
     if (filters?.company) params.append('company', filters.company);
@@ -351,16 +351,10 @@ export const progressAPI = {
     apiRequest('/progress', { method: 'POST', body: JSON.stringify(progress) }),
   update: async (id: number, progress: Partial<UserProgress>): Promise<ApiResponse<{ message: string }>> =>
     apiRequest(`/progress/${id}`, { method: 'PUT', body: JSON.stringify(progress) }),
-
-  // Per-user chapter completion — backed by user_chapter_progress table.
-  // Pass course_id to scope to a single course's chapters.
   getChapterProgress: async (courseId?: number): Promise<ApiResponse<{ chapter_id: number; done: boolean }[]>> => {
     const query = courseId ? `?course_id=${courseId}` : '';
     return apiRequest(`/progress/chapters${query}`, { method: 'GET' });
   },
-
-  // Per-user module completion — backed by user_module_progress table.
-  // Pass course_id to scope to a single course's modules.
   getModuleProgress: async (courseId?: number): Promise<ApiResponse<{ module_id: number; done: boolean }[]>> => {
     const query = courseId ? `?course_id=${courseId}` : '';
     return apiRequest(`/progress/modules${query}`, { method: 'GET' });
@@ -499,7 +493,7 @@ export const portalUsersAPI = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Clients, Settings, Upload
+// Clients
 // ─────────────────────────────────────────────────────────────────────────────
 export const clientsAPI = {
   getAll: async (): Promise<ApiResponse<any[]>> =>
@@ -510,34 +504,103 @@ export const clientsAPI = {
     apiRequest<Course[]>(`/clients/${id}/courses`, { method: 'GET' }),
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Settings  (categories + colors — persisted to DB via SettingsController)
+// ─────────────────────────────────────────────────────────────────────────────
 export const settingsAPI = {
   getAll: async (): Promise<ApiResponse<{ categories: string[]; colors: string[] }>> =>
     apiRequest('/settings', { method: 'GET' }),
+
   getCategories: async (): Promise<ApiResponse<string[]>> =>
     apiRequest<string[]>('/settings/categories', { method: 'GET' }),
+
   getColors: async (): Promise<ApiResponse<string[]>> =>
     apiRequest<string[]>('/settings/colors', { method: 'GET' }),
+
   createCategory: async (name: string): Promise<ApiResponse<{ message: string }>> =>
     apiRequest('/settings/categories', { method: 'POST', body: JSON.stringify({ name }) }),
+
   deleteCategory: async (name: string): Promise<ApiResponse<{ message: string }>> =>
     apiRequest(`/settings/categories/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+
+  /** Rename an existing category — PUT /api/settings/categories/{oldName} */
+  renameCategory: async (
+    oldName: string,
+    newName: string,
+  ): Promise<ApiResponse<{ message: string; name: string }>> =>
+    apiRequest(`/settings/categories/${encodeURIComponent(oldName)}`, {
+      method: 'PUT',
+      body:   JSON.stringify({ name: newName }),
+    }),
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Upload  (generic file upload — thumbnails etc.)
+// ─────────────────────────────────────────────────────────────────────────────
 export const uploadAPI = {
-  uploadFile: async (file: File): Promise<ApiResponse<{ url: string; name: string; size: number; type: string }>> => {
+  uploadFile: async (
+    file: File,
+  ): Promise<ApiResponse<{ url: string; name: string; size: number; type: string }>> => {
     const formData = new FormData();
     formData.append('file', file);
+    const url = `${API_BASE_URL}/upload`;
+    console.log('[uploadFile] 🔵 POST', url, '| file:', file.name, file.size, file.type);
     try {
       const token = getCsrfToken();
-      // FIX: Removed hardcoded 'X-User-Id': '1' here too
-      const headers: Record<string, string> = {};
-      if (token) headers['X-XSRF-TOKEN'] = token;
-      const response = await fetch(`${API_BASE_URL}/upload`, {
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (token) { headers['X-XSRF-TOKEN'] = token; console.log('[uploadFile] 🔐 CSRF attached'); }
+      else { console.warn('[uploadFile] ⚠️ No CSRF token found'); }
+      const response = await fetch(url, {
         method: 'POST', body: formData, headers, credentials: 'include',
       });
-      const text = await response.text();
+      const text        = await response.text();
       const contentType = response.headers.get('content-type') ?? '';
-      if (!contentType.includes('application/json')) return { success: false, error: 'Upload returned HTML not JSON' };
+      console.log('[uploadFile] 📥 Status:', response.status, '| Content-Type:', contentType);
+      console.log('[uploadFile] 📥 Body:', text.substring(0, 300));
+      if (!contentType.includes('application/json')) {
+        console.error('[uploadFile] ❌ Not JSON — got:', contentType);
+        return { success: false, error: 'Upload returned HTML not JSON' };
+      }
+      const data = JSON.parse(text);
+      if (!response.ok) {
+        console.error('[uploadFile] ❌ HTTP', response.status, data);
+        return { success: false, error: data.error || data.message || 'Upload failed' };
+      }
+      console.log('[uploadFile] ✅ Success:', data);
+      return { success: true, data };
+    } catch (error) {
+      console.error('[uploadFile] ❌ Exception:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Upload failed' };
+    }
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Course Icons  (user-specific icon uploads — scoped to auth user)
+// ─────────────────────────────────────────────────────────────────────────────
+export const courseIconAPI = {
+  /** GET /api/course-icons — list all icons for the current user */
+  getAll: async (): Promise<ApiResponse<CourseIcon[]>> =>
+    apiRequest<CourseIcon[]>('/course-icons', { method: 'GET' }),
+
+  /**
+   * POST /api/course-icons  (multipart/form-data, field: "icon")
+   * Cannot use apiRequest() because it sends FormData, not JSON.
+   */
+  upload: async (file: File): Promise<ApiResponse<CourseIcon>> => {
+    const formData = new FormData();
+    formData.append('icon', file);
+    try {
+      const token = getCsrfToken();
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (token) headers['X-XSRF-TOKEN'] = token;
+      const response = await fetch(`${API_BASE_URL}/course-icons`, {
+        method: 'POST', body: formData, headers, credentials: 'include',
+      });
+      const text        = await response.text();
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json'))
+        return { success: false, error: 'Upload returned non-JSON response' };
       const data = JSON.parse(text);
       if (!response.ok) return { success: false, error: data.error || data.message || 'Upload failed' };
       return { success: true, data };
@@ -545,8 +608,15 @@ export const uploadAPI = {
       return { success: false, error: error instanceof Error ? error.message : 'Upload failed' };
     }
   },
+
+  /** DELETE /api/course-icons/{id} — owner only */
+  delete: async (id: number): Promise<ApiResponse<{ message: string }>> =>
+    apiRequest(`/course-icons/${id}`, { method: 'DELETE' }),
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth
+// ─────────────────────────────────────────────────────────────────────────────
 export const authAPI = {
   getUser: async (): Promise<ApiResponse<AuthUser>> => {
     console.log('[auth] getUser → GET /api/user');
@@ -583,6 +653,7 @@ export const api = {
   clients:       clientsAPI,
   settings:      settingsAPI,
   upload:        uploadAPI,
+  courseIcons:   courseIconAPI,
   auth:          authAPI,
 };
 

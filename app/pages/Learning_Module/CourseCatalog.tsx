@@ -382,7 +382,7 @@ export default function CourseCatalog({
                 const chCount     = c.modules?.reduce((s, m) => s + m.chapters.length, 0) ?? 0;
                 const missingHard = checks.filter(ch => !ch.ok && !ch.warn).map(ch => ch.label);
                 const grad        = THUMB_GRADIENTS[realIdx % THUMB_GRADIENTS.length];
-                const icon        = CAT_ICONS[c.cat] || c.thumbEmoji || "📚";
+                const icon        = (() => { const te = (c as any).thumb_emoji || c.thumbEmoji; return CAT_ICONS[c.cat] || te || "📚"; })();
                 const barColor    = score>=100?"#0d9488": score>=60?"#7c3aed": score>=30?"#d97706":"#dc2626";
 
                 return (
@@ -395,9 +395,14 @@ export default function CourseCatalog({
                     {/* Book spine */}
                     <div className="ws-spine" style={{ background:`linear-gradient(160deg,${grad[0]},${grad[1]})` }}>
                       <div style={{ position:"absolute", inset:0, backgroundImage:THUMB_PATTERNS[realIdx % THUMB_PATTERNS.length], backgroundSize:"16px 16px", opacity:0.25 }} />
+                      {c.thumb && <img src={c.thumb} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:0.4, mixBlendMode:"luminosity" }} />}
                       <div style={{ position:"relative", zIndex:1 }}>
                         <ReadinessRing score={score} color={barColor} size={50} />
-                        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{icon}</div>
+                        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+                          {icon && icon.startsWith("http")
+                            ? <img src={icon} alt="" style={{ width:36, height:36, objectFit:"contain", borderRadius:6 }} />
+                            : icon}
+                        </div>
                       </div>
                     </div>
 
@@ -475,7 +480,7 @@ export default function CourseCatalog({
               const c    = courses[heroIdx];
               const grad = THUMB_GRADIENTS[heroIdx % THUMB_GRADIENTS.length];
               const pat  = THUMB_PATTERNS[heroIdx % THUMB_PATTERNS.length];
-              const icon = CAT_ICONS[c.cat] || c.thumbEmoji || "📚";
+              const icon = (() => { const te = (c as any).thumb_emoji || c.thumbEmoji; return CAT_ICONS[c.cat] || te || "📚"; })();
               const modCount = c.modules?.length ?? 0;
               const chCount  = c.modules?.reduce((s, m) => s + m.chapters.length, 0) ?? 0;
               return (
@@ -516,7 +521,7 @@ export default function CourseCatalog({
                 const chCount  = c.modules?.reduce((s, m) => s + m.chapters.length, 0) ?? 0;
                 const grad     = THUMB_GRADIENTS[realIdx % THUMB_GRADIENTS.length];
                 const pat      = THUMB_PATTERNS[realIdx % THUMB_PATTERNS.length];
-                const icon     = CAT_ICONS[c.cat] || c.thumbEmoji || "📚";
+                const icon     = (() => { const te = (c as any).thumb_emoji || c.thumbEmoji; return CAT_ICONS[c.cat] || te || "📚"; })();
                 const progPct  = typeof c.progress === 'number' ? c.progress : 0;
                 const isCompleted = c.completed === true || progPct >= 100;
                 return (
@@ -529,7 +534,11 @@ export default function CourseCatalog({
                       <div style={{ position:"absolute", top:12, right:12, padding:"3px 8px", borderRadius:20, background:"rgba(21,128,61,0.85)", backdropFilter:"blur(6px)", fontSize:9, fontWeight:700, color:"#fff", display:"flex", alignItems:"center", gap:4 }}>
                         <span style={{ width:5, height:5, borderRadius:"50%", background:"rgba(255,255,255,0.85)" }} />Published
                       </div>
-                      <div className="cc3-emoji" style={{ position:"absolute", bottom:14, left:16, fontSize:54, lineHeight:1, filter:"drop-shadow(0 6px 16px rgba(0,0,0,0.35))", userSelect:"none" as const }}>{icon}</div>
+                      <div className="cc3-emoji" style={{ position:"absolute", bottom:14, left:16, fontSize:54, lineHeight:1, filter:"drop-shadow(0 6px 16px rgba(0,0,0,0.35))", userSelect:"none" as const }}>
+                        {icon && icon.startsWith("http")
+                          ? <img src={icon} alt="" style={{ width:54, height:54, objectFit:"contain", borderRadius:8 }} />
+                          : icon}
+                      </div>
                       {progPct > 0 && (
                         <div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(0,0,0,0.3)" }}>
                           <div style={{ height:"100%", width:`${progPct}%`, background:"rgba(255,255,255,0.85)", borderRadius:"0 2px 2px 0" }} />
@@ -596,7 +605,7 @@ export default function CourseCatalog({
                 const chCount  = c.modules?.reduce((s, m) => s + m.chapters.length, 0) ?? 0;
                 const grad     = THUMB_GRADIENTS[realIdx % THUMB_GRADIENTS.length];
                 const pat      = THUMB_PATTERNS[realIdx % THUMB_PATTERNS.length];
-                const icon     = CAT_ICONS[c.cat] || c.thumbEmoji || "📚";
+                const icon     = (() => { const te = (c as any).thumb_emoji || c.thumbEmoji; return CAT_ICONS[c.cat] || te || "📚"; })();
                 const isCloning = cloningIdx === realIdx;
                 return (
                   <div key={i} className="cc3-tpl-card" style={{ animation:`cc3-up .3s ease ${i*0.05}s both` }}>

@@ -352,48 +352,57 @@ const CoverPhotoCropper: React.FC<CoverPhotoCropperProps> = ({
   return (
     <div style={{
       position: "fixed", inset: 0,
-      background: "rgba(10,6,30,0.82)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
+      background: "rgba(10,6,30,0.85)",
+      backdropFilter: "blur(8px)",
+      WebkitBackdropFilter: "blur(8px)",
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 10020, padding: "16px",
       fontFamily: "'DM Sans', sans-serif",
     }}>
       <div style={{
         background: "#fff",
-        borderRadius: 20,
+        borderRadius: 24,
         width: "100%", maxWidth: 860,
-        boxShadow: "0 32px 80px rgba(0,0,0,0.4)",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.45)",
         overflow: "hidden",
         display: "flex", flexDirection: "column",
       }}>
 
         {/* ── Header ────────────────────────────────────────────────────── */}
         <div style={{
-          padding: "16px 22px",
+          padding: "18px 22px 14px",
+          background: "linear-gradient(135deg,rgba(124,58,237,0.05),rgba(13,148,136,0.04))",
           borderBottom: "1px solid rgba(124,58,237,0.1)",
           display: "flex", alignItems: "center", justifyContent: "space-between",
           flexShrink: 0,
         }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#18103a" }}>
-              Crop Cover Photo
-            </div>
-            <div style={{ fontSize: 11, color: "#8e7ec0", marginTop: 2 }}>
-              Drag to pan · Scroll or pinch to zoom · {Math.round(aspectRatio * 100) / 100}:1 aspect ratio
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 11,
+              background: "linear-gradient(135deg,#7c3aed,#0d9488)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 14px rgba(124,58,237,0.3)", fontSize: 18,
+            }}>🖼️</div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#18103a", letterSpacing: "-.01em" }}>
+                Crop Cover Photo
+              </div>
+              <div style={{ fontSize: 11, color: "#8e7ec0", marginTop: 2 }}>
+                Drag to pan · Scroll or pinch to zoom · {Math.round(aspectRatio * 100) / 100}:1 aspect ratio
+              </div>
             </div>
           </div>
           <button
             onClick={onCancel}
             style={{
-              width: 32, height: 32, borderRadius: 8,
-              border: "1px solid rgba(124,58,237,0.15)",
-              background: "#fff", cursor: "pointer",
+              width: 32, height: 32, borderRadius: 9,
+              border: "1.5px solid rgba(124,58,237,0.15)",
+              background: "#f5f3ff", cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
               color: "#8e7ec0",
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2">
               <path d="M3 3l10 10M13 3L3 13"/>
             </svg>
           </button>
@@ -463,8 +472,9 @@ const CoverPhotoCropper: React.FC<CoverPhotoCropperProps> = ({
 
         {/* ── Controls bar ──────────────────────────────────────────────── */}
         <div style={{
-          padding: "12px 22px",
+          padding: "14px 22px",
           borderTop: "1px solid rgba(124,58,237,0.08)",
+          background: "#faf9ff",
           display: "flex", alignItems: "center", gap: 10,
           flexWrap: "wrap",
           flexShrink: 0,
@@ -476,7 +486,7 @@ const CoverPhotoCropper: React.FC<CoverPhotoCropperProps> = ({
               style={btnStyle}
               title="Zoom out"
             >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="7" cy="7" r="5"/><path d="M12 12l3 3M5 7h4"/>
               </svg>
             </button>
@@ -510,7 +520,7 @@ const CoverPhotoCropper: React.FC<CoverPhotoCropperProps> = ({
               style={btnStyle}
               title="Zoom in"
             >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="7" cy="7" r="5"/><path d="M12 12l3 3M5 7h4M7 5v4"/>
               </svg>
             </button>
@@ -519,7 +529,7 @@ const CoverPhotoCropper: React.FC<CoverPhotoCropperProps> = ({
               fontSize: 11, fontWeight: 700, color: "#7c3aed",
               background: "rgba(124,58,237,0.08)",
               padding: "3px 8px", borderRadius: 6,
-              minWidth: 44, textAlign: "center",
+              minWidth: 44, textAlign: "center" as const,
             }}>
               {zoomPct}%
             </span>
@@ -549,8 +559,8 @@ const CoverPhotoCropper: React.FC<CoverPhotoCropperProps> = ({
             <button
               onClick={onCancel}
               style={{
-                padding: "8px 16px", borderRadius: 8,
-                border: "1px solid rgba(124,58,237,0.18)",
+                padding: "9px 18px", borderRadius: 9,
+                border: "1.5px solid rgba(124,58,237,0.18)",
                 background: "#fff", fontSize: 12, fontWeight: 600,
                 cursor: "pointer", color: "#4a3870", fontFamily: "inherit",
               }}
@@ -561,18 +571,20 @@ const CoverPhotoCropper: React.FC<CoverPhotoCropperProps> = ({
               onClick={handleConfirm}
               disabled={!imageReady}
               style={{
-                padding: "8px 20px", borderRadius: 8, border: "none",
+                padding: "9px 22px", borderRadius: 9, border: "none",
                 background: imageReady
-                  ? "linear-gradient(135deg,#7c3aed,#6d28d9)"
+                  ? "linear-gradient(135deg,#7c3aed,#0d9488)"
                   : "#d1d5db",
                 fontSize: 12, fontWeight: 700,
                 cursor: imageReady ? "pointer" : "not-allowed",
                 color: "#fff", fontFamily: "inherit",
-                display: "flex", alignItems: "center", gap: 6,
+                display: "flex", alignItems: "center", gap: 7,
+                boxShadow: imageReady ? "0 4px 14px rgba(124,58,237,0.3)" : "none",
+                transition: "all 0.15s",
               }}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M2 8h10M9 5l3 3-3 3"/>
+                <path d="M13 5l-7 7-3-3"/>
               </svg>
               Apply Crop
             </button>
@@ -581,18 +593,20 @@ const CoverPhotoCropper: React.FC<CoverPhotoCropperProps> = ({
 
         {/* Tip bar */}
         <div style={{
-          padding: "8px 22px 10px",
-          background: "rgba(124,58,237,0.03)",
+          padding: "12px 22px 14px",
+          background: "rgba(124,58,237,0.02)",
           borderTop: "1px solid rgba(124,58,237,0.07)",
-          display: "flex", alignItems: "center", gap: 6,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
           flexShrink: 0,
         }}>
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#8e7ec0" strokeWidth="1.5">
-            <circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5.5v.5"/>
-          </svg>
-          <span style={{ fontSize: 10.5, color: "#8e7ec0" }}>
-            Output: {outputSize.w} × {outputSize.h}px · The white border is the crop frame — everything inside will be saved
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#a89dc8" strokeWidth="1.5">
+              <circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5.5v.5"/>
+            </svg>
+            <span style={{ fontSize: 10.5, color: "#a89dc8" }}>
+              Output: {outputSize.w} × {outputSize.h}px · Drag to reposition · Everything inside the border is saved
+            </span>
+          </div>
         </div>
       </div>
 
@@ -609,7 +623,7 @@ const btnStyle: React.CSSProperties = {
   width: 28, height: 28,
   display: "flex", alignItems: "center", justifyContent: "center",
   borderRadius: 7,
-  border: "1px solid rgba(124,58,237,0.15)",
+  border: "1.5px solid rgba(124,58,237,0.15)",
   background: "#fff",
   color: "#4a3870",
   cursor: "pointer",
