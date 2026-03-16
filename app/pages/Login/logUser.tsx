@@ -13,6 +13,7 @@ import {
   initSwipeGestures,
 } from "./loginUtils";
 import RippleCanvas from "../../Effects/RippleCanvas";
+import clearAuthCookies from "../../Utils/clearAuthCookies";
 
 /* ── Laravel Fortify API ─────────────────────────────────── */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost//";
@@ -39,8 +40,20 @@ async function csrfCookie(): Promise<void> {
 }
 
 if (typeof window !== "undefined") {
+  // Hit Laravel's logout endpoint first so the server expires the session
+  // cookie from its side — JS alone cannot delete cookies set on a
+  // different port (Laravel on :80, Next.js on :3000).
   console.log("[Auth][CSRF] Pre-warming on page load…");
-  csrfCookie().catch(() => {});
+  fetch(`${API_BASE}/logout`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+  })
+    .catch(() => {}) // ignore — session may already be dead
+    .finally(() => {
+      clearAuthCookies({ resetCsrf: () => { _csrfPromise = null; } });
+      csrfCookie().catch(() => {});
+    });
 }
 
 function getXsrfToken(): string {
@@ -84,6 +97,7 @@ async function fortifyLogin(email: string, password: string, remember: boolean) 
     });
   } catch (err) {
     console.error(`[Auth] ❌ POST /login FAILED after ${(performance.now() - tLogin0).toFixed(0)} ms — CORS or network issue:`, err);
+    clearAuthCookies({ resetCsrf: () => { _csrfPromise = null; } });
     console.groupEnd();
     throw err;
   }
@@ -105,6 +119,7 @@ async function fortifyLogin(email: string, password: string, remember: boolean) 
 
   const data = await res.json().catch(() => ({}));
   console.error(`[Auth] ❌ Login failed (${res.status}) after ${(performance.now() - t0).toFixed(0)} ms`, data);
+  clearAuthCookies({ resetCsrf: () => { _csrfPromise = null; } });
   console.groupEnd();
   const message = data?.message || data?.errors?.email?.[0] || "Invalid credentials.";
   throw new Error(message);
@@ -122,12 +137,14 @@ async function getAuthUser(): Promise<AuthUser> {
     });
   } catch (err) {
     console.error(`[Auth] ❌ GET /api/user FAILED after ${(performance.now() - t0).toFixed(0)} ms`, err);
+    clearAuthCookies({ resetCsrf: () => { _csrfPromise = null; } });
     throw err;
   }
   console.log(`[Auth] GET /api/user responded ${res.status} in ${(performance.now() - t0).toFixed(0)} ms`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     console.error("[Auth] ❌ /api/user rejected:", body);
+    clearAuthCookies({ resetCsrf: () => { _csrfPromise = null; } });
     throw new Error("Could not fetch user.");
   }
   const user: AuthUser = await res.json();

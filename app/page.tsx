@@ -27,14 +27,14 @@
 
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import LoginAdmin, { AuthUser } from "./pages/Login/logUser";
 import DashboardAdmin           from "./pages/Dashboard_Admin_Main/DashboardAdmin";
 import ClientPortal             from "./pages/Client_Admin/ClientPortal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-export type UserRole     = "admin" | "user";
+export type UserRole     = "admin" | "manager" | "user";
 export type UserIndustry = "fnb" | "retail" | "warehouse" | null;
 
 interface AuthState {
@@ -86,22 +86,20 @@ export default function Home() {
     setMounted(true);
   }, []);
 
-  // Hold off rendering until sessionStorage has been read
-  if (!mounted) return null;
-
-  // Called by logUser.tsx on successful login
-  const handleLoginSuccess = (role: UserRole, industry: UserIndustry, user: AuthUser) => {
+  const handleLoginSuccess = useCallback((role: UserRole, industry: UserIndustry, user: AuthUser) => {
     const next: AuthState = { role, industry, user };
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
     setAuth(next);
-  };
+  }, []);
 
-  // Called by any Sign Out button
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await fortifyLogout();
     sessionStorage.removeItem(SESSION_KEY);
     setAuth(null);
-  };
+  }, []);
+
+  // Hold off rendering until sessionStorage has been read
+  if (!mounted) return null;
 
   // ── Not logged in ──
   if (!auth) {
@@ -113,8 +111,8 @@ export default function Home() {
     return <DashboardAdmin user={auth.user} onLogout={handleLogout} />;
   }
 
-  // ── Client user → industry-specific portal ──
-  if (auth.role === "user") {
+  // ── Client user / manager → industry-specific portal ──
+  if (auth.role === "user" || auth.role === "manager") {
     return <ClientPortal industry={auth.industry} user={auth.user} onLogout={handleLogout} />;
   }
 

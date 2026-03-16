@@ -1,14 +1,13 @@
 /**
  * RetailOverviewPage.tsx
  * MERGED: UI/layout from CSS-variable version + live DB logic from migrated version.
- * - Live data: useOverviewData() hook (branches, posDevices, licenses, uiNotifs)
- * - UI: Hero banner, stat cards, General Info panel, POS grid with branch grouping,
- *       MSA modal, Branch modal, POS modal, Edit Info modal, Filter popover, Toast
+ * + Cover photo cropper (CoverPhotoCropper) + brand colour picker (ColorPickerModal)
+ *   copied from OverviewPage.tsx
  */
 
 'use client'
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   useOverviewData,
   type Branch,
@@ -18,6 +17,8 @@ import {
 import { type AuthUser } from "../../Services/api.service";
 import Sidebar from "../Sidebar_Client/sidebar_client";
 import Header from "../Header_Client/header_client";
+import CoverPhotoCropper from "../../Components/CoverPhotoCropper";
+import BranchPOSPanel from "../../Components/BranchPOSPanel";
 import "../../globals.css";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -28,6 +29,92 @@ interface Props {
   user?:       AuthUser | null;
   onLogout?:   () => void;
   onNavigate?: (view: CPView) => void;
+}
+
+// ─── Branding state ───────────────────────────────────────────────────────────
+
+interface BrandingState {
+  coverPhotoUrl:   string | null;   // persisted URL from backend
+  coverPhotoLocal: string | null;   // optimistic local preview
+  brandColor:      string | null;   // persisted hex colour
+  derivedColor:    string | null;   // auto-extracted from logo
+  saving:          boolean;
+  savingColor:     boolean;
+}
+
+// ─── Logo colour extraction ───────────────────────────────────────────────────
+
+async function extractDominantColor(imageSrc: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const SIZE = 40;
+      canvas.width = SIZE;
+      canvas.height = SIZE;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve("#000"); return; }
+      ctx.drawImage(img, 0, 0, SIZE, SIZE);
+      const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
+      const buckets: Record<string, number> = {};
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+        if (a < 128) continue;
+        if (r > 220 && g > 220 && b > 220) continue;
+        const key = `${Math.round(r / 32) * 32},${Math.round(g / 32) * 32},${Math.round(b / 32) * 32}`;
+        buckets[key] = (buckets[key] ?? 0) + 1;
+      }
+      const top = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0];
+      if (!top) { resolve("#000"); return; }
+      const [rr, gg, bb] = top[0].split(",").map(Number);
+      resolve("#" + [rr, gg, bb].map(v => v.toString(16).padStart(2, "0")).join(""));
+    };
+    img.onerror = () => resolve("#000");
+    img.src = imageSrc;
+  });
+}
+
+// ─── API calls ────────────────────────────────────────────────────────────────
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+async function uploadCoverPhoto(companyId: number, file: File): Promise<string> {
+  const form = new FormData();
+  form.append("cover_photo", file);
+  const res = await fetch(`${API_BASE}/api/companies/${companyId}/cover-photo`, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+    headers: { "X-XSRF-TOKEN": getCsrfToken() },
+  });
+  if (!res.ok) throw new Error("Upload failed");
+  const json = await res.json();
+  return json.cover_photo_url as string;
+}
+
+async function saveBrandColor(companyId: number, color: string | null): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/companies/${companyId}/brand-color`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-XSRF-TOKEN": getCsrfToken(),
+    },
+    credentials: "include",
+    body: JSON.stringify({ brand_color: color }),
+  });
+  if (!res.ok) throw new Error("Color save failed");
+}
+
+async function fetchBranding(companyId: number): Promise<{ cover_photo_url: string | null; brand_color: string | null }> {
+  const res = await fetch(`${API_BASE}/api/companies/${companyId}/branding`, { credentials: "include" });
+  if (!res.ok) throw new Error("Fetch failed");
+  return res.json();
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -65,6 +152,124 @@ function useClickOutside<T extends HTMLElement>(cb: () => void) {
   }, [cb]);
   return ref;
 }
+
+// ─── Colour picker modal ──────────────────────────────────────────────────────
+
+const PRESET_COLORS = [
+  "#f97316", "#ea580c", "#dc2626", "#e11d48",
+  "#db2777", "#9333ea", "#7c3aed", "#4f46e5",
+  "#2563eb", "#0284c7", "#0891b2", "#059669",
+  "#16a34a", "#ca8a04", "#b45309", "#78716c",
+  "#334155", "#1e293b",
+];
+
+interface ColorPickerModalProps {
+  currentColor: string;
+  derivedColor: string | null;
+  onSave: (color: string | null) => void;
+  onClose: () => void;
+  saving: boolean;
+}
+
+const ColorPickerModal: React.FC<ColorPickerModalProps> = ({ currentColor, derivedColor, onSave, onClose, saving }) => {
+  const ref = useClickOutside<HTMLDivElement>(onClose);
+  const [picked, setPicked] = useState(currentColor);
+  const effective = picked || derivedColor || "#000";
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10010, padding: 20 }}>
+      <div ref={ref} style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.25)", fontFamily: "'DM Sans',sans-serif", overflow: "hidden" }}>
+
+        {/* Header */}
+        <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid rgba(124,58,237,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#18103a" }}>Brand Colour</div>
+            <div style={{ fontSize: 11, color: "#8e7ec0", marginTop: 2 }}>Used in your hero banner gradient</div>
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(124,58,237,0.12)", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#8e7ec0" }}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l10 10M13 3L3 13"/></svg>
+          </button>
+        </div>
+
+        <div style={{ padding: "18px 22px" }}>
+          {/* Live preview strip */}
+          <div style={{ height: 52, borderRadius: 12, background: `linear-gradient(135deg, ${effective}, ${effective}bb)`, marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(0,0,0,0.06)", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.08)" }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.04em", position: "relative", zIndex: 1, textShadow: "0 1px 4px rgba(0,0,0,0.3)" }}>Preview — {effective.toUpperCase()}</span>
+          </div>
+
+          {/* Native colour wheel */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+            <div style={{ position: "relative" }}>
+              <input
+                type="color"
+                value={picked || (derivedColor ?? "#000")}
+                onChange={e => setPicked(e.target.value)}
+                style={{ width: 52, height: 52, borderRadius: 12, border: "2px solid rgba(124,58,237,0.2)", cursor: "pointer", padding: 2, background: "none" }}
+              />
+              <div style={{ position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)", fontSize: 9, fontWeight: 700, color: "#8e7ec0", whiteSpace: "nowrap", letterSpacing: "0.04em" }}>WHEEL</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: "#8e7ec0", marginBottom: 5, letterSpacing: "0.05em", textTransform: "uppercase" }}>Hex value</div>
+              <input
+                type="text"
+                value={picked}
+                onChange={e => { const v = e.target.value; if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) setPicked(v); }}
+                placeholder={derivedColor ?? "#000"}
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(124,58,237,0.2)", fontSize: 13, fontWeight: 600, color: "#18103a", fontFamily: "monospace", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+          </div>
+
+          {/* Preset swatches */}
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#8e7ec0", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 10 }}>Quick picks</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {PRESET_COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setPicked(c)}
+                  style={{ width: 28, height: 28, borderRadius: 7, background: c, border: picked === c ? "3px solid #7c3aed" : "2px solid rgba(0,0,0,0.08)", cursor: "pointer", transition: "transform 0.12s, border 0.12s", boxShadow: picked === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none" }}
+                  title={c}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Logo-derived chip */}
+          {derivedColor && (
+            <div style={{ marginTop: 14, padding: "10px 12px", background: "rgba(124,58,237,0.05)", borderRadius: 10, border: "1px solid rgba(124,58,237,0.1)", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 6, background: derivedColor, flexShrink: 0, border: "1px solid rgba(0,0,0,0.1)" }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#18103a" }}>Logo colour — {derivedColor.toUpperCase()}</div>
+                <div style={{ fontSize: 10, color: "#8e7ec0" }}>Auto-extracted from your logo</div>
+              </div>
+              <button
+                onClick={() => setPicked("")}
+                style={{ fontSize: 10, fontWeight: 700, color: "#7c3aed", background: "rgba(124,58,237,0.08)", border: "none", cursor: "pointer", padding: "3px 7px", borderRadius: 6 }}
+              >Use this</button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer actions */}
+        <div style={{ padding: "14px 22px 18px", borderTop: "1px solid rgba(124,58,237,0.08)", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onClose} disabled={saving} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid rgba(124,58,237,0.15)", background: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", color: "#4a3870", fontFamily: "inherit" }}>
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(picked || null)}
+            disabled={saving}
+            style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c3aed,#6d28d9)", fontSize: 12, fontWeight: 700, cursor: saving ? "wait" : "pointer", color: "#fff", opacity: saving ? 0.7 : 1, display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}
+          >
+            {saving && <span style={{ width: 12, height: 12, border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid #fff", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />}
+            Save Colour
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ─── MSA stat card ────────────────────────────────────────────────────────────
 
@@ -254,7 +459,7 @@ const MSAModal: React.FC<{ devices: PosDevice[]; branches: Branch[]; onClose: ()
 
 // ─── Branch detail modal ──────────────────────────────────────────────────────
 
-const BranchModal: React.FC<{ branch: Branch; devices: PosDevice[]; onClose: () => void; onSelectDevice: (d: PosDevice) => void }> = ({ branch, devices, onClose, onSelectDevice }) => {
+const BranchModal: React.FC<{ branch: Branch; devices: PosDevice[]; brandColor?: string; onClose: () => void; onSelectDevice: (d: PosDevice) => void }> = ({ branch, devices, brandColor, onClose, onSelectDevice }) => {
   const ref = useClickOutside<HTMLDivElement>(onClose);
   const branchDevices = devices.filter(d => d.branch_id === branch.id);
 
@@ -271,8 +476,7 @@ const BranchModal: React.FC<{ branch: Branch; devices: PosDevice[]; onClose: () 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(15,7,36,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10002, padding: 20 }}>
       <div ref={ref} style={{ width: 600, maxWidth: "96vw", maxHeight: "90vh", background: "#fff", borderRadius: 18, boxShadow: "0 20px 60px rgba(0,0,0,0.22)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        {/* Blue retail header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", background: "linear-gradient(135deg,#0284c7,#0ea5e9)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", background: brandColor ? `linear-gradient(135deg,${brandColor},${brandColor}cc)` : "linear-gradient(135deg,#0284c7,#0ea5e9)", flexShrink: 0 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="white" strokeWidth="1.5"><path d="M9 2C6.2 2 4 4.2 4 7c0 4.5 5 9 5 9s5-4.5 5-9c0-2.8-2.2-5-5-5z"/><circle cx="9" cy="7" r="1.8"/></svg>
           </div>
@@ -291,7 +495,6 @@ const BranchModal: React.FC<{ branch: Branch; devices: PosDevice[]; onClose: () 
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16, overflowY: "auto", flex: 1, padding: "18px 20px" }}>
-          {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div style={{ background: "rgba(13,148,136,0.07)", borderRadius: 14, padding: "14px 16px", border: "1px solid rgba(13,148,136,0.18)", textAlign: "center" }}>
               <div style={{ fontSize: 28, fontWeight: 900, color: "#0d9488", lineHeight: 1 }}>{branchDevices.length}</div>
@@ -311,7 +514,6 @@ const BranchModal: React.FC<{ branch: Branch; devices: PosDevice[]; onClose: () 
             </div>
           </div>
 
-          {/* POS list */}
           <div>
             <div style={{ fontSize: 9.5, fontWeight: 700, color: "#8e7ec0", letterSpacing: "0.13em", textTransform: "uppercase", marginBottom: 10 }}>POS Devices at this Location ({branchDevices.length})</div>
             {branchDevices.length === 0 && (
@@ -333,12 +535,14 @@ const BranchModal: React.FC<{ branch: Branch; devices: PosDevice[]; onClose: () 
                           { label: "Serial", val: device.serial ?? "—" },
                           { label: "IP",     val: device.ip_address ?? "—" },
                           { label: "OS",     val: device.os ?? "—" },
+                          { label: "Warranty End", val: device.warranty_end ?? "—" },
                         ].map(({ label, val }) => (
                           <span key={label} style={{ fontSize: 10.5, color: "#8e7ec0" }}>
                             <span style={{ fontWeight: 600, color: "#4a3870" }}>{label}: </span>{val}
                           </span>
                         ))}
                       </div>
+                      <div style={{ fontSize: 9.5, fontWeight: 700, marginTop: 3, color: (() => { const u = device.under_warranty ?? (device.warranty_end ? new Date(device.warranty_end) > new Date() : null); return u === true ? "#16a34a" : u === false ? "#dc2626" : "#94a3b8"; })() }}>{(() => { const u = device.under_warranty ?? (device.warranty_end ? new Date(device.warranty_end) > new Date() : null); return u === true ? "Under Warranty" : u === false ? "Out of Warranty" : ""; })()}</div>
                     </div>
                     <button
                       onClick={() => { onClose(); onSelectDevice(device); }}
@@ -386,6 +590,7 @@ const PosModal: React.FC<{ device: PosDevice; branches: Branch[]; onClose: () =>
             { label: "MSA Start",    value: fmtDate(device.msa_start) },
             { label: "MSA End",      value: fmtDate(device.msa_end) },
             { label: "Warranty End", value: fmtDate(device.warranty_end) },
+            { label: "Warranty Status", value: (() => { const u = device.under_warranty ?? (device.warranty_end ? new Date(device.warranty_end) > new Date() : null); return u === true ? "Under Warranty" : u === false ? "Out of Warranty" : "Not assessed"; })() },
           ].map(({ label, value }) => (
             <div key={label} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid rgba(124,58,237,0.05)" }}>
               <span style={{ fontSize: 11, color: "#8e7ec0", fontWeight: 500, minWidth: 100 }}>{label}</span>
@@ -509,23 +714,40 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
   const { msg, show, toast } = useToast();
 
   // ── UI state ─────────────────────────────────────────────────
-  const [notifOpen,    setNotifOpen]    = useState(false);
-  const [msaModalOpen, setMsaModalOpen] = useState(false);
-  const [branchModal,  setBranchModal]  = useState<Branch | null>(null);
-  const [posModal,     setPosModal]     = useState<PosDevice | null>(null);
-  const [infoEditOpen, setInfoEditOpen] = useState(false);
-  const [filterBranch, setFilterBranch] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterOpen,   setFilterOpen]   = useState(false);
-  const [bgHov,        setBgHov]        = useState(false);
-  const [bgSrc,        setBgSrc]        = useState("/Nike-store.png");
+  const [notifOpen,       setNotifOpen]       = useState(false);
+  const [msaModalOpen,    setMsaModalOpen]    = useState(false);
+  const [branchModal,     setBranchModal]     = useState<Branch | null>(null);
+  const [posModal,        setPosModal]        = useState<PosDevice | null>(null);
+  const [infoEditOpen,    setInfoEditOpen]    = useState(false);
+  const [filterBranch,    setFilterBranch]    = useState("all");
+  const [filterStatus,    setFilterStatus]    = useState("all");
+  const [filterOpen,      setFilterOpen]      = useState(false);
+  const [bgHov,           setBgHov]           = useState(false);
+  const [brandPanelHov,   setBrandPanelHov]   = useState(false);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [cropFile,        setCropFile]        = useState<File | null>(null);
   const bgInput = useRef<HTMLInputElement>(null);
 
+  // ── Branding state ────────────────────────────────────────────
+  const [branding, setBranding] = useState<BrandingState>({
+    coverPhotoUrl:   null,
+    coverPhotoLocal: null,
+    brandColor:      null,
+    derivedColor:    null,
+    saving:          false,
+    savingColor:     false,
+  });
+
   // ── Derived ───────────────────────────────────────────────────
-  const license   = licenses[0] ?? null;
-  const totalSits = branches.length;
+  const license    = licenses[0] ?? null;
+  const totalSits  = branches.length;
   const totalSeats = branches.reduce((acc, b) => acc + (b.seats ?? 0), 0);
-  const unread    = uiNotifs.filter(n => !n.read).length;
+  const unread     = uiNotifs.filter(n => !n.read).length;
+
+  // Effective hero values
+  const heroBg         = branding.coverPhotoLocal ?? branding.coverPhotoUrl ?? "/Nike-store.png";
+  const heroColor      = branding.brandColor ?? branding.derivedColor ?? "#1a1a1a";
+  const heroColorDark  = heroColor + "dd";
 
   const posGrouped = useMemo(() => {
     const filtered = posDevices.filter(p => {
@@ -538,6 +760,71 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
       devices: filtered.filter(p => p.branch_id === b.id),
     }));
   }, [posDevices, branches, filterBranch, filterStatus]);
+
+  // ── Load saved branding on mount ──────────────────────────────
+  useEffect(() => {
+    if (!companyId) return;
+    fetchBranding(companyId).then(data => {
+      setBranding(prev => ({
+        ...prev,
+        coverPhotoUrl: data.cover_photo_url,
+        brandColor:    data.brand_color,
+      }));
+    }).catch(() => {/* silently ignore – defaults are fine */});
+  }, [companyId]);
+
+  // ── Auto-extract dominant colour from the logo ─────────────────
+  useEffect(() => {
+    extractDominantColor("/nike.svg").then(color => {
+      setBranding(prev => ({ ...prev, derivedColor: color }));
+    });
+  }, []);
+
+  // ── Cover photo file selected → open cropper ──────────────────
+  const handleCoverPhotoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !companyId) return;
+    setCropFile(file);
+    e.target.value = "";
+  }, [companyId]);
+
+  // ── Cropper confirmed → upload ────────────────────────────────
+  const handleCropConfirm = useCallback(async (croppedFile: File) => {
+    if (!companyId) return;
+    setCropFile(null);
+
+    const localUrl = URL.createObjectURL(croppedFile);
+    setBranding(prev => ({ ...prev, coverPhotoLocal: localUrl, saving: true }));
+
+    try {
+      const remoteUrl = await uploadCoverPhoto(companyId, croppedFile);
+      setBranding(prev => ({
+        ...prev,
+        coverPhotoUrl:   remoteUrl,
+        coverPhotoLocal: null,
+        saving:          false,
+      }));
+      toast("Cover photo updated!");
+    } catch {
+      setBranding(prev => ({ ...prev, coverPhotoLocal: null, saving: false }));
+      toast("Upload failed. Please try again.");
+    }
+  }, [companyId]);
+
+  // ── Brand colour save ─────────────────────────────────────────
+  const handleSaveColor = useCallback(async (color: string | null) => {
+    if (!companyId) return;
+    setBranding(prev => ({ ...prev, savingColor: true }));
+    try {
+      await saveBrandColor(companyId, color);
+      setBranding(prev => ({ ...prev, brandColor: color, savingColor: false }));
+      setColorPickerOpen(false);
+      toast(color ? "Brand colour saved!" : "Brand colour reset to logo default.");
+    } catch {
+      setBranding(prev => ({ ...prev, savingColor: false }));
+      toast("Failed to save colour. Please try again.");
+    }
+  }, [companyId]);
 
   if (loading) {
     return (
@@ -564,6 +851,7 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "var(--bg)", overflow: "hidden" }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <Sidebar activePage="overview" onNavigate={onNavigate as (view: string) => void} />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
@@ -581,20 +869,48 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
 
               {/* ── Hero ─────────────────────────────────────────── */}
               <div className="gx-hero" style={{ padding: 0, flexShrink: 0, position: "relative", overflow: "hidden", display: "flex", alignItems: "stretch" }}>
-                {/* LEFT — black gradient */}
-                <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 24px 18px 20px", background: "linear-gradient(135deg,#1a1a1a,#000)", flexShrink: 0, zIndex: 2, position: "relative" }}>
+
+                {/* LEFT — brand panel (hover shows colour button) */}
+                <div
+                  onMouseEnter={() => setBrandPanelHov(true)}
+                  onMouseLeave={() => setBrandPanelHov(false)}
+                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 24px 18px 20px", background: `linear-gradient(135deg, ${heroColor}, ${heroColorDark})`, flexShrink: 0, zIndex: 2, position: "relative", transition: "background 0.4s ease" }}
+                >
                   <div style={{ width: 72, height: 72, background: "#fff", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.7)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     <img src="/nike.svg" alt="Nike" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div className="gx-hero-title">{company?.name ?? "Nike"}</div>
                     <div className="gx-hero-sub">{branches[0]?.site ?? "HQ"} · Retail · Acct Manager: {company?.account_manager ?? "—"}</div>
-                    <div className="gx-hero-badges">
+                    <div className="gx-hero-badges" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                       <div className="gx-status-pill"><div className="sdot" />Active Account</div>
+
+                      {/* Colour wheel button — appears on hover */}
+                      <button
+                        onClick={() => setColorPickerOpen(true)}
+                        title="Change brand colour"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 8, padding: "4px 10px", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", backdropFilter: "blur(4px)", transition: "opacity 0.2s ease, transform 0.2s ease, background 0.15s", opacity: brandPanelHov ? 1 : 0, transform: brandPanelHov ? "translateY(0)" : "translateY(4px)", pointerEvents: brandPanelHov ? "auto" : "none" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.28)")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.18)")}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 20 20" fill="none">
+                          <circle cx="10" cy="10" r="8.5" stroke="rgba(255,255,255,0.6)" strokeWidth="1"/>
+                          <path d="M10 1.5 A8.5 8.5 0 0 1 18.5 10" stroke="#ff6b6b" strokeWidth="3" fill="none" strokeLinecap="round"/>
+                          <path d="M18.5 10 A8.5 8.5 0 0 1 10 18.5" stroke="#ffd93d" strokeWidth="3" fill="none" strokeLinecap="round"/>
+                          <path d="M10 18.5 A8.5 8.5 0 0 1 1.5 10" stroke="#6bcb77" strokeWidth="3" fill="none" strokeLinecap="round"/>
+                          <path d="M1.5 10 A8.5 8.5 0 0 1 10 1.5" stroke="#4d96ff" strokeWidth="3" fill="none" strokeLinecap="round"/>
+                          <circle cx="10" cy="10" r="3" fill="white" opacity="0.9"/>
+                        </svg>
+                        Colour
+                        <span style={{ width: 10, height: 10, borderRadius: "50%", background: heroColor, border: "1.5px solid rgba(255,255,255,0.7)", display: "inline-block" }} />
+                      </button>
                     </div>
                   </div>
-                  <div style={{ position: "absolute", top: 0, right: -32, width: 32, height: "100%", background: "linear-gradient(to right,#000,transparent)", zIndex: 3 }} />
+
+                  {/* Feather fade */}
+                  <div style={{ position: "absolute", top: 0, right: -32, width: 32, height: "100%", background: `linear-gradient(to right, ${heroColorDark}, transparent)`, zIndex: 3, transition: "background 0.4s ease" }} />
                 </div>
+
                 {/* RIGHT — cover photo */}
                 <div
                   style={{ flex: 1, position: "relative", overflow: "hidden", cursor: "pointer" }}
@@ -602,15 +918,28 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
                   onMouseLeave={() => setBgHov(false)}
                   onClick={() => bgInput.current?.click()}
                 >
-                  <img src={bgSrc} alt="" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", zIndex: 0, filter: bgHov ? "brightness(0.55)" : "none", transition: "filter 0.2s" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  <img
+                    src={heroBg}
+                    alt=""
+                    aria-hidden="true"
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", zIndex: 0, filter: bgHov ? "brightness(0.55)" : "none", transition: "filter 0.2s" }}
+                    onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
                   <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 1 }} />
-                  <div style={{ position: "absolute", inset: 0, zIndex: 2, display: "flex", alignItems: "center", justifyContent: "center", opacity: bgHov ? 1 : 0, transition: "opacity 0.2s" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.15)", backdropFilter: "blur(6px)", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 10, padding: "8px 16px", color: "#fff", fontSize: 12, fontWeight: 700 }}>
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1" y="3" width="14" height="11" rx="2"/><circle cx="8" cy="8.5" r="2.5"/><path d="M5.5 3l1-2h3l1 2"/></svg>
-                      Change Cover Photo
+                  {/* Colour bleed from brand panel */}
+                  <div style={{ position: "absolute", top: 0, left: 0, width: 120, height: "100%", background: `linear-gradient(to right, ${heroColorDark}ee 0%, ${heroColor}55 35%, transparent 100%)`, zIndex: 2, transition: "background 0.4s ease", pointerEvents: "none" }} />
+
+                  {/* Hover overlay */}
+                  <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center", opacity: bgHov ? 1 : 0, transition: "opacity 0.2s ease" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.15)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 10, padding: "8px 16px", color: "#fff", fontSize: 12, fontWeight: 700, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>
+                      {branding.saving
+                        ? <><span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid #fff", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} /> Uploading…</>
+                        : <><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1" y="3" width="14" height="11" rx="2"/><circle cx="8" cy="8.5" r="2.5"/><path d="M5.5 3l1-2h3l1 2"/></svg> Change Cover Photo</>
+                      }
                     </div>
                   </div>
-                  <input ref={bgInput} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) setBgSrc(URL.createObjectURL(f)); }} />
+
+                  <input ref={bgInput} type="file" accept="image/*" style={{ display: "none" }} onChange={handleCoverPhotoChange} />
                 </div>
               </div>
 
@@ -676,7 +1005,6 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
                       </React.Fragment>
                     ))}
 
-                    {/* Account details */}
                     <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "#b8aed8", marginBottom: 4, marginTop: 12 }}>ACCOUNT DETAILS</div>
                     {[
                       { label: "Acct Manager", val: company?.account_manager ?? "—", color: "#7c3aed" },
@@ -688,7 +1016,6 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
                       </div>
                     ))}
 
-                    {/* License */}
                     <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "#b8aed8", marginBottom: 4, marginTop: 12 }}>LICENSE</div>
                     {[
                       { label: "License Key", val: license?.license_key ?? "—" },
@@ -702,115 +1029,20 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
                       </div>
                     ))}
 
-                    {/* Branch locations */}
-                    <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid rgba(124,58,237,0.1)" }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#4a3870", marginBottom: 10 }}>Branch Locations</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {branches.map(b => (
-                          <button
-                            key={b.id}
-                            onClick={() => setBranchModal(b)}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", background: "linear-gradient(135deg,rgba(2,132,199,0.1),rgba(13,148,136,0.08))", color: "#0c4a6e", fontSize: 10.5, fontWeight: 700, borderRadius: 7, border: "1px solid rgba(2,132,199,0.18)", cursor: "pointer", transition: "all 0.14s", fontFamily: "inherit" }}
-                          >
-                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#0284c7" strokeWidth="1.5"><path d="M6 1.5C4 1.5 2.5 3 2.5 5c0 3 3.5 5.5 3.5 5.5S9.5 8 9.5 5c0-2-1.5-3.5-3.5-3.5z"/><circle cx="6" cy="5" r="1.2"/></svg>
-                            {b.name}
-                            <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="#0284c7" strokeWidth="1.6"><path d="M4 6h4M7 4l2 2-2 2"/></svg>
-                          </button>
-                        ))}
-                        {branches.length === 0 && <span style={{ fontSize: 11, color: "#9ca3af" }}>No branches available</span>}
-                      </div>
-                    </div>
+
                   </div>
                 </div>
 
-                {/* POS Machines */}
-                <div className="gx-card" style={{ display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span className="gx-card-title">POS Machines</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "rgba(109,40,217,0.09)", color: "#6d28d9" }}>{posDevices.length} devices</span>
-                    </div>
-                    <div style={{ position: "relative" }}>
-                      <button
-                        className="btn btn-s btn-xs"
-                        onClick={() => setFilterOpen(o => !o)}
-                      >
-                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ width: 10, height: 10 }}><path d="M2 4h10M4 7h6M6 10h2"/></svg>
-                        Filter
-                        {(filterBranch !== "all" || filterStatus !== "all") && (
-                          <span style={{ position: "absolute", top: -4, right: -4, width: 8, height: 8, borderRadius: "50%", background: "#6d28d9" }} />
-                        )}
-                      </button>
-                      {filterOpen && (
-                        <FilterPopover
-                          branches={branches}
-                          filterBranch={filterBranch}
-                          filterStatus={filterStatus}
-                          onBranch={setFilterBranch}
-                          onStatus={setFilterStatus}
-                          onReset={() => { setFilterBranch("all"); setFilterStatus("all"); setFilterOpen(false); }}
-                          onClose={() => setFilterOpen(false)}
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                      {posGrouped.map(({ branch, devices }) => (
-                        <div key={branch.id}>
-                          <button
-                            onClick={() => setBranchModal(branch)}
-                            style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "linear-gradient(135deg,rgba(2,132,199,0.1),rgba(13,148,136,0.08))", border: "1px solid rgba(2,132,199,0.18)", borderRadius: 6, padding: "3px 10px" }}>
-                              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#0284c7" strokeWidth="1.5"><path d="M6 1.5C4 1.5 2.5 3 2.5 5c0 3 3.5 5.5 3.5 5.5S9.5 8 9.5 5c0-2-1.5-3.5-3.5-3.5z"/><circle cx="6" cy="5" r="1.2"/></svg>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: "#0c4a6e" }}>{branch.name}</span>
-                            </div>
-                            {branch.license_tag && (
-                              <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(217,119,6,0.1)", color: "#92400e", padding: "2px 8px", borderRadius: 5, border: "1px solid rgba(217,119,6,0.2)" }}>
-                                {branch.license_tag}
-                              </span>
-                            )}
-                            <span style={{ fontSize: 10.5, color: "#8e7ec0", fontWeight: 600 }}>{devices.length} device{devices.length !== 1 ? "s" : ""}</span>
-                          </button>
-
-                          {devices.length === 0 ? (
-                            <p style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic", marginLeft: 4 }}>No devices match filter.</p>
-                          ) : (
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8 }}>
-                              {devices.map(device => (
-                                <button
-                                  key={device.id}
-                                  onClick={() => setPosModal(device)}
-                                  style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #f0f0f4", background: "#fff", cursor: "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 10, fontFamily: "inherit", textAlign: "left" }}
-                                  onMouseEnter={e => { e.currentTarget.style.background = "#fafafa"; e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,0.08)"; }}
-                                  onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.boxShadow = "none"; }}
-                                >
-                                  <div style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(109,40,217,0.07)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#6d28d9" strokeWidth="1.5"><rect x="2" y="3" width="16" height="11" rx="1.5"/><path d="M7 18h6M10 14v4"/></svg>
-                                  </div>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: "#18103a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{device.model ?? `Device #${device.id}`}</div>
-                                    <div style={{ fontSize: 9.5, color: "#8e7ec0", marginTop: 1 }}>{device.ip_address ?? "—"}</div>
-                                    <div style={{ marginTop: 3 }}>{statusPill(device.status)}</div>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-
-                      {branches.length === 0 && (
-                        <div style={{ textAlign: "center", padding: "48px 16px", color: "#9ca3af" }}>
-                          <p style={{ fontSize: 14, fontWeight: 600 }}>No branch data available.</p>
-                          <p style={{ fontSize: 12, marginTop: 4 }}>Branch and device information will appear here once loaded.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                {/* Branches + POS — new panel */}
+                <BranchPOSPanel
+                  branches={branches}
+                  posDevices={posDevices}
+                  licenses={licenses}
+                  loading={loading}
+                  user={user ?? null}
+                  brandColor={heroColor}
+                  onSelectPOS={d => setPosModal(d)}
+                />
               </div>
             </div>
           </div>
@@ -823,15 +1055,6 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
         <MSAModal devices={posDevices} branches={branches} onClose={() => setMsaModalOpen(false)} />
       )}
 
-      {branchModal && (
-        <BranchModal
-          branch={branchModal}
-          devices={posDevices}
-          onClose={() => setBranchModal(null)}
-          onSelectDevice={d => { setBranchModal(null); setPosModal(d); }}
-        />
-      )}
-
       {posModal && (
         <PosModal device={posModal} branches={branches} onClose={() => setPosModal(null)} />
       )}
@@ -841,6 +1064,25 @@ export default function RetailOverviewPage({ user, onLogout, onNavigate }: Props
           info={info}
           onSave={d => { setInfo(d); toast("Information updated!"); }}
           onClose={() => setInfoEditOpen(false)}
+        />
+      )}
+
+      {colorPickerOpen && (
+        <ColorPickerModal
+          currentColor={branding.brandColor ?? branding.derivedColor ?? "#1a1a1a"}
+          derivedColor={branding.derivedColor}
+          onSave={handleSaveColor}
+          onClose={() => setColorPickerOpen(false)}
+          saving={branding.savingColor}
+        />
+      )}
+
+      {cropFile && (
+        <CoverPhotoCropper
+          file={cropFile}
+          aspectRatio={1600 / 162}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setCropFile(null)}
         />
       )}
 

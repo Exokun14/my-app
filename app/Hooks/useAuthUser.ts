@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import api, { type AuthUser, formatRole } from "../Services/api.service";
+import clearAuthCookies from "../Utils/clearAuthCookies";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -70,8 +71,14 @@ export function useAuthUser(initialUser?: AuthUser | null) {
         setUser(r.data);
       } else {
         console.warn("[useAuthUser] ❌ failed:", r.error);
+        clearAuthCookies();
         setError(r.error ?? "Unknown error");
       }
+      setLoading(false);
+    }).catch((err: unknown) => {
+      console.error("[useAuthUser] ❌ unexpected error:", err);
+      clearAuthCookies();
+      setError(err instanceof Error ? err.message : "Unknown error");
       setLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps

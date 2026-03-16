@@ -83,7 +83,7 @@ export interface AuthUser {
   id:           number;
   name:         string;
   email:        string;
-  role:         'admin' | 'user';
+  role:         'admin' | 'manager' | 'user';
   industry:     'fnb' | 'retail' | 'warehouse' | null;
   company_id:   number | null;
   company_name: string | null;
@@ -99,13 +99,17 @@ export interface Branch {
   site?: string;
   seats?: number;
   license_tag?: string;
+  date_of_implementation?: string | null;  // date branch went live
+  activation_code?: string | null;          // per-branch activation code
+  krunch_id?: string | null;                // per-branch Krunch POS ID
+  active?: boolean;                         // branch active status
 }
 
 export interface PosDevice {
   id?: number;
   company_id: number;
   branch_id?: number | null;
-  status?: string;   // 'active' | 'offline' | 'maintenance'
+  status?: string;        // 'active' | 'offline' | 'maintenance'
   model?: string;
   serial?: string;
   ip_address?: string;
@@ -113,12 +117,15 @@ export interface PosDevice {
   msa_start?: string;
   msa_end?: string;
   warranty_end?: string;
+  under_warranty?: boolean | null;  // explicit warranty status: null = not assessed, true = under, false = out
 }
 
 export interface License {
   id?: number;
   company_id: number;
   license_key?: string;
+  activation_code?: string | null;  // license-level activation code
+  seats?: number | null;            // max branches/seats allowed under this license
   sa_start?: string;
   sa_end?: string;
   krunch_version?: string;
@@ -168,7 +175,9 @@ export interface PortalUser {
 
 export function formatRole(role: AuthUser['role'] | null | undefined): string {
   if (!role) return 'User';
-  return role === 'admin' ? 'System Admin' : 'User';
+  if (role === 'admin')   return 'System Admin';
+  if (role === 'manager') return 'Manager';
+  return 'User';
 }
 
 function getCsrfToken(): string {
