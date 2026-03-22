@@ -2,9 +2,9 @@
 // DEBUG BUILD — verbose logs on every request to help trace issues.
 // Search for "🔵", "✅", "❌" in the browser console.
 
-// Relative URL — routes through Next.js proxy (next.config.ts rewrites /api/* → Laravel)
-// Never use http://localhost/api directly — that bypasses the proxy and breaks cookies/CORS
-const API_BASE_URL = '/api';
+// Points directly to Laravel backend — set NEXT_PUBLIC_API_URL in your .env.local
+// e.g. NEXT_PUBLIC_API_URL=http://localhost:8000
+const API_BASE_URL = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}/api`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared types
@@ -636,6 +636,27 @@ export const authAPI = {
   },
 };
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chat  (Ollama-powered assistant)
+// ─────────────────────────────────────────────────────────────────────────────
+export const chatAPI = {
+  send: async (
+    message: string,
+    history: { role: 'user' | 'assistant'; content: string }[],
+  ): Promise<ApiResponse<{ reply: string }>> =>
+    apiRequest<{ reply: string }>('/chat', {
+      method: 'POST',
+      body:   JSON.stringify({ message, history }),
+    }),
+
+  getHistory: async (): Promise<ApiResponse<{ role: string; content: string; created_at: string }[]>> =>
+    apiRequest('/chat/history', { method: 'GET' }),
+
+  clearHistory: async (): Promise<ApiResponse<{ message: string }>> =>
+    apiRequest('/chat/history', { method: 'DELETE' }),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Default export — grouped namespace
 // ─────────────────────────────────────────────────────────────────────────────
@@ -655,6 +676,7 @@ export const api = {
   upload:        uploadAPI,
   courseIcons:   courseIconAPI,
   auth:          authAPI,
+  chat:          chatAPI,
 };
 
 export default api;

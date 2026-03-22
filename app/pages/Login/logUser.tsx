@@ -16,7 +16,7 @@ import RippleCanvas from "../../Effects/RippleCanvas";
 import clearAuthCookies from "../../Utils/clearAuthCookies";
 
 /* ── Laravel Fortify API ─────────────────────────────────── */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost//";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 let _csrfPromise: Promise<void> | null = null;
 

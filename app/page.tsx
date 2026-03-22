@@ -32,6 +32,7 @@ import { useState, useEffect, useCallback } from "react";
 import LoginAdmin, { AuthUser } from "./pages/Login/logUser";
 import DashboardAdmin           from "./pages/Dashboard_Admin_Main/DashboardAdmin";
 import ClientPortal             from "./pages/Client_Admin/ClientPortal";
+import ChatWidget               from "./Components/ChatWidget";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type UserRole     = "admin" | "manager" | "user";
@@ -108,12 +109,22 @@ export default function Home() {
 
   // ── Admin → Company Database ──
   if (auth.role === "admin") {
-    return <DashboardAdmin user={auth.user} onLogout={handleLogout} />;
+    return (
+      <>
+        <DashboardAdmin user={auth.user} onLogout={handleLogout} />
+        <ChatWidget user={auth.user} />
+      </>
+    );
   }
 
   // ── Client user / manager → industry-specific portal ──
   if (auth.role === "user" || auth.role === "manager") {
-    return <ClientPortal industry={auth.industry} user={auth.user} onLogout={handleLogout} />;
+    return (
+      <>
+        <ClientPortal industry={auth.industry} user={auth.user} onLogout={handleLogout} />
+        <ChatWidget user={auth.user} />
+      </>
+    );
   }
 
   // Fallback
