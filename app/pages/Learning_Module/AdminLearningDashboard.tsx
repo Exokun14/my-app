@@ -533,7 +533,7 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
     <>
       {!loaderDone && <InitialLoader stage={loadStage} onComplete={() => setLoaderDone(true)} />}
 
-      <div style={{ position:'fixed', inset:0, background:'#fafaf9', zIndex:800, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ position:'fixed', inset:0, background:'#fafaf9', zIndex:800, display:'flex', flexDirection:'column', overflow:'hidden', visibility: loaderDone ? 'visible' : 'hidden' }}>
       <style>{`
         :root, .lc-page {
           --purple: #6c3dd6; --purple-d: #4f1eb8; --purple-lt: rgba(108,61,214,0.07);

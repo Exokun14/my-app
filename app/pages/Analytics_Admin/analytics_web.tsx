@@ -3,7 +3,8 @@
 // ─────────────────────────────────────────────
 //  analytics_web.tsx
 //  Ticket Analytics — GeniéX CRM
-//  Design & layout only — all logic in analytics_func.ts
+//  Updated: uses real Company_Database_sample data
+//  4 teams: Retail Pro, Aloha NCR, Hardware, Warehouse
 // ─────────────────────────────────────────────
 
 import React, { useState, useEffect, useCallback, useRef, CSSProperties } from 'react';
@@ -33,8 +34,12 @@ import {
   getTeamBarWidthPct,
   getCategoryBarWidthPct,
 } from './analytics_func';
-import Header from "../Header_Web/header";
+import Header  from '../Header/header_main';
 import Sidebar from "../Sidebar_Web/sidebar";
+
+// ── Session keys ──────────────────────────────
+const SESSION_KEY         = 'gx_user_role';
+const SESSION_PROFILE_KEY = 'gx_user_profile';
 
 // ── Layout constants ──────────────────────────
 const HEADER_H = 52;
@@ -46,6 +51,7 @@ const C = {
   purpleLt: '#ede9fe',
   teal:     '#0d9488',
   amber:    '#d97706',
+  blue:     '#0284c7',
   red:      '#dc2626',
   green:    '#16a34a',
   t1:       '#18103a',
@@ -457,7 +463,7 @@ function TrendChart({ trend }: { trend: TrendData }) {
 }
 
 // ══════════════════════════════════════════════
-//  TeamsChart
+//  TeamsChart  — now supports 4 teams
 // ══════════════════════════════════════════════
 function TeamCard({ team, totalTix, maxTix }: { team: TeamEntry; totalTix: number; maxTix: number }) {
   const accent = getTeamAccent(team.cls);
@@ -465,40 +471,40 @@ function TeamCard({ team, totalTix, maxTix }: { team: TeamEntry; totalTix: numbe
     <div
       className="relative rounded-xl overflow-hidden"
       style={{
-        padding:    '13px 16px 13px 20px',
+        padding:    '11px 14px 11px 18px',
         border:     `1px solid ${C.border}`,
         background: getTeamBg(team.cls),
       }}
     >
       <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl" style={{ background: accent }}/>
 
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-2.5">
         <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-sm shrink-0"
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0"
           style={{ background: team.colorLt }}
         >
           {team.icon}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[12px] font-bold leading-tight" style={{ color: C.t1 }}>{team.name}</div>
-          <div className="text-[9.5px] mt-0.5" style={{ color: C.t3 }}>{team.desc}</div>
+          <div className="text-[11.5px] font-bold leading-tight" style={{ color: C.t1 }}>{team.name}</div>
+          <div className="text-[9px] mt-0.5 truncate" style={{ color: C.t3 }}>{team.desc}</div>
         </div>
-        <div className="flex gap-4 shrink-0">
+        <div className="flex gap-3 shrink-0">
           {[
             { n: team.tickets,         l: 'Total',  col: accent  },
             { n: team.open,            l: 'Open',   col: C.red   },
             { n: `${team.closeRate}%`, l: 'Closed', col: C.green },
           ].map(({ n, l, col }) => (
             <div key={l} className="text-center">
-              <div className="text-[15px] font-extrabold leading-none tracking-tight" style={{ color: col }}>{n}</div>
-              <div className="text-[8.5px] font-semibold mt-1" style={{ color: C.t3 }}>{l}</div>
+              <div className="text-[14px] font-extrabold leading-none tracking-tight" style={{ color: col }}>{n}</div>
+              <div className="text-[8px] font-semibold mt-0.5" style={{ color: C.t3 }}>{l}</div>
             </div>
           ))}
         </div>
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.75 rounded overflow-hidden" style={{ background: C.surface2 }}>
+        <div className="flex-1 h-1.5 rounded overflow-hidden" style={{ background: C.surface2 }}>
           <div
             className="h-full rounded transition-[width] duration-700 ease-in-out"
             style={{ background: accent, width: `${getTeamBarWidthPct(team.tickets, maxTix)}%` }}
@@ -521,9 +527,9 @@ function TeamsChart({ teams, totalTix, summary }: { teams: TeamEntry[]; totalTix
           <div className="text-[12.5px] font-bold mb-0.5" style={{ color: C.t1 }}>Tickets by Product Team</div>
           <div className="text-[10px]" style={{ color: C.t3 }}>Volume split across support teams</div>
         </div>
-        <span style={badgePill}>3 Teams</span>
+        <span style={badgePill}>4 Teams</span>
       </div>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {teams.map(t => <TeamCard key={t.id} team={t} totalTix={totalTix} maxTix={maxTix}/>)}
       </div>
       <div style={summaryBlock}>
@@ -693,6 +699,30 @@ export default function AnalyticsPage() {
   const [period, setPeriodState] = useState<Period>('week');
   const [data,   setData]        = useState<AnalyticsPayload>(() => buildAnalyticsData('week'));
 
+  // ── FIX: clear session and hard-navigate so login gate shows ──
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_PROFILE_KEY);
+    window.location.href = '/';
+  };
+
+  // ── Read logged-in user profile from sessionStorage for Header ──
+  const [_headerUser] = useState(() => {
+    if (typeof window === 'undefined') return { initials: '', fullName: '', position: '', company: '', profilePhoto: null };
+    try {
+      const raw = sessionStorage.getItem(SESSION_PROFILE_KEY);
+      if (!raw) return { initials: '', fullName: '', position: '', company: '', profilePhoto: null };
+      const p = JSON.parse(raw);
+      return {
+        initials:     p.initials     ?? '',
+        fullName:     p.fullName     ?? '',
+        position:     p.position     ?? '',
+        company:      p.company      ?? '',
+        profilePhoto: p.profilePhoto ?? null,
+      };
+    } catch { return { initials: '', fullName: '', position: '', company: '', profilePhoto: null }; }
+  });
+
   const handlePeriod = useCallback((p: Period, from?: Date, to?: Date) => {
     setPeriodState(p);
     setData(buildAnalyticsData(p, from, to));
@@ -705,7 +735,10 @@ export default function AnalyticsPage() {
       {/* Inject transition CSS for the page shell */}
       <style dangerouslySetInnerHTML={{ __html: ANALYTICS_CSS }} />
 
-      <Header />
+      <Header
+        user={_headerUser}
+        onLogout={handleLogout}
+      />
       <Sidebar />
 
       {/* Page shell: left tracks --gxh-sw set by Sidebar on collapse/expand */}

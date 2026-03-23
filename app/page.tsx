@@ -1,121 +1,146 @@
 /* ==============================================================
-   app/page.tsx  ·  Root entry point
+   ROOT PAGE  ·  app/page.tsx
 
-   Auth state machine:
-     null            → show Login
-     role=admin      → show DashboardAdmin (Company Database)
-     role=user
-       industry=fnb       → OverviewPage      (F&B client portal)
-       industry=retail    → RetailOverviewPage (Retail client portal)
-       industry=warehouse → WarehouseOverviewPage (future)
-       industry=null      → fallback to F&B portal
+   Routing logic:
+     role "admin"  (access_level: super_admin | system_admin) → DashboardAdmin
+     role "client" (access_level: manager | user)             → OverviewPage
 
-   FIX: auth state is persisted in sessionStorage so a page
-   refresh doesn't drop the user back to the login screen.
-   sessionStorage clears automatically when the browser tab
-   is closed, so it's safe — no stale tokens sitting around.
-
-   FIX: handleLogout now calls POST /logout on the Laravel
-   backend (Sanctum session) before clearing local state,
-   so the server-side session is properly invalidated.
-
-   FIX: added `mounted` guard so the portal never renders
-   server-side or before sessionStorage has been read.
-   This prevents companyId from ever being null on first
-   render when a session exists.
+   FIX: Added `mounted` guard so the server and client both render
+   null on the first pass, preventing the hydration mismatch caused
+   by sessionStorage being unavailable on the server.
    ============================================================== */
 
-'use client';
+'use client'
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 
-import LoginAdmin, { AuthUser } from "./pages/Login/logUser";
-import DashboardAdmin           from "./pages/Dashboard_Admin_Main/DashboardAdmin";
-import ClientPortal             from "./pages/Client_Admin/ClientPortal";
+import LoginAdmin, { UserRole, UserProfile } from "./pages/Login/logUser";
+import DashboardAdmin from "./pages/Dashboard_Admin_Main/DashboardAdmin";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-export type UserRole     = "admin" | "manager" | "user";
-export type UserIndustry = "fnb" | "retail" | "warehouse" | null;
+import OverviewPage  from "./pages/Client_Admin/OverviewPage";
+import TicketsPage   from "./pages/Client_Admin/TicketsPage";
+import UsersPage     from "./pages/Client_Admin/UsersPage";
+import SettingsPage  from "./pages/Client_Admin/SettingsPage";
 
-interface AuthState {
-  role:     UserRole;
-  industry: UserIndustry;
-  user:     AuthUser;
-}
+import ClientOverview from "./pages/Dashboard_Admin_Overview/dashboard_overview_users";
+import { Client } from "./pages/Dashboard_Admin_Main/DshAdmFunc";
 
-const SESSION_KEY = "gx_auth";
-const API_BASE    = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+type CPView    = "overview" | "tickets" | "users" | "settings";
+type AdminView = "database" | "client-overview";
 
-// ─── Laravel Sanctum logout ───────────────────────────────────────────────────
-function getXsrfToken(): string {
-  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : "";
-}
+const SESSION_KEY         = "gx_user_role";
+const SESSION_PROFILE_KEY = "gx_user_profile";
 
-async function fortifyLogout(): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/logout`, {
-      method:      "POST",
-      credentials: "include",
-      headers: {
-        "Accept":            "application/json",
-        "X-Requested-With":  "XMLHttpRequest",
-        "X-XSRF-TOKEN":      getXsrfToken(),
-      },
-    });
-  } catch (err) {
-    console.error("[Auth] Logout request failed:", err);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 export default function Home() {
-
-  // `mounted` prevents any render until the client has read sessionStorage,
-  // eliminating the SSR/hydration mismatch and the companyId=null first render.
+  // Prevent SSR/client mismatch — render nothing until client has mounted
   const [mounted, setMounted] = useState(false);
-  const [auth,    setAuth]    = useState<AuthState | null>(null);
 
+  // Auth state — read from sessionStorage only after mount
+  const [userRole, setUserRole]       = useState<UserRole | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  const [view, setView] = useState<CPView>("overview");
+
+  // Admin sub-routing
+  const [adminView, setAdminView]           = useState<AdminView>("database");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
+  // On mount: read sessionStorage and mark as ready
   useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(SESSION_KEY);
-      if (saved) setAuth(JSON.parse(saved) as AuthState);
-    } catch {
-      // ignore
+    const role    = sessionStorage.getItem(SESSION_KEY) as UserRole | null;
+    const rawProf = sessionStorage.getItem(SESSION_PROFILE_KEY);
+    let profile: UserProfile | null = null;
+    if (rawProf) {
+      try { profile = JSON.parse(rawProf) as UserProfile; } catch { /* ignore */ }
     }
+    setUserRole(role);
+    setUserProfile(profile);
     setMounted(true);
   }, []);
 
-  const handleLoginSuccess = useCallback((role: UserRole, industry: UserIndustry, user: AuthUser) => {
-    const next: AuthState = { role, industry, user };
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
-    setAuth(next);
-  }, []);
+  // Keep sessionStorage in sync
+  useEffect(() => {
+    if (!mounted) return;
+    if (userRole) {
+      sessionStorage.setItem(SESSION_KEY, userRole);
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  }, [userRole, mounted]);
 
-  const handleLogout = useCallback(async () => {
-    await fortifyLogout();
-    sessionStorage.removeItem(SESSION_KEY);
-    setAuth(null);
-  }, []);
+  useEffect(() => {
+    if (!mounted) return;
+    if (userProfile) {
+      sessionStorage.setItem(SESSION_PROFILE_KEY, JSON.stringify(userProfile));
+    } else {
+      sessionStorage.removeItem(SESSION_PROFILE_KEY);
+    }
+  }, [userProfile, mounted]);
 
-  // Hold off rendering until sessionStorage has been read
+  // Render nothing until client has hydrated — prevents SSR mismatch
   if (!mounted) return null;
 
-  // ── Not logged in ──
-  if (!auth) {
-    return <LoginAdmin onLoginSuccess={handleLoginSuccess} />;
+  const navigate = (v: string) => setView(v as CPView);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_PROFILE_KEY);
+    setUserRole(null);
+    setUserProfile(null);
+    setView("overview");
+    setAdminView("database");
+    setSelectedClient(null);
+  };
+
+  const handleClientSelect = (client: Client) => {
+    setSelectedClient(client);
+    setAdminView("client-overview");
+  };
+
+  const handleBackToDatabase = () => {
+    setAdminView("database");
+    setSelectedClient(null);
+  };
+
+  /* ── 1. Not logged in → show Login ─────────────────────── */
+  if (!userRole) {
+    return (
+      <LoginAdmin
+        onLoginSuccess={(profile: UserProfile) => {
+          setUserProfile(profile);
+          setUserRole(profile.role);
+          setView("overview");
+        }}
+      />
+    );
   }
 
-  // ── Admin → Company Database ──
-  if (auth.role === "admin") {
-    return <DashboardAdmin user={auth.user} onLogout={handleLogout} />;
+  /* ── 2a. Admin (super_admin | system_admin) → DashboardAdmin ── */
+  if (userRole === "admin") {
+    if (adminView === "client-overview" && selectedClient) {
+      return (
+        <ClientOverview
+          initialClient={selectedClient}
+          onBack={handleBackToDatabase}
+        />
+      );
+    }
+    return (
+      <DashboardAdmin
+        onClientSelect={handleClientSelect}
+        userProfile={userProfile}
+        onLogout={handleLogout}
+      />
+    );
   }
 
-  // ── Client user / manager → industry-specific portal ──
-  if (auth.role === "user" || auth.role === "manager") {
-    return <ClientPortal industry={auth.industry} user={auth.user} onLogout={handleLogout} />;
-  }
-
-  // Fallback
-  return <LoginAdmin onLoginSuccess={handleLoginSuccess} />;
+  /* ── 2b. Client portal (manager | user) ─────────────────── */
+  return (
+    <>
+      {view === "overview"  && <OverviewPage  onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+      {view === "tickets"   && <TicketsPage   onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+      {view === "users"     && <UsersPage     onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+      {view === "settings"  && <SettingsPage  onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+    </>
+  );
 }

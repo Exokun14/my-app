@@ -2,8 +2,9 @@
 
 /* ==============================================================
    dashboard_overview_users.tsx  ·  Company Client Overview — Main
-   State, handlers, modal wiring.
-   All panel UI lives in dashboard_overview_panels.tsx.
+   FIX: Added onLogout prop → passed to <Header onLogout={onLogout} />
+        For pages reached via Next.js routing (not root page.tsx),
+        logout clears sessionStorage and hard-navigates to "/".
    ============================================================== */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -14,12 +15,13 @@ import {
   CLIENTS, CLIENT_USERS, GLOBAL_USERS, ALL_TICKETS,
   CLIENT_TICKET_ANALYTICS,
   ACCOUNT_MANAGERS, getCatClass, formatDate, generatePOSDevices,
-  filterUsers, getPriorityInfo, buildNewUser, formatTimeWidget,
+  filterUsers, getPriorityInfo, formatTimeWidget,
   getInitials, getAvatarGradient, getBranchLicense,
   buildClientTrendChartPoints, getClientCategoryBarWidthPct,
   buildClientBacklogStatItems, parseTicketHoursAgo,
   computeAvgResolutionHrs, buildRealBacklog, classifySubject,
   CATEGORY_DEFS, buildRealCategories,
+  isAlohaType, catBadgeStyle, catDisplayLabel,
 } from './dashboard_overview_func';
 
 import type { ClientTicketItem, ClientBacklogData, RealCategory } from './dashboard_overview_func';
@@ -28,7 +30,6 @@ import {
   OverviewPanel, TicketsPanel, UsersPanel,
 } from './dashboard_overview_panels';
 
-import AddUserPopup       from './add_user_popup';
 import EditInfoPopup      from './edit_info_popup';
 import BranchDetailPopup  from './branch_detail_popup';
 import POSDetailPopup     from './pos_detail_popup';
@@ -38,9 +39,11 @@ import MSAExpirationPopup from './msa_expiration_popup';
 import { EditInfoFormState } from './popup_shared';
 
 import Sidebar from '../Sidebar_Web/sidebar';
-import Header  from '../Header_Web/header';
+import Header  from '../Header/header_main';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost';
+const SESSION_KEY         = 'gx_user_role';
+const SESSION_PROFILE_KEY = 'gx_user_profile';
 
 /* ═══════════════════════════════════════════════════════════════
    SWIPE HOOK
@@ -64,7 +67,8 @@ function useSwipe(onSwipeLeft: () => void, onSwipeRight: () => void, threshold =
 ═══════════════════════════════════════════════════════════════ */
 interface DashboardAdminProps {
   initialClient?: Client;
-  onBack?: () => void;
+  onBack?:        () => void;
+  onLogout?:      () => void;
 }
 
 /* ─── DB shape returned by GET /api/pos ─── */
@@ -72,8 +76,9 @@ interface DBPosMachine {
   id: number;
   branch_id: number;
   model: string;
-  ip_address: string;
+  serial_number: string;
   operating_system: string;
+  warranty_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -88,30 +93,52 @@ interface DBBranch {
   msa_end_date: string | null;
 }
 
-/* ─── DB shape returned by GET /api/companies ─── */
+/* ─── DB shape returned by GET /api/users ─── */
+export interface DBUser {
+  id: number;
+  profile_photo: string | null;
+  full_name: string;
+  email: string;
+  phone_number: string | null;
+  company_id: number | null;
+  company_name: string | null;
+  position_title: string | null;
+  access_level: 'super_admin' | 'system_admin' | 'manager' | 'user';
+  account_type: 'admin' | 'account_manager' | 'user';
+  status: 'active' | 'inactive';
+  created_at: string;
+  updated_at: string;
+}
+
+/* ─── DB shape returned by GET /api/companies (index) ─── */
 interface DBCompany {
   id: number;
-  store_name: string | null;
-  name: string | null;
-  industry_type: string | null;  // 'fnb' | 'retail' | 'warehouse'
-  industry: string | null;       // fallback e.g. 'Aloha (Food & Beverage)'
-  email: string | null;
-  contact_email: string | null;
-  phone: string | null;
-  contact_person: string | null;
-  alt_contact_person: string | null;
-  alt_contact_email: string | null;
-  alt_contact_phone: string | null;
-  account_manager: string | null;
+  company_name: string;
   company_logo: string | null;
-  active?: boolean | number | null;
+  industry_type: number | null;
+  industry_title: string | null;
+  contact_person: string;
+  email: string;
+  phone: string | null;
+  account_manager: string | null;
+  activation_code: string | null;
+  krunch_id: number | null;
+  krunch_num: string | null;
+  alternate_contact_1: number | null;
+  alternate_contact_2: number | null;
+  created_at: string;
+  alt1_name: string | null;
+  alt1_email: string | null;
+  alt1_phone: string | null;
+  alt2_name: string | null;
+  alt2_email: string | null;
+  alt2_phone: string | null;
 }
 
 /* ═══════════════════════════════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════════════════════════════ */
 
-/** Extract the numeric DB id from a POS device id string "POS-DB-{n}" */
 function dbIdFromPosId(posId: string): number | null {
   if (posId.startsWith('POS-DB-')) {
     const n = parseInt(posId.replace('POS-DB-', ''), 10);
@@ -120,7 +147,6 @@ function dbIdFromPosId(posId: string): number | null {
   return null;
 }
 
-/** Build a POSDevice from a DB row + branch context */
 function posFromDBRow(
   p: DBPosMachine,
   branchName: string,
@@ -129,29 +155,62 @@ function posFromDBRow(
   msaEnd?: string,
 ): POSDevice {
   return {
-    id:            `POS-DB-${p.id}`,
+    id:           `POS-DB-${p.id}`,
     model:         p.model,
     licenseNumber,
-    ip:            p.ip_address,
+    serial:        p.serial_number,
     os:            p.operating_system,
     branch:        branchName,
-    status:        'online',
+    status:       'online',
     msaStart,
     msaEnd,
+    warrantyDate:  p.warranty_date ?? undefined,
   };
 }
 
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════════════ */
-export default function DashboardAdmin({ initialClient, onBack }: DashboardAdminProps = {}) {
+export default function DashboardAdmin({ initialClient, onBack, onLogout }: DashboardAdminProps = {}) {
+
+  /* ── Default logout: clear session + hard-navigate to "/" ── */
+  const handleLogout = useCallback(() => {
+    if (onLogout) {
+      onLogout();
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_PROFILE_KEY);
+      window.location.href = '/';
+    }
+  }, [onLogout]);
+
+  // ── Read logged-in user profile from sessionStorage for Header ──
+  const [_headerUser] = useState(() => {
+    if (typeof window === 'undefined') return { initials: '', fullName: '', position: '', company: '', profilePhoto: null };
+    try {
+      const raw = sessionStorage.getItem(SESSION_PROFILE_KEY);
+      if (!raw) return { initials: '', fullName: '', position: '', company: '', profilePhoto: null };
+      const p = JSON.parse(raw);
+      return {
+        initials:     p.initials     ?? '',
+        fullName:     p.fullName     ?? '',
+        position:     p.position     ?? '',
+        company:      p.company      ?? '',
+        profilePhoto: p.profilePhoto ?? null,
+      };
+    } catch { return { initials: '', fullName: '', position: '', company: '', profilePhoto: null }; }
+  });
+
   /* ── Core state ── */
   const [currentClient, setCurrentClient] = useState<Client>(initialClient ?? CLIENTS[0]);
   const [clients,        setClients]       = useState<Client[]>(CLIENTS);
   const [ovPanel,        setOvPanel]       = useState(0);
-  // Start empty — real POS list is loaded from the DB
   const [posDevices,     setPosDevices]    = useState<POSDevice[]>([]);
   const [users,          setUsers]         = useState<GlobalUser[]>(GLOBAL_USERS);
+
+  /* ── DB users state ── */
+  const [dbUsers,        setDbUsers]       = useState<DBUser[]>([]);
+  const [dbUsersLoading, setDbUsersLoading] = useState(false);
 
   /* ── POS / branch filter state ── */
   const [posSearch,              setPosSearch]              = useState('');
@@ -185,7 +244,7 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
 
   const [dateTimeInfo, setDateTimeInfo] = useState(formatTimeWidget());
 
-  const isAloha = currentClient.cat === 'F&B';
+  const isAloha = isAlohaType(currentClient.cat);
 
   const clientAnalytics    = CLIENT_TICKET_ANALYTICS[currentClient.id];
   const clientTicketCounts = clientAnalytics
@@ -193,6 +252,7 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     : { open: 0, pending: 0, closed: 0 };
 
   const clientUsers_filtered = users.filter(u => u.company === currentClient.name);
+  const clientDbUsers = dbUsers.filter(u => u.company_id === currentClient.id);
 
   const ovSwipe = useSwipe(
     () => setOvPanel(p => Math.min(2, p + 1)),
@@ -209,7 +269,7 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
   useEffect(() => {
     if (initialClient) {
       setCurrentClient(initialClient);
-      setPosDevices([]); // will be populated by DB fetch below
+      setPosDevices([]);
       setOvPanel(0);
       setActivePOSBranchFilter(new Set());
       setPosSearch('');
@@ -220,99 +280,55 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
   }, [initialClient]);
 
   /* ══════════════════════════════════════════════════════════════
-     FETCH COMPANIES FROM DB (on mount)
+     FETCH COMPANY DETAIL (krunch_num + activation_code)
   ══════════════════════════════════════════════════════════════ */
-  /* Maps DB industry string → ClientCategory used in the UI */
-  function industryToCat(val: string | null): ClientCategory {
-    if (!val) return 'Retail';
-    const v = val.toLowerCase();
-    if (v === 'fnb' || v.includes('food') || v.includes('beverage') || v.includes('aloha')) return 'F&B';
-    if (v === 'warehouse' || v.includes('warehouse') || v.includes('logistics') || v.includes('supply')) return 'Warehouse';
-    return 'Retail';
-  }
-
   useEffect(() => {
-    console.log('[CompanyFetch] → GET', `${API_BASE}/api/companies`);
-    fetch(`${API_BASE}/api/companies`, { headers: { 'Accept': 'application/json' } })
+    if (!currentClient?.id) return;
+
+    fetch(`${API_BASE}/api/companies`, { headers: { Accept: 'application/json' } })
       .then(res => {
-        console.log('[CompanyFetch] ← status:', res.status, res.ok ? '✅' : '❌');
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         return res.json();
       })
-      // /api/companies returns a plain array — no { success, companies } wrapper
-      .then((rows: DBCompany[]) => {
-        console.log('[CompanyFetch] raw response:', rows);
-        if (!Array.isArray(rows)) {
-          console.warn('[CompanyFetch] ⚠️ expected array, got:', typeof rows, rows);
-          return;
-        }
-        if (rows.length === 0) {
-          console.warn('[CompanyFetch] ⚠️ array is empty — no companies in DB?');
-          return;
-        }
-        console.log(`[CompanyFetch] ✅ ${rows.length} companies received:`, rows.map(r => ({ id: r.id, store_name: r.store_name, industry_type: r.industry_type })));
+      .then((data: { success: boolean; data: DBCompany[] }) => {
+        if (!data.success) return;
 
-        setClients(prev => {
-          const sampleById = new Map(prev.map(c => [c.id, c]));
+        const row = data.data.find(c => c.id === currentClient.id);
+        if (!row) return;
 
-          const merged: Client[] = rows.map(dbC => {
-            const existing = sampleById.get(dbC.id);
-            return {
-              // Spread sample data first so all optional fields are preserved
-              ...(existing ?? {}),
-              // DB fields always win
-              id:             dbC.id,
-              name:           dbC.store_name || dbC.name || existing?.name || '',
-              email:          dbC.contact_email ?? dbC.email ?? existing?.email ?? '',
-              phone:          dbC.phone ?? existing?.phone ?? '',
-              contact:        dbC.contact_person ?? existing?.contact ?? '',
-              altContact:     dbC.alt_contact_person ?? existing?.altContact,
-              altEmail:       dbC.alt_contact_email ?? existing?.altEmail,
-              altPhone:       dbC.alt_contact_phone ?? existing?.altPhone,
-              accountManager: dbC.account_manager ?? existing?.accountManager ?? '',
-              cat:            industryToCat(dbC.industry_type ?? dbC.industry),
-              logo:           dbC.company_logo ?? existing?.logo ?? null,
-              // Fields not in DB — keep sample data or safe defaults
-              products: existing?.products ?? 0,
-              users:    existing?.users    ?? 0,
-              tickets:  existing?.tickets  ?? 0,
-              level:    existing?.level    ?? 'green',
-              branches: existing?.branches ?? [],
-              posCount: existing?.posCount ?? 0,
-              seats:    existing?.seats    ?? 0,
-            } as Client;
-          });
+        const krunchNum      = row.krunch_num      ?? undefined;
+        const activationCode = row.activation_code ?? undefined;
 
-          // Keep any sample-only clients not yet in the DB
-          const dbIds = new Set(rows.map(c => c.id));
-          const sampleOnly = prev.filter(c => !dbIds.has(c.id));
-          console.log(`[CompanyFetch] merged ${merged.length} DB clients, kept ${sampleOnly.length} sample-only clients`);
-          console.log('[CompanyFetch] final client list:', [...merged, ...sampleOnly].map(c => ({ id: c.id, name: c.name, cat: c.cat })));
+        const needsUpdate =
+          krunchNum      !== currentClient.krunchNum ||
+          activationCode !== currentClient.saStart;
 
-          return [...merged, ...sampleOnly];
-        });
+        if (!needsUpdate) return;
 
-        // Patch currentClient if it's one of the DB companies
-        setCurrentClient(prev => {
-          const dbMatch = rows.find(c => c.id === prev.id);
-          if (!dbMatch) return prev;
-          return {
-            ...prev,
-            name:           dbMatch.store_name || dbMatch.name || prev.name,
-            email:          dbMatch.contact_email ?? dbMatch.email ?? prev.email,
-            phone:          dbMatch.phone ?? prev.phone,
-            contact:        dbMatch.contact_person ?? prev.contact,
-            altContact:     dbMatch.alt_contact_person ?? prev.altContact,
-            altEmail:       dbMatch.alt_contact_email ?? prev.altEmail,
-            altPhone:       dbMatch.alt_contact_phone ?? prev.altPhone,
-            accountManager: dbMatch.account_manager ?? prev.accountManager,
-            cat:            industryToCat(dbMatch.industry_type ?? dbMatch.industry),
-            logo:           dbMatch.company_logo ?? prev.logo,
-          };
-        });
+        const updated: Client = { ...currentClient, krunchNum, saStart: activationCode };
+        setCurrentClient(updated);
+        setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
       })
-      .catch(err => console.error('[CompanyFetch] ❌ fetch error:', err));
+      .catch(err => console.error('[CompanyFetch] krunch/activation hydration failed:', err));
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentClient.id]);
+
+  /* ══════════════════════════════════════════════════════════════
+     FETCH DB USERS
+  ══════════════════════════════════════════════════════════════ */
+  useEffect(() => {
+    setDbUsersLoading(true);
+    fetch(`${API_BASE}/api/users`, { headers: { 'Accept': 'application/json' } })
+      .then(res => {
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        return res.json();
+      })
+      .then((data: { success: boolean; data: DBUser[] }) => {
+        if (data.success) setDbUsers(data.data);
+      })
+      .catch(err => console.error('[UsersFetch] failed:', err))
+      .finally(() => setDbUsersLoading(false));
   }, []);
 
   /* ══════════════════════════════════════════════════════════════
@@ -332,11 +348,10 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
       .then(async (data: { success: boolean; branches: DBBranch[] }) => {
         if (!data.success) return;
 
-        /* ── Build branch maps ── */
-        const branchNames: string[]                                    = [];
-        const blMap:  Record<string, string>                           = {};
+        const branchNames: string[]                                          = [];
+        const blMap:  Record<string, string>                                 = {};
         const bmMap:  Record<string, { msaStart?: string; msaEnd?: string }> = {};
-        const branchIds: Record<string, number>                        = {};
+        const branchIds: Record<string, number>                              = {};
 
         data.branches.forEach(b => {
           branchNames.push(b.branch_name);
@@ -360,7 +375,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
         setCurrentClient(updated);
         setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
 
-        /* ── Fetch POS for every branch in parallel ── */
         const allPOS: POSDevice[] = [];
 
         await Promise.all(
@@ -413,12 +427,20 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
       : [];
     if (client.altContact2) alts.push({ name: client.altContact2, email: client.altEmail2 || '', phone: client.altPhone2 || '' });
     setEditInfoForm({
-      storeName: client.name, contact: client.contact, email: client.email,
-      phone: client.phone || '', altContacts: alts, site: client.site || '',
-      seats: String(client.seats || ''), keysPerStore: String(client.keysPerStore || ''),
-      licenseId: client.licenseId || '', saStart: client.saStart || '',
-      saEnd: client.saEnd || '', krunchNum: client.krunchNum || '',
-      logoUrl: typeof client.logo === 'string' ? client.logo : '', logoFile: undefined,
+      storeName:    client.name,
+      contact:      client.contact,
+      email:        client.email,
+      phone:        client.phone || '',
+      altContacts:  alts,
+      site:         client.site || '',
+      seats:        String(client.seats || ''),
+      keysPerStore: String(client.keysPerStore || ''),
+      licenseId:    client.licenseId || '',
+      saStart:      client.saStart   || '',
+      saEnd:        client.saEnd     || '',
+      krunchNum:    client.krunchNum || '',
+      logoUrl:      typeof client.logo === 'string' ? client.logo : '',
+      logoFile:     undefined,
     });
     setEditInfoModalOpen(true);
   };
@@ -429,15 +451,24 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     const alt1 = editInfoForm.altContacts[1];
     const updated: Client = {
       ...currentClient,
-      name: editInfoForm.storeName, contact: editInfoForm.contact,
-      email: editInfoForm.email, phone: editInfoForm.phone,
-      altContact:  alt0?.name  || undefined, altEmail:  alt0?.email || undefined, altPhone:  alt0?.phone || undefined,
-      altContact2: alt1?.name  || undefined, altEmail2: alt1?.email || undefined, altPhone2: alt1?.phone || undefined,
-      site: editInfoForm.site, seats: parseInt(editInfoForm.seats) || 0,
+      name:         editInfoForm.storeName,
+      contact:      editInfoForm.contact,
+      email:        editInfoForm.email,
+      phone:        editInfoForm.phone,
+      altContact:   alt0?.name  || undefined,
+      altEmail:     alt0?.email || undefined,
+      altPhone:     alt0?.phone || undefined,
+      altContact2:  alt1?.name  || undefined,
+      altEmail2:    alt1?.email || undefined,
+      altPhone2:    alt1?.phone || undefined,
+      site:         editInfoForm.site,
+      seats:        parseInt(editInfoForm.seats) || 0,
       keysPerStore: editInfoForm.keysPerStore ? parseInt(editInfoForm.keysPerStore) : undefined,
-      licenseId: editInfoForm.licenseId || undefined, saStart: editInfoForm.saStart || undefined,
-      saEnd: editInfoForm.saEnd || undefined, krunchNum: editInfoForm.krunchNum || undefined,
-      logo: editInfoForm.logoUrl || currentClient.logo,
+      licenseId:    editInfoForm.licenseId  || undefined,
+      saStart:      editInfoForm.saStart    || undefined,
+      saEnd:        editInfoForm.saEnd      || undefined,
+      krunchNum:    editInfoForm.krunchNum  || undefined,
+      logo:         editInfoForm.logoUrl    || currentClient.logo,
     };
     setClients(prev => prev.map(c => c.id === currentClient.id ? updated : c));
     setCurrentClient(updated);
@@ -449,7 +480,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
      BRANCH HANDLERS
   ══════════════════════════════════════════════════════════════ */
 
-  /** Re-fetch branches AND POS from DB for the given client */
   const refreshBranchesFromDB = async (forClient: Client) => {
     try {
       const res  = await fetch(`${API_BASE}/api/branches?company_id=${forClient.id}`, { headers: { 'Accept': 'application/json' } });
@@ -479,7 +509,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
       setClients(prev => prev.map(c => c.id === refreshed.id ? refreshed : c));
       setCurrentClient(refreshed);
 
-      /* Re-fetch POS */
       const allPOS: POSDevice[] = [];
       await Promise.all(
         (data.branches as DBBranch[]).map(async branch => {
@@ -511,7 +540,7 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
       : currentClient.branchMsaDates;
     const updated: Client = {
       ...currentClient,
-      branches: [...(currentClient.branches || []), branchName],
+      branches:       [...(currentClient.branches || []), branchName],
       branchLicenses: updatedBranchLicenses,
       branchMsaDates: updatedBranchMsaDates,
     };
@@ -541,7 +570,7 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
   };
 
   /* ══════════════════════════════════════════════════════════════
-     POS HANDLERS — all wired to the DB
+     POS HANDLERS
   ══════════════════════════════════════════════════════════════ */
 
   const handleAddPOSFromBranch = async (branch: string, posData: any) => {
@@ -560,8 +589,9 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
         body: JSON.stringify({
           branch_id:        branchDbId,
           model:            posData.model            || 'PAX A920',
-          ip_address:       posData.ip               || '192.168.0.1',
+          serial_number:    posData.serial           || '',
           operating_system: posData.os               || 'Windows 10',
+          warranty_date:    posData.warrantyDate     || null,
         }),
       });
       const result = await res.json();
@@ -574,13 +604,13 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
         id:           `POS-DB-${p.id}`,
         model:         p.model,
         licenseNumber,
-        ip:            p.ip_address,
+        serial:        p.serial_number,
         os:            p.operating_system,
         branch,
         status:       'online',
-        msaStart:      posData.msaStart   || undefined,
-        msaEnd:        posData.msaEnd     || undefined,
-        warrantyDate:  posData.warrantyDate || undefined,
+        msaStart:      posData.msaStart    || undefined,
+        msaEnd:        posData.msaEnd      || undefined,
+        warrantyDate:  p.warranty_date     || undefined,
       };
 
       setPosDevices(prev => [...prev, newPOS]);
@@ -605,8 +635,9 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({
             model:            posData.model,
-            ip_address:       posData.ip,
+            serial_number:    posData.serial,
             operating_system: posData.os,
+            warranty_date:    posData.warrantyDate || null,
           }),
         });
         const result = await res.json();
@@ -621,16 +652,7 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     setPosDevices(prev =>
       prev.map(p =>
         p.id === posId
-          ? {
-              ...p,
-              model:         posData.model,
-              licenseNumber: posData.licenseNumber,
-              ip:            posData.ip,
-              os:            posData.os,
-              msaStart:      posData.msaStart    || undefined,
-              msaEnd:        posData.msaEnd      || undefined,
-              warrantyDate:  posData.warrantyDate || undefined,
-            }
+          ? { ...p, model: posData.model, licenseNumber: posData.licenseNumber, serial: posData.serial, os: posData.os, msaStart: posData.msaStart || undefined, msaEnd: posData.msaEnd || undefined, warrantyDate: posData.warrantyDate || undefined }
           : p,
       ),
     );
@@ -663,14 +685,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
     showToast('POS device removed.');
   };
 
-  /* ── Category badge helpers (used in header) ── */
-  const catBadgeStyle = (cat: string): React.CSSProperties => {
-    if (cat === 'F&B')    return { background: 'rgba(217,119,6,0.18)',   color: '#92400e', border: '1px solid rgba(217,119,6,0.28)' };
-    if (cat === 'Retail') return { background: 'rgba(2,132,199,0.15)',   color: '#075985', border: '1px solid rgba(2,132,199,0.25)' };
-    return                       { background: 'rgba(124,58,237,0.14)', color: '#4c1d95', border: '1px solid rgba(124,58,237,0.24)' };
-  };
-  const catDisplayLabel = (cat: string) => cat === 'F&B' ? 'Aloha' : cat;
-
   /* ══════════════════════════════════════════════════════════════
      RENDER
   ══════════════════════════════════════════════════════════════ */
@@ -679,7 +693,11 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
       <Sidebar />
 
       <div style={{ display: 'flex', flexDirection: 'column', marginLeft: 'var(--gxh-sw, 220px)', minHeight: '100vh', marginTop: 54, transition: 'margin-left 0.28s cubic-bezier(0.4,0,0.2,1)' }}>
-        <Header />
+        {/* ── FIX: pass handleLogout + _headerUser so Header shows logged-in user ── */}
+        <Header
+          user={_headerUser}
+          onLogout={handleLogout}
+        />
 
         <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', background: `radial-gradient(ellipse 60% 50% at 0% 0%, rgba(124,58,237,0.06) 0%, transparent 60%), radial-gradient(ellipse 50% 50% at 100% 100%, rgba(13,148,136,0.05) 0%, transparent 60%), #f8f7ff` }} />
         <canvas id="rc" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
@@ -710,7 +728,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                   {currentClient.name}
                 </h1>
 
-                {/* Panel dots */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
                   <span style={{ fontSize: 9.5, fontWeight: 600, color: '#8e7ec0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     {['Overview', 'Tickets', 'Users'][ovPanel]}
@@ -732,7 +749,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
               <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }} {...ovSwipe}>
                 <div style={{ display: 'flex', height: '100%', transform: `translateX(-${ovPanel * 100}%)`, transition: 'transform 0.38s cubic-bezier(0.4,0,0.2,1)' }}>
 
-                  {/* Panel 0 — Overview */}
                   <OverviewPanel
                     currentClient={currentClient}
                     clientUsers_filtered={clientUsers_filtered}
@@ -754,7 +770,6 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                     openEditInfoModal={openEditInfoModal}
                   />
 
-                  {/* Panel 1 — Tickets */}
                   <TicketsPanel
                     currentClient={currentClient}
                     clientTicketCounts={clientTicketCounts}
@@ -765,11 +780,12 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                     showToast={showToast}
                   />
 
-                  {/* Panel 2 — Users */}
                   <UsersPanel
                     currentClient={currentClient}
                     clients={clients}
                     users={users}
+                    dbUsers={clientDbUsers}
+                    dbUsersLoading={dbUsersLoading}
                     userSearch={userSearch}
                     setUserSearch={setUserSearch}
                     userRoleFilters={userRoleFilters}
@@ -780,6 +796,14 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
                     setUserPositionFilters={setUserPositionFilters}
                     setAddUserModalOpen={setAddUserModalOpen}
                     showToast={showToast}
+                    onRefreshUsers={() => {
+                      setDbUsersLoading(true);
+                      fetch(`${API_BASE}/api/users`, { headers: { 'Accept': 'application/json' } })
+                        .then(r => r.json())
+                        .then((d: { success: boolean; data: DBUser[] }) => { if (d.success) setDbUsers(d.data); })
+                        .catch(err => console.error('[UsersFetch] refresh failed:', err))
+                        .finally(() => setDbUsersLoading(false));
+                    }}
                   />
 
                 </div>
@@ -790,11 +814,8 @@ export default function DashboardAdmin({ initialClient, onBack }: DashboardAdmin
       </div>
 
       {/* ════ POPUP MODALS ════ */}
-      {addUserModalOpen && (
-        <AddUserPopup clients={clients} onAdd={user => setUsers(prev => [user, ...prev])} onClose={() => setAddUserModalOpen(false)} showToast={showToast} />
-      )}
       {editInfoModalOpen && editInfoForm && currentClient && (
-        <EditInfoPopup client={currentClient} form={editInfoForm} onChange={setEditInfoForm} onSave={handleSaveEditInfo} onClose={() => setEditInfoModalOpen(false)} />
+        <EditInfoPopup client={currentClient} form={editInfoForm} onChange={setEditInfoForm} onSaved={handleSaveEditInfo} onClose={() => setEditInfoModalOpen(false)} />
       )}
       {branchDetailModal && (
         <BranchDetailPopup

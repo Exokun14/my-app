@@ -1,17 +1,44 @@
 /* ==============================================================
    DshAdmFunc.ts  ·  Company Database — Types, Data & Utilities
-          Connection function for DashboardAdmin.tsx
+   UPDATED: Added CompanyLicenseGroup type and
+            groupBranchesByCompany() which collapses all
+            BranchLicenseItem[] into one row per company for the
+            License Expiry panel. Each group carries the full
+            branch list and per-status counts so the summary
+            pills can be rendered without re-computing.
+   UPDATED: Added apiFetchIndustryCards() to load industry cards
+            from /api/industry-cards for the dynamic StatsBar.
+   UPDATED: industry_type is now an int FK. CompanyRow now carries
+            industry_title (joined from industry_cards) which is
+            used as the ClientCategory directly — no keyword
+            guessing. ClientCategory is now string-based so any
+            custom industry title maps correctly.
+   UPDATED: License expiry status thresholds revised:
+            - critical : ≤ 30 days  (1 month)
+            - warning  : ≤ 60 days  (2 months)
+            - upcoming : ≤ 90 days  (3 months)
+            - expired  : past due   (≤ 0 days)
    ============================================================== */
 
+/* ─── Re-export only ACCOUNT_MANAGERS from Sample_Data ─────────────────────── */
+export { ACCOUNT_MANAGERS } from '../../Sample_Data/Company_Database_sample';
 
-/* ═══════════════════════════════════════════════
-   SECTION 1: TYPES & INTERFACES
-   ═══════════════════════════════════════════════ */
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost';
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SECTION 1 — TYPES & INTERFACES
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
 export type HealthLevel = 'green' | 'yellow' | 'red';
-export type ClientCategory = 'F&B' | 'Retail' | 'Warehouse';
-export type LicenseStatus = 'expired' | 'critical' | 'warning' | 'upcoming';
-export type LicPeriod = 'all' | '3m' | '6m' | '1y' | 'custom';
+export type LicPeriod   = 'all' | '3m' | '6m' | '1y';
+
+/**
+ * ClientCategory is now an open string type.
+ * The three legacy buckets (F&B, Retail, Warehouse) are still used
+ * for display colour fallbacks, but any industry_cards.title value
+ * is now accepted without keyword matching.
+ */
+export type ClientCategory = 'F&B' | 'Retail' | 'Warehouse' | string;
 
 export interface Client {
   id: number;
@@ -19,9 +46,12 @@ export interface Client {
   contact: string;
   email: string;
   phone: string;
-  altContact?: string;
-  altEmail?: string;
-  altPhone?: string;
+  altContact?:  string;
+  altEmail?:    string;
+  altPhone?:    string;
+  altContact2?: string;
+  altEmail2?:   string;
+  altPhone2?:   string;
   accountManager: string;
   products: number;
   users: number;
@@ -38,453 +68,227 @@ export interface Client {
   saEnd?: string;
   licenseId?: string;
   keysPerStore?: number;
+  branchLicenses?: Record<string, string>;
 }
 
 export interface StatsBarData {
   total: number;
-  fb: { count: number; tickets: number };
-  retail: { count: number; tickets: number };
+  fb:        { count: number; tickets: number };
+  retail:    { count: number; tickets: number };
   warehouse: { count: number; tickets: number };
 }
 
 export interface LicenseItem extends Client {
-  _endDate: Date;
   _daysLeft: number;
-  _status: LicenseStatus;
+  _status: 'expired' | 'critical' | 'warning' | 'upcoming';
 }
 
+/* ─── Branch types ──────────────────────────────────────────────────────────── */
 
-/* ═══════════════════════════════════════════════
-   SECTION 2: DATA CONSTANTS
-   ═══════════════════════════════════════════════ */
+export interface BranchRow {
+  id:              number;
+  company_id:      number;
+  branch_name:     string;
+  license_number:  string | null;
+  msa_start_date:  string | null;
+  msa_end_date:    string | null;
+  created_at:      string;
+  updated_at:      string;
+}
 
-export const CLIENTS: Client[] = [
-  {
-    id: 1,
-    name: 'Starbucks',
-    contact: 'Martin Roberts',
-    email: 'martin@starbucks.com',
-    phone: '+63 2 8888 1001',
-    altContact: 'Sarah Lim',
-    altEmail: 'sarah@starbucks.com',
-    altPhone: '+63 917 111 2001',
-    accountManager: 'Lisa Cruz',
-    products: 12,
-    users: 16,
-    tickets: 0,
-    level: 'green',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo_2011.svg/200px-Starbucks_Corporation_Logo_2011.svg.png',
-    branches: ['Makati', 'BGC', 'Ortigas'],
-    posCount: 5,
-    seats: 16,
-    site: 'Makati CBD',
-    krunchNum: 'KRN-10231',
-    saStart: '2024-01-15',
-    saEnd: '2026-06-14',
-    licenseId: 'LIC-SBX-2024-0112',
-    keysPerStore: 3,
-  },
-  {
-    id: 2,
-    name: 'Ace Hardware',
-    contact: 'John Kent',
-    email: 'john@ace.com',
-    phone: '+63 2 8555 2002',
-    altContact: 'Mel Torres',
-    altEmail: 'mel@ace.com',
-    altPhone: '+63 918 222 3002',
-    accountManager: 'Renz Tolentino',
-    products: 4,
-    users: 9,
-    tickets: 5,
-    level: 'yellow',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Ace_Hardware_logo.svg/200px-Ace_Hardware_logo.svg.png',
-    branches: ['Quezon City', 'Pasay'],
-    posCount: 4,
-    seats: 9,
-    site: 'QC Main Store',
-    krunchNum: 'KRN-20445',
-    saStart: '2024-03-01',
-    saEnd: '2026-02-14',
-    licenseId: 'LIC-ACE-2024-0203',
-  },
-  {
-    id: 3,
-    name: 'Popeyes',
-    contact: 'John Doe',
-    email: 'john@popeyes.com',
-    phone: '+63 2 8444 3003',
-    altContact: 'Rica Cruz',
-    altEmail: 'rica@popeyes.com',
-    altPhone: '+63 919 333 4003',
-    accountManager: 'Maria Santos',
-    products: 8,
-    users: 9,
-    tickets: 8,
-    level: 'red',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/b/b8/Popeyes_logo.svg/200px-Popeyes_logo.svg.png',
-    branches: ['Manila Branch', 'Makati Branch'],
-    posCount: 7,
-    seats: 12,
-    site: 'Manila HQ',
-    krunchNum: 'KRN-30887',
-    saStart: '2024-06-01',
-    saEnd: '2026-03-15',
-    licenseId: 'LIC-POP-2024-0601',
-    keysPerStore: 4,
-  },
-  {
-    id: 4,
-    name: '7-Eleven',
-    contact: 'Kyle Jennings',
-    email: 'kyle@7eleven.com',
-    phone: '+63 2 8333 4004',
-    altContact: 'Anna Cruz',
-    altEmail: 'anna@7eleven.com',
-    altPhone: '+63 920 444 5004',
-    accountManager: 'Jake Reyes',
-    products: 1,
-    users: 1,
-    tickets: 0,
-    level: 'green',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/7-eleven_logo.svg/200px-7-eleven_logo.svg.png',
-    branches: ['Caloocan', 'Pasig'],
-    posCount: 3,
-    seats: 5,
-    site: 'Caloocan',
-    krunchNum: 'KRN-40123',
-    saStart: '2025-01-01',
-    saEnd: '2027-01-01',
-    licenseId: 'LIC-7EL-2025-0101',
-  },
-  {
-    id: 5,
-    name: 'Wolfgang Grill',
-    contact: 'Walter King',
-    email: 'walter@wolfganggrill.com',
-    phone: '+63 2 8222 5005',
-    altContact: 'Petra Reyes',
-    altEmail: 'petra@wolfganggrill.com',
-    altPhone: '+63 921 555 6005',
-    accountManager: 'Ana Mendez',
-    products: 14,
-    users: 9,
-    tickets: 0,
-    level: 'green',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Wolfgang_Puck_logo.svg/200px-Wolfgang_Puck_logo.svg.png',
-    branches: ['BGC Main'],
-    posCount: 2,
-    seats: 10,
-    site: 'BGC Fort',
-    krunchNum: 'KRN-50321',
-    saStart: '2024-09-01',
-    saEnd: '2026-04-30',
-    licenseId: 'LIC-WGG-2024-0901',
-    keysPerStore: 2,
-  },
-  {
-    id: 6,
-    name: 'Rolex',
-    contact: 'James Blue',
-    email: 'james@rolex.com',
-    phone: '+63 2 8111 6006',
-    altContact: 'Chloe Tan',
-    altEmail: 'chloe@rolex.com',
-    altPhone: '+63 922 666 7006',
-    accountManager: 'Lisa Cruz',
-    products: 4,
-    users: 8,
-    tickets: 0,
-    level: 'green',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/9/9f/Rolex_logo.svg/200px-Rolex_logo.svg.png',
-    branches: ['Greenbelt', 'Shangri-La'],
-    posCount: 3,
-    seats: 8,
-    site: 'Greenbelt 5',
-    krunchNum: 'KRN-60014',
-    saStart: '2024-02-01',
-    saEnd: '2026-03-20',
-    licenseId: 'LIC-RLX-2024-0201',
-  },
-  {
-    id: 7,
-    name: 'Amazon Fulfillment',
-    contact: 'Sara Chen',
-    email: 'sara@amazon.com',
-    phone: '+63 2 8000 7007',
-    altContact: 'Dan Park',
-    altEmail: 'dan@amazon.com',
-    altPhone: '+63 923 777 8007',
-    accountManager: 'Renz Tolentino',
-    products: 32,
-    users: 24,
-    tickets: 2,
-    level: 'yellow',
-    cat: 'Warehouse',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/200px-Amazon_logo.svg.png',
-    branches: ['Laguna Warehouse', 'Cavite Hub'],
-    posCount: 6,
-    seats: 30,
-    site: 'Laguna Tech',
-    krunchNum: 'KRN-70556',
-    saStart: '2024-04-01',
-    saEnd: '2027-03-31',
-    licenseId: 'LIC-AMZ-2024-0401',
-  },
-  {
-    id: 8,
-    name: 'FedEx Depot',
-    contact: 'Tom Harris',
-    email: 'tom@fedex.com',
-    phone: '+63 2 7999 8008',
-    altContact: 'Kim Lee',
-    altEmail: 'kim@fedex.com',
-    altPhone: '+63 924 888 9008',
-    accountManager: 'Jake Reyes',
-    products: 8,
-    users: 12,
-    tickets: 0,
-    level: 'green',
-    cat: 'Warehouse',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/FedEx_Corporation_-_2016_Logo.svg/200px-FedEx_Corporation_-_2016_Logo.svg.png',
-    branches: ['Paranaque Depot'],
-    posCount: 4,
-    seats: 12,
-    site: 'Paranaque',
-    krunchNum: 'KRN-80223',
-    saStart: '2024-05-15',
-    saEnd: '2026-06-30',
-    licenseId: 'LIC-FDX-2024-0515',
-  },
-  {
-    id: 9,
-    name: 'IKEA',
-    contact: 'Lisa Park',
-    email: 'lisa@ikea.com',
-    phone: '+63 2 7888 9009',
-    altContact: 'Max Weber',
-    altEmail: 'max@ikea.com',
-    altPhone: '+63 925 999 1009',
-    accountManager: 'Maria Santos',
-    products: 22,
-    users: 15,
-    tickets: 3,
-    level: 'yellow',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Ikea_logo.svg/200px-Ikea_logo.svg.png',
-    branches: ['Pasay Store'],
-    posCount: 5,
-    seats: 15,
-    site: 'Pasay City',
-    krunchNum: 'KRN-90112',
-    saStart: '2024-07-01',
-    saEnd: '2026-05-10',
-    licenseId: 'LIC-IKA-2024-0701',
-  },
-  {
-    id: 10,
-    name: 'DHL Warehouse',
-    contact: 'Mike Sato',
-    email: 'mike@dhl.com',
-    phone: '+63 2 7777 1010',
-    altContact: 'Nina Cruz',
-    altEmail: 'nina@dhl.com',
-    altPhone: '+63 926 100 2010',
-    accountManager: 'Ana Mendez',
-    products: 11,
-    users: 18,
-    tickets: 1,
-    level: 'yellow',
-    cat: 'Warehouse',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/DHL_Logo.svg/200px-DHL_Logo.svg.png',
-    branches: ['Taguig Hub', 'Clark'],
-    posCount: 4,
-    seats: 20,
-    site: 'Taguig',
-    krunchNum: 'KRN-10045',
-    saStart: '2024-08-01',
-    saEnd: '2026-07-31',
-    licenseId: 'LIC-DHL-2024-0801',
-  },
-  {
-    id: 11,
-    name: "McDonald's",
-    contact: 'Amy Fox',
-    email: 'amy@mcdonalds.com',
-    phone: '+63 2 7666 1111',
-    altContact: 'Leo Santos',
-    altEmail: 'leo@mcdonalds.com',
-    altPhone: '+63 927 111 3011',
-    accountManager: 'Lisa Cruz',
-    products: 9,
-    users: 11,
-    tickets: 0,
-    level: 'green',
-    cat: 'F&B',
-    logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/McDonald%27s_Golden_Arches.svg/200px-McDonald%27s_Golden_Arches.svg.png",
-    branches: ['Makati', 'Manila', 'Cebu'],
-    posCount: 7,
-    seats: 15,
-    site: 'Manila',
-    krunchNum: 'KRN-11033',
-    saStart: '2024-10-01',
-    saEnd: '2026-04-15',
-    licenseId: 'LIC-MCD-2024-1001',
-    keysPerStore: 5,
-  },
-  {
-    id: 12,
-    name: 'Nike Retail',
-    contact: 'Chris Lee',
-    email: 'chris@nike.com',
-    phone: '+63 2 7555 1212',
-    altContact: 'Faye Uy',
-    altEmail: 'faye@nike.com',
-    altPhone: '+63 928 222 4012',
-    accountManager: 'Renz Tolentino',
-    products: 17,
-    users: 13,
-    tickets: 0,
-    level: 'green',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Logo_NIKE.svg/200px-Logo_NIKE.svg.png',
-    branches: ['SM Mall', 'Ayala'],
-    posCount: 4,
-    seats: 14,
-    site: 'SM MOA',
-    krunchNum: 'KRN-12044',
-    saStart: '2025-01-15',
-    saEnd: '2026-06-14',
-    licenseId: 'LIC-NKE-2025-0115',
-  },
-  {
-    id: 13,
-    name: 'Puma',
-    contact: 'Elena Torres',
-    email: 'elena@puma.com',
-    phone: '+63 2 7444 1313',
-    altContact: 'Roy Kim',
-    altEmail: 'roy@puma.com',
-    altPhone: '+63 929 333 5013',
-    accountManager: 'Jake Reyes',
-    products: 6,
-    users: 7,
-    tickets: 1,
-    level: 'yellow',
-    cat: 'Retail',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Puma_logo.svg/200px-Puma_logo.svg.png',
-    branches: ['Eastwood Store'],
-    posCount: 2,
-    seats: 7,
-    site: 'Eastwood',
-    krunchNum: 'KRN-13067',
-    saStart: '2024-11-01',
-    saEnd: '2027-10-31',
-    licenseId: 'LIC-PMA-2024-1101',
-  },
-  {
-    id: 14,
-    name: 'Jollibee',
-    contact: 'Rico Santos',
-    email: 'rico@jollibee.com',
-    phone: '+63 2 7333 1414',
-    altContact: 'Lena Delos Reyes',
-    altEmail: 'lena@jollibee.com',
-    altPhone: '+63 930 444 6014',
-    accountManager: 'Maria Santos',
-    products: 10,
-    users: 14,
-    tickets: 3,
-    level: 'yellow',
-    cat: 'F&B',
-    logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/8/84/Jollibee_logo.svg/200px-Jollibee_logo.svg.png',
-    branches: ['Manila', 'Davao', 'Cebu'],
-    posCount: 5,
-    seats: 18,
-    site: 'Manila',
-    krunchNum: 'KRN-14023',
-    saStart: '2024-12-01',
-    saEnd: '2027-11-30',
-    licenseId: 'LIC-JLB-2024-1201',
-    keysPerStore: 4,
-  },
-  {
-    id: 15,
-    name: 'UPS Supply Chain',
-    contact: 'Drew Campbell',
-    email: 'drew@ups.com',
-    phone: '+63 2 7222 1515',
-    altContact: 'Sandy Ho',
-    altEmail: 'sandy@ups.com',
-    altPhone: '+63 931 555 7015',
-    accountManager: 'Ana Mendez',
-    products: 18,
-    users: 22,
-    tickets: 0,
-    level: 'green',
-    cat: 'Warehouse',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/UPS_Logo_Shield_2017.svg/200px-UPS_Logo_Shield_2017.svg.png',
-    branches: ['NLEX Hub'],
-    posCount: 6,
-    seats: 25,
-    site: 'Bulacan',
-    krunchNum: 'KRN-15099',
-    saStart: '2025-02-01',
-    saEnd: '2027-01-31',
-    licenseId: 'LIC-UPS-2025-0201',
-  },
-];
+export interface BranchLicenseItem {
+  branchId:       number;
+  branchName:     string;
+  licenseNumber:  string | null;
+  msaStart:       string | null;
+  msaEnd:         string | null;
+  companyId:      number;
+  companyName:    string;
+  cat:            ClientCategory;
+  accountManager: string;
+  logo:           string | null;
+  _daysLeft:      number;
+  _status:        'expired' | 'critical' | 'warning' | 'upcoming';
+}
 
-export const ACCOUNT_MANAGERS = ['Lisa Cruz', 'Renz Tolentino', 'Maria Santos', 'Jake Reyes', 'Ana Mendez'];
+/**
+ * One row in the License Expiry table — one company with all its branches
+ * collapsed inside. The modal opens on "View Branches".
+ */
+export interface CompanyLicenseGroup {
+  companyId:      number;
+  companyName:    string;
+  cat:            ClientCategory;
+  accountManager: string;
+  logo:           string | null;
+  /** Full branch list (all periods) — shown inside the modal */
+  branches:       BranchLicenseItem[];
+  /** Total branch count regardless of period */
+  totalBranches:  number;
+  /** Per-status counts within the currently active period filter */
+  counts: {
+    expired:  number;
+    critical: number;
+    warning:  number;
+    upcoming: number;
+  };
+  /** Worst status among branches in the current period */
+  worstStatus: 'expired' | 'critical' | 'warning' | 'upcoming' | 'none';
+}
 
+/* ─── Industry Card type (mirrors add_industry_popup.IndustryCard) ─────────── */
+export interface IndustryCard {
+  id:         number;
+  icon:       string;
+  title:      string;
+  sub_title:  string | null;
+  count:      number;
+  tickets:    number;
+  color:      string | null;
+  created_at: string;
+}
 
-/* ═══════════════════════════════════════════════
-   SECTION 3: UTILITY FUNCTIONS
-   ═══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SECTION 2 — API FUNCTIONS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Resolve a ClientCategory from an industry card title.
+ *
+ * We no longer do keyword guessing. The title from industry_cards IS the
+ * category. This ensures "Test Industry", "Logistics", etc. all map to
+ * themselves rather than being wrongly bucketed as "Warehouse".
+ *
+ * The three legacy string values (F&B, Retail, Warehouse) are handled
+ * naturally because their titles in industry_cards will match exactly.
+ */
+function resolveCatFromTitle(title: string): ClientCategory {
+  return title?.trim() || 'Warehouse';
+}
+
+/**
+ * Legacy string map for rows that still carry the old plain-text
+ * industry_type string before the FK migration.
+ */
+const LEGACY_INDUSTRY_TO_CAT: Record<string, ClientCategory> = {
+  'Aloha (Food & Beverage)': 'F&B',
+  'Retail':                  'Retail',
+  'Warehouse':               'Warehouse',
+};
+
+interface CompanyRow {
+  id:                   number;
+  company_name:         string;
+  company_logo:         string | null;
+  /**
+   * After the FK migration this is an int. The index() query joins
+   * industry_cards and returns industry_title alongside it.
+   */
+  industry_type:        number | string | null;
+  /** Joined from industry_cards.title — present in all new rows */
+  industry_title?:      string | null;
+  contact_person:       string;
+  email:                string;
+  phone:                string | null;
+  account_manager:      string | null;
+  alternate_contact_1?: number | null;
+  alternate_contact_2?: number | null;
+  created_at:           string;
+  alt1_name?:  string | null;
+  alt1_email?: string | null;
+  alt1_phone?: string | null;
+  alt2_name?:  string | null;
+  alt2_email?: string | null;
+  alt2_phone?: string | null;
+}
+
+function mapRowToClient(row: CompanyRow): Client {
+  /*
+   * Priority:
+   *  1. industry_title from the joined industry_cards row  (new FK rows)
+   *  2. Legacy string value of industry_type               (pre-migration rows)
+   *  3. Fallback to 'Warehouse'
+   */
+  let cat: ClientCategory = 'Warehouse';
+
+  if (row.industry_title) {
+    cat = resolveCatFromTitle(row.industry_title);
+  } else if (typeof row.industry_type === 'string' && row.industry_type) {
+    cat = LEGACY_INDUSTRY_TO_CAT[row.industry_type] ?? row.industry_type;
+  }
+
+  return {
+    id:             row.id,
+    name:           row.company_name,
+    contact:        row.contact_person,
+    email:          row.email,
+    phone:          row.phone           ?? '',
+    accountManager: row.account_manager ?? '',
+    altContact:  row.alt1_name  ?? undefined,
+    altEmail:    row.alt1_email ?? undefined,
+    altPhone:    row.alt1_phone ?? undefined,
+    altContact2: row.alt2_name  ?? undefined,
+    altEmail2:   row.alt2_email ?? undefined,
+    altPhone2:   row.alt2_phone ?? undefined,
+    products:       0,
+    users:          0,
+    tickets:        0,
+    level:          'green',
+    cat,
+    logo:           row.company_logo ?? null,
+    branches:       [],
+    posCount:       0,
+    seats:          0,
+  };
+}
+
+export async function apiFetchCompanies(): Promise<Client[]> {
+  const res = await fetch(`${API_BASE}/api/companies`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`Failed to load companies (HTTP ${res.status})`);
+  const data: { success: boolean; data: CompanyRow[] } = await res.json();
+  if (!data.success || !Array.isArray(data.data))
+    throw new Error('Unexpected response shape from /api/companies');
+  return data.data.map(mapRowToClient);
+}
+
+export async function apiFetchBranches(companyId?: number): Promise<BranchRow[]> {
+  const url = companyId
+    ? `${API_BASE}/api/branches?company_id=${companyId}`
+    : `${API_BASE}/api/branches`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(`Failed to load branches (HTTP ${res.status})`);
+  const data: { success: boolean; branches: BranchRow[] } = await res.json();
+  if (!data.success || !Array.isArray(data.branches))
+    throw new Error('Unexpected response shape from /api/branches');
+  return data.branches;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SECTION 3 — UTILITY FUNCTIONS
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
 export function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase();
-}
-
-export function getCatClass(cat: ClientCategory | string): string {
-  if (cat === 'F&B') return 'cat-fb';
-  if (cat === 'Retail') return 'cat-retail';
-  return 'cat-wh';
-}
-
-export function getLogoWrapClass(cat: ClientCategory | string): string {
-  if (cat === 'F&B') return 'lw-fb';
-  if (cat === 'Retail') return 'lw-retail';
-  return 'lw-wh';
+  const parts = name.trim().split(' ');
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export function getHealthLabel(level: HealthLevel): string {
-  if (level === 'green') return 'Healthy';
+  if (level === 'green')  return 'Healthy';
   if (level === 'yellow') return 'Attention';
   return 'Critical';
 }
 
-export function formatDate(dateStr: string | undefined): string {
+export function formatDate(dateStr: string | undefined | null): string {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+    month: 'short', day: 'numeric', year: 'numeric',
   });
 }
 
-export function getDaysLeft(dateStr: string | undefined): number | null {
+export function getDaysLeft(dateStr: string | undefined | null): number | null {
   if (!dateStr) return null;
   const end = new Date(dateStr);
   const now = new Date();
@@ -492,82 +296,184 @@ export function getDaysLeft(dateStr: string | undefined): number | null {
   return Math.ceil((end.getTime() - now.getTime()) / 86400000);
 }
 
-export function getLicenseStatus(daysLeft: number): LicenseStatus {
-  if (daysLeft < 0) return 'expired';
-  if (daysLeft <= 30) return 'critical';
-  if (daysLeft <= 90) return 'warning';
-  return 'upcoming';
-}
-
 export function computeStatsBarData(clients: Client[]): StatsBarData {
-  const fb        = clients.filter((c) => c.cat === 'F&B');
-  const retail    = clients.filter((c) => c.cat === 'Retail');
-  const warehouse = clients.filter((c) => c.cat === 'Warehouse');
+  const total     = clients.length;
+  const fb        = clients.filter(c => c.cat === 'F&B');
+  const retail    = clients.filter(c => c.cat === 'Retail');
+  const warehouse = clients.filter(c => c.cat === 'Warehouse');
   return {
-    total: clients.length,
-    fb:        { count: fb.length,        tickets: fb.reduce((s, c) => s + c.tickets, 0) },
-    retail:    { count: retail.length,    tickets: retail.reduce((s, c) => s + c.tickets, 0) },
+    total,
+    fb:        { count: fb.length,        tickets: fb.reduce((s, c)        => s + c.tickets, 0) },
+    retail:    { count: retail.length,    tickets: retail.reduce((s, c)    => s + c.tickets, 0) },
     warehouse: { count: warehouse.length, tickets: warehouse.reduce((s, c) => s + c.tickets, 0) },
   };
 }
 
 export function filterClients(
   clients: Client[],
-  activeCategories: Set<string>,
-  activeHealthFilters: Set<string>,
-  searchQuery: string
+  activeCats: Set<string>,
+  activeHealth: Set<string>,
+  search: string,
 ): Client[] {
-  const q = searchQuery.toLowerCase().trim();
-  return clients.filter((c) => {
-    const categoryMatch = activeCategories.size === 0 || activeCategories.has(c.cat);
-    const healthMatch   = activeHealthFilters.size === 0 || activeHealthFilters.has(c.level);
-    const searchMatch   =
-      !q ||
-      c.name.toLowerCase().includes(q) ||
-      c.contact.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      c.cat.toLowerCase().includes(q);
-    return categoryMatch && healthMatch && searchMatch;
+  const q = search.toLowerCase().trim();
+  return clients.filter(c => {
+    const catOk    = activeCats.size === 0   || activeCats.has(c.cat);
+    const healthOk = activeHealth.size === 0 || activeHealth.has(c.level);
+    const searchOk = !q
+      || c.name.toLowerCase().includes(q)
+      || c.contact.toLowerCase().includes(q)
+      || c.email.toLowerCase().includes(q);
+    return catOk && healthOk && searchOk;
   });
 }
 
-export function computeLicenseExpiry(
-  clients: Client[],
-  period: LicPeriod,
-  customFrom?: string | null,
-  customTo?: string | null
-): LicenseItem[] {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+/* ─── computeLicenseExpiryFromBranches ─────────────────────────────────────── */
 
-  let from = new Date(now);
-  let to   = new Date(now);
+const STATUS_ORDER = { expired: 0, critical: 1, warning: 2, upcoming: 3 } as const;
 
-  if (period === '3m')           to.setMonth(to.getMonth() + 3);
-  else if (period === '6m')      to.setMonth(to.getMonth() + 6);
-  else if (period === '1y')      to.setFullYear(to.getFullYear() + 1);
-  else if (period === 'custom' && customFrom && customTo) {
-    from = new Date(customFrom);
-    to   = new Date(customTo);
-  } else {
-    to.setFullYear(to.getFullYear() + 10);
+/**
+ * Status thresholds (revised):
+ *   expired  — past due          (daysLeft ≤ 0)
+ *   critical — within 1 month    (daysLeft ≤ 30)
+ *   warning  — within 2 months   (daysLeft ≤ 60)
+ *   upcoming — within 3 months   (daysLeft ≤ 90)
+ *
+ * Branches with msa_end_date more than 90 days away are classified as
+ * 'upcoming' so they still surface in the panel rather than being silently
+ * dropped.  The period filter has been removed so all branches with a date
+ * are always included.
+ */
+export function computeLicenseExpiryFromBranches(
+  branches: BranchRow[],
+  clients:  Client[],
+  period:   LicPeriod,
+): BranchLicenseItem[] {
+  const maxDays   = period === '3m' ? 90 : period === '6m' ? 180 : period === '1y' ? 365 : Infinity;
+  const clientMap = new Map<number, Client>(clients.map(c => [c.id, c]));
+  const result: BranchLicenseItem[] = [];
+
+  for (const branch of branches) {
+    const company = clientMap.get(branch.company_id);
+    if (!company) continue;
+    const daysLeft = getDaysLeft(branch.msa_end_date) ?? Infinity;
+    if (branch.msa_end_date && daysLeft > maxDays) continue;
+
+    /*
+     * Revised thresholds:
+     *   expired  ≤ 0 days
+     *   critical ≤ 30 days  (1 month)
+     *   warning  ≤ 60 days  (2 months)
+     *   upcoming ≤ 90 days  (3 months)
+     *   beyond 90 days → still 'upcoming' (shown but not urgent)
+     */
+    const status: BranchLicenseItem['_status'] =
+      daysLeft <= 0  ? 'expired'  :
+      daysLeft <= 30 ? 'critical' :
+      daysLeft <= 60 ? 'warning'  : 'upcoming';
+
+    result.push({
+      branchId:       branch.id,
+      branchName:     branch.branch_name,
+      licenseNumber:  branch.license_number,
+      msaStart:       branch.msa_start_date,
+      msaEnd:         branch.msa_end_date,
+      companyId:      company.id,
+      companyName:    company.name,
+      cat:            company.cat,
+      accountManager: company.accountManager,
+      logo:           company.logo,
+      _daysLeft:      daysLeft === Infinity ? 999999 : daysLeft,
+      _status:        status,
+    });
   }
 
-  const all: LicenseItem[] = clients
-    .filter((c) => c.saEnd)
-    .map((c) => {
-      const d  = new Date(c.saEnd!);
-      const dl = Math.ceil((d.getTime() - now.getTime()) / 86400000);
-      return { ...c, _endDate: d, _daysLeft: dl, _status: getLicenseStatus(dl) };
-    });
+  return result.sort((a, b) =>
+    STATUS_ORDER[a._status] !== STATUS_ORDER[b._status]
+      ? STATUS_ORDER[a._status] - STATUS_ORDER[b._status]
+      : a._daysLeft - b._daysLeft,
+  );
+}
 
-  const isAllPeriod = period === 'all';
-  return all
-    .filter((c) => {
-      if (c._status === 'expired') return isAllPeriod;
-      return c._endDate >= from && c._endDate <= to;
-    })
-    .sort((a, b) => a._endDate.getTime() - b._endDate.getTime());
+/* ─── groupBranchesByCompany ────────────────────────────────────────────────── */
+
+/**
+ * Collapses a flat BranchLicenseItem[] into one CompanyLicenseGroup per company.
+ *
+ * @param filteredItems  Period-filtered items — drives counts + which rows appear
+ * @param allItems       ALL branch items (all periods) — shown inside the modal
+ */
+export function groupBranchesByCompany(
+  filteredItems: BranchLicenseItem[],
+  allItems:      BranchLicenseItem[],
+): CompanyLicenseGroup[] {
+  const groupMap = new Map<number, CompanyLicenseGroup>();
+
+  /* Seed groups from filtered items */
+  for (const item of filteredItems) {
+    if (!groupMap.has(item.companyId)) {
+      groupMap.set(item.companyId, {
+        companyId:      item.companyId,
+        companyName:    item.companyName,
+        cat:            item.cat,
+        accountManager: item.accountManager,
+        logo:           item.logo,
+        branches:       [],
+        totalBranches:  0,
+        counts:         { expired: 0, critical: 0, warning: 0, upcoming: 0 },
+        worstStatus:    'none',
+      });
+    }
+    groupMap.get(item.companyId)!.counts[item._status]++;
+  }
+
+  /* Fill full branch list from allItems (for the modal) */
+  const allByCompany = new Map<number, BranchLicenseItem[]>();
+  for (const item of allItems) {
+    if (!allByCompany.has(item.companyId)) allByCompany.set(item.companyId, []);
+    allByCompany.get(item.companyId)!.push(item);
+  }
+
+  for (const [cid, group] of groupMap) {
+    group.branches      = allByCompany.get(cid) ?? [];
+    group.totalBranches = group.branches.length;
+
+    if      (group.counts.expired  > 0) group.worstStatus = 'expired';
+    else if (group.counts.critical > 0) group.worstStatus = 'critical';
+    else if (group.counts.warning  > 0) group.worstStatus = 'warning';
+    else if (group.counts.upcoming > 0) group.worstStatus = 'upcoming';
+    else                                group.worstStatus  = 'none';
+  }
+
+  const WORST_ORDER: Record<string, number> = { expired: 0, critical: 1, warning: 2, upcoming: 3, none: 4 };
+  return Array.from(groupMap.values()).sort((a, b) =>
+    WORST_ORDER[a.worstStatus] !== WORST_ORDER[b.worstStatus]
+      ? WORST_ORDER[a.worstStatus] - WORST_ORDER[b.worstStatus]
+      : a.companyName.localeCompare(b.companyName),
+  );
+}
+
+/* ─── Legacy computeLicenseExpiry ───────────────────────────────────────────── */
+export function computeLicenseExpiry(clients: Client[], period: LicPeriod): LicenseItem[] {
+  const maxDays = period === '3m' ? 90 : period === '6m' ? 180 : period === '1y' ? 365 : Infinity;
+  const result: LicenseItem[] = [];
+  for (const c of clients) {
+    if (!c.saEnd) continue;
+    const daysLeft = getDaysLeft(c.saEnd) ?? Infinity;
+    if (daysLeft > maxDays) continue;
+    /*
+     * Revised thresholds (kept in sync with computeLicenseExpiryFromBranches):
+     *   expired  ≤ 0   days
+     *   critical ≤ 30  days (1 month)
+     *   warning  ≤ 60  days (2 months)
+     *   upcoming > 60  days
+     */
+    const status: LicenseItem['_status'] =
+      daysLeft <= 0  ? 'expired'  :
+      daysLeft <= 30 ? 'critical' :
+      daysLeft <= 60 ? 'warning'  : 'upcoming';
+    result.push({ ...c, _daysLeft: daysLeft, _status: status });
+  }
+  return result.sort((a, b) => a._daysLeft - b._daysLeft);
 }
 
 export function buildNewClient(
@@ -575,51 +481,35 @@ export function buildNewClient(
   contact: string,
   email: string,
   phone: string,
-  cat: string,
+  cat: ClientCategory,
   site: string,
   seats: number,
   accountManager: string,
-  logoUrl?: string,
-  altContacts?: { name: string; email: string; phone: string }[],
-  keysPerStore?: number
+  logo: string,
+  altContacts: { name: string; email: string; phone: string }[],
+  keysPerStore?: number,
 ): Client | null {
   if (!name.trim() || !contact.trim() || !email.trim() || !cat) return null;
-  const alt0 = altContacts?.[0];
+  const alt0 = altContacts[0];
+  const alt1 = altContacts[1];
   return {
     id: Date.now(),
     name: name.trim(),
     contact: contact.trim(),
     email: email.trim(),
     phone: phone.trim(),
-    altContact: alt0?.name  || undefined,
-    altEmail:   alt0?.email || undefined,
-    altPhone:   alt0?.phone || undefined,
-    accountManager: accountManager.trim() || 'Unassigned',
-    products: 0,
-    users: 1,
-    tickets: 0,
-    level: 'green',
-    cat: cat as ClientCategory,
-    logo: logoUrl?.trim() || null,
-    branches: [site.trim() || 'Main Branch'],
-    posCount: 0,
-    seats,
-    keysPerStore: cat === 'F&B' ? (keysPerStore || 0) : undefined,
-    site: site.trim(),
-    saStart: new Date().toISOString().slice(0, 10),
-    saEnd: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
-    licenseId: `LIC-${name.toUpperCase().slice(0, 3)}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+    altContact:  alt0?.name  || undefined,
+    altEmail:    alt0?.email || undefined,
+    altPhone:    alt0?.phone || undefined,
+    altContact2: alt1?.name  || undefined,
+    altEmail2:   alt1?.email || undefined,
+    altPhone2:   alt1?.phone || undefined,
+    accountManager,
+    products: 0, users: 0, tickets: 0,
+    level: 'green', cat,
+    logo: logo || null,
+    branches: site ? [site] : [],
+    posCount: 0, seats, site, keysPerStore,
+    branchLicenses: cat === 'F&B' ? {} : undefined,
   };
 }
-
-
-
-
-
-
-
-
-
-
-
-

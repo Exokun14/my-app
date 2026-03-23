@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────
 //  user_functions.ts  –  Types, Data, Utilities & Logic
-//  Updated: users fetched from /api/users (no seeded data)
+//  Updated: account_type → access_id (integer FK)
 // ─────────────────────────────────────────────
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { portalUsersAPI } from '../../Services/api.service';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ export interface User {
   status:    UserStatus;
   phone?:    string;
   imgSrc?:   string | null;
-  accountType?: string;
+  accessId?: number | null;   // renamed from accountType
 }
 
 export interface UserFilters {
@@ -34,7 +35,7 @@ export interface AddUserForm {
   fullName:        string;
   email:           string;
   role:            string;
-  accountType:     string;
+  accessId:        string;   // stores the numeric ID as a string for <input>
   company:         string;
   position:        string;
   phone:           string;
@@ -56,40 +57,32 @@ export interface RoleCardInfo {
   iconColor:   string;
 }
 
-// ── API response shape (mirrors actual DB columns in `users` table) ─────────
+// ── API response shape (mirrors DB columns) ────────────────────────────────
 
 interface ApiUser {
-  id:             number | null;
-  // Actual API field names (confirmed from raw response):
-  full_name?:     string | null;  // API sends full_name, not name
-  name?:          string | null;  // fallback if older endpoint sends name
+  id:             number;
+  profile_photo:  string | null;
+  full_name:      string;
   email:          string;
-  phone_number?:  string | null;  // API sends phone_number, not phone
-  phone?:         string | null;  // fallback
-  position_title?: string | null; // API sends position_title, not position
-  position?:      string | null;  // fallback
-  status:         string;         // 'active' | 'inactive'
-  access_level?:  string | null;  // API sends access_level, not role
-  role?:          string | null;  // fallback
-  account_type?:  string | null;
-  company_id?:    number | null;
-  company_name?:  string | null;
-  profile_photo?: string | null;
-  created_at?:    string;
-  updated_at?:    string;
+  phone_number:   string | null;
+  company_id:     number | null;
+  company_name:   string | null;
+  position_title: string | null;
+  access_level:   string;        // 'super_admin' | 'system_admin' | 'manager' | 'user'
+  access_id:      number | null; // FK → roles/access table
+  status:         string;        // 'active' | 'inactive'
 }
 
-// ── Map DB role → display label ────────────────────────────────────────────
+// ── Map DB enum → display label ────────────────────────────────────────────
 
-function toUserRole(role: string): UserRole {
+function toUserRole(access_level: string): UserRole {
   const map: Record<string, UserRole> = {
     super_admin:  'Super Admin',
     system_admin: 'System Admin',
-    admin:        'System Admin',
     manager:      'Manager',
     user:         'User',
   };
-  return map[role] ?? 'User';
+  return map[access_level] ?? 'User';
 }
 
 function toUserStatus(status: string): UserStatus {
@@ -97,22 +90,17 @@ function toUserStatus(status: string): UserStatus {
 }
 
 export function apiUserToUser(u: ApiUser): User {
-  console.log('[apiUserToUser] raw row:', u);
-  const rawName   = u.full_name ?? u.name;
-  const rawPhone  = u.phone_number ?? u.phone;
-  const rawPos    = u.position_title ?? u.position;
-  const rawRole   = u.access_level ?? u.role ?? 'user';
   return {
-    id:          u.id ?? Math.random(), // guard against null id (shouldn't happen)
-    name:        rawName?.trim() || u.email?.split('@')[0] || 'Unknown',
-    email:       u.email,
-    role:        toUserRole(rawRole),
-    company:     u.company_name?.trim() || (u.company_id ? `Company #${u.company_id}` : '—'),
-    position:    rawPos ?? '',
-    status:      toUserStatus(u.status ?? 'inactive'),
-    phone:       rawPhone ?? undefined,
-    imgSrc:      u.profile_photo ?? null,
-    accountType: u.account_type ?? rawRole,
+    id:       u.id,
+    name:     u.full_name,
+    email:    u.email,
+    role:     toUserRole(u.access_level),
+    company:  u.company_name ?? 'GenieX',
+    position: u.position_title ?? '',
+    status:   toUserStatus(u.status),
+    phone:    u.phone_number ?? undefined,
+    imgSrc:   u.profile_photo ?? null,
+    accessId: u.access_id ?? null,
   };
 }
 
@@ -134,13 +122,13 @@ export const ROLE_CARDS: RoleCardInfo[] = [
 export const EMPTY_ADD_FORM: AddUserForm = {
   fullName: '', email: '', role: '', company: '',
   position: '', phone: '', status: 'Active', imgSrc: null,
-  password: '', confirmPassword: '', accountType: '',
+  password: '', confirmPassword: '', accessId: '',
 };
 
 export const EMPTY_EDIT_FORM: EditUserForm = {
   userId: -1, fullName: '', email: '', role: '', company: '',
   position: '', phone: '', status: 'Active', imgSrc: null,
-  password: '', confirmPassword: '', newPassword: '', accountType: '',
+  password: '', confirmPassword: '', newPassword: '', accessId: '',
 };
 
 // ── Pagination constant ────────────────────────────────────────────────────
@@ -284,9 +272,8 @@ export const RESIDUAL_CSS = `
 
 // ── Utility Functions ──────────────────────────────────────────────────────
 
-export function getInitials(name: string | null | undefined): string {
-  if (!name?.trim()) return '?';
-  return name.trim().split(/\s+/).map(w => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+export function getInitials(name: string): string {
+  return name.split(' ').map(w => w[0] ?? '').join('').slice(0, 2).toUpperCase();
 }
 
 export function getRoleBadgeClass(role: string): string {
@@ -337,7 +324,8 @@ export function validateUserForm(form: AddUserForm): string | null {
   if (!form.fullName.trim()) return "Please enter the user's full name.";
   if (!form.email.trim())    return 'Please enter an email address.';
   if (!form.role)            return 'Please select a role.';
-  if (!form.company)         return 'Please select a company.';
+  // System Admins are not associated with a company — skip the check for them
+  if (form.role !== 'System Admin' && !form.company) return 'Please select a company.';
   return null;
 }
 
@@ -366,24 +354,25 @@ export function formToUser(form: AddUserForm, id: number): User {
     status:   form.status,
     phone:    form.phone || undefined,
     imgSrc:   form.imgSrc ?? null,
+    accessId: form.accessId ? Number(form.accessId) : null,
   };
 }
 
 export function userToEditForm(user: User): EditUserForm {
   return {
-    userId:      user.id,
-    fullName:    user.name,
-    email:       user.email,
-    role:        user.role,
-    company:     user.company,
-    position:    user.position ?? '',
-    phone:       user.phone ?? '',
-    status:      user.status,
-    imgSrc:      user.imgSrc ?? null,
-    password:    '',
+    userId:          user.id,
+    fullName:        user.name,
+    email:           user.email,
+    role:            user.role,
+    company:         user.company,
+    position:        user.position ?? '',
+    phone:           user.phone ?? '',
+    status:          user.status,
+    imgSrc:          user.imgSrc ?? null,
+    password:        '',
     confirmPassword: '',
-    newPassword: '',
-    accountType: user.accountType ?? '',
+    newPassword:     '',
+    accessId:        user.accessId != null ? String(user.accessId) : '',
   };
 }
 
@@ -475,31 +464,23 @@ export function useUserManagement(): UseUserManagementReturn {
 
   /* ── Fetch users from API ── */
   const fetchUsers = useCallback(() => {
-    console.group('[UserManagement] fetchUsers()');
     setUsersLoading(true);
     setUsersError(null);
-
-    portalUsersAPI.getAll()
-      .then(res => {
-        const users = (res.data as any)?.data ?? res.data;
-        if (res.success && Array.isArray(users)) {
-          console.log(`✅ Got ${users.length} user(s) from API`);
-          setUsers(users.map(apiUserToUser));
+    fetch(`${API_BASE}/api/users`)
+      .then(r => {
+        if (!r.ok) throw new Error(`Server error ${r.status}`);
+        return r.json();
+      })
+      .then(d => {
+        if (d.success && Array.isArray(d.data)) {
+          setUsers(d.data.map(apiUserToUser));
           setAnimKey(k => k + 1);
         } else {
-          console.error('❌ Unexpected response:', res.error);
-          throw new Error(res.error ?? 'Unexpected response format');
+          throw new Error('Unexpected response format');
         }
       })
-      .catch(err => {
-        console.error('❌ fetchUsers failed:', err?.message ?? err);
-        setUsersError(err.message ?? 'Failed to load users.');
-      })
-      .finally(() => {
-        console.log('🏁 fetchUsers done');
-        console.groupEnd();
-        setUsersLoading(false);
-      });
+      .catch(err => setUsersError(err.message ?? 'Failed to load users.'))
+      .finally(() => setUsersLoading(false));
   }, []);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
@@ -531,7 +512,6 @@ export function useUserManagement(): UseUserManagementReturn {
   function handleAddUser(form: AddUserForm): string | null {
     const err = validateUserForm(form) ?? validateNewUserPassword(form.password, form.confirmPassword);
     if (err) { showToast(err); return err; }
-    // Optimistically prepend while API saves; refreshUsers() called by popup on success
     const newId = Math.max(0, ...users.map(u => u.id)) + 1;
     setUsers(prev => [formToUser(form, newId), ...prev]);
     setCurrentPage(1);
@@ -558,6 +538,7 @@ export function useUserManagement(): UseUserManagementReturn {
       status:   form.status,
       phone:    form.phone || undefined,
       imgSrc:   form.imgSrc ?? null,
+      accessId: form.accessId ? Number(form.accessId) : null,
     } : u));
     setEditOpen(false);
     showToast(`User "${form.fullName}" updated${form.newPassword ? ' & password changed' : ''}!`);
@@ -573,13 +554,3 @@ export function useUserManagement(): UseUserManagementReturn {
     showToast, refreshUsers: fetchUsers,
   };
 }
-
-
-
-
-
-
-
-
-
-

@@ -6,7 +6,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserRole } from './user_functions';
-import { PermissionKey, Permission, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from './user_roles_func';
+import {
+  PermissionKey, Permission,
+  getPermissionsForRole,
+  DEFAULT_ROLE_PERMISSIONS,
+} from './user_roles_func';
 
 // ── Role visual config ────────────────────────────────────────────────────────
 
@@ -37,12 +41,20 @@ function getRoleConfig(role: UserRole): RoleConfig {
         <path d="M13 4s1 1 1 2.5-1 2.5-1 2.5" strokeOpacity=".5" />
       </svg>,
     };
-    default: return {
+    case 'User': return {
       gradient:    'linear-gradient(135deg,#14532d,#16a34a 55%,#4ade80)',
       headerGrad:  'linear-gradient(135deg,#14532d,#16a34a 55%,#22c55e)',
       accentColor: '#16a34a',
       icon: <svg width="22" height="22" viewBox="0 0 18 18" fill="none" stroke="white" strokeWidth="1.5">
         <path d="M3 15s2-3 6-3 6 3 6 3" /><circle cx="9" cy="6.5" r="3" />
+      </svg>,
+    };
+    default: return {
+      gradient:    'linear-gradient(135deg,#4c1d95,#7c3aed 55%,#a78bfa)',
+      headerGrad:  'linear-gradient(135deg,#4c1d95,#7c3aed)',
+      accentColor: '#7c3aed',
+      icon: <svg width="22" height="22" viewBox="0 0 18 18" fill="none" stroke="white" strokeWidth="1.5">
+        <path d="M9 1l1.2 3 3 .6-2.2 2.1.5 3.3L9 8.7l-2.5 1.3.5-3.3L4.8 4.6l3-.6z" />
       </svg>,
     };
   }
@@ -137,16 +149,10 @@ interface PermGroupProps {
 }
 
 function PermGroup({ groupName, groupIcon, perms, permissions, accentColor, onChange }: PermGroupProps) {
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const enabledCount = perms.filter(p => permissions[p.key]).length;
 
   return (
-    /*
-     * Key fix: NO overflow:hidden on this wrapper.
-     * The original code had `overflow-hidden` which caused sibling groups
-     * below an expanded one to be visually clipped/hidden.
-     * Border-radius is applied only to the visible edges via borderRadius style.
-     */
     <div style={{ border: '1px solid var(--border)', borderRadius: 12, background: '#fff' }}>
       {/* Header button */}
       <button
@@ -185,7 +191,7 @@ function PermGroup({ groupName, groupIcon, perms, permissions, accentColor, onCh
         </svg>
       </button>
 
-      {/* Expanded content — in normal document flow so siblings stack correctly */}
+      {/* Expanded content */}
       {!collapsed && (
         <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, borderRadius: '0 0 11px 11px' }}>
           {perms.map(p => (
@@ -232,6 +238,9 @@ export interface RolePermissionsPopupProps {
 export default function RolePermissionsPopup({ role, onClose, initialPerms, onSave }: RolePermissionsPopupProps) {
   const cfg = getRoleConfig(role);
 
+  // Only show permissions relevant to this role
+  const rolePermissions = getPermissionsForRole(role);
+
   const [permissions, setPermissions] = useState<Record<PermissionKey, boolean>>(
     () => ({ ...(initialPerms ?? DEFAULT_ROLE_PERMISSIONS[role]) }),
   );
@@ -239,9 +248,10 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
   const [saveToast, setSaveToast] = useState(false);
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const groups  = [...new Set(ALL_PERMISSIONS.map(p => p.group))];
-  const total   = ALL_PERMISSIONS.length;
-  const enabled = ALL_PERMISSIONS.filter(p => permissions[p.key]).length;
+  // Derive unique groups from only this role's permissions
+  const groups  = [...new Set(rolePermissions.map(p => p.group))];
+  const total   = rolePermissions.length;
+  const enabled = rolePermissions.filter(p => permissions[p.key]).length;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -255,8 +265,9 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
   }
 
   function setAllPerms(value: boolean) {
-    const result = {} as Record<PermissionKey, boolean>;
-    ALL_PERMISSIONS.forEach(p => { result[p.key] = value; });
+    const result = { ...permissions } as Record<PermissionKey, boolean>;
+    // Only toggle this role's permissions, not others
+    rolePermissions.forEach(p => { result[p.key] = value; });
     setPermissions(result);
     setDirty(true);
   }
@@ -282,7 +293,7 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
         style={{ background: 'rgba(20,10,40,.52)', backdropFilter: 'blur(7px)' }}
         onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       >
-        {/* Panel — no overflow:hidden here so expanded groups are never clipped */}
+        {/* Panel */}
         <div
           className="flex flex-col bg-white"
           style={{
@@ -299,7 +310,7 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
               padding: '20px 24px',
               background: cfg.headerGrad,
               borderRadius: '20px 20px 0 0',
-              overflow: 'hidden', /* scoped to header only for the decorative circles */
+              overflow: 'hidden',
             }}
           >
             <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 70% 130% at 110% -10%,rgba(255,255,255,.15) 0%,transparent 55%)' }} />
@@ -318,7 +329,11 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
               <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,.35)' }} />
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,.75)' }}>{total} total</span>
             </div>
-            <button className="relative z-10 flex items-center justify-center cursor-pointer transition-all duration-150" style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.25)', color: 'white' }} onClick={onClose}>
+            <button
+              className="relative z-10 flex items-center justify-center cursor-pointer transition-all duration-150"
+              style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.25)', color: 'white' }}
+              onClick={onClose}
+            >
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M1 1l9 9M10 1L1 10" /></svg>
             </button>
           </div>
@@ -327,9 +342,11 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
           <div className="flex items-center shrink-0" style={{ gap: 8, padding: '10px 18px', borderBottom: '1px solid var(--border)', background: 'var(--s2)' }}>
             <div className="flex-1 flex items-center" style={{ gap: 10 }}>
               <div className="relative flex-1" style={{ height: 6, borderRadius: 6, background: 'rgba(0,0,0,.07)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 6, background: cfg.gradient, width: `${(enabled / total) * 100}%`, transition: 'width .3s cubic-bezier(.16,1,.3,1)', boxShadow: `0 1px 6px ${cfg.accentColor}55` }} />
+                <div style={{ height: '100%', borderRadius: 6, background: cfg.gradient, width: `${total > 0 ? (enabled / total) * 100 : 0}%`, transition: 'width .3s cubic-bezier(.16,1,.3,1)', boxShadow: `0 1px 6px ${cfg.accentColor}55` }} />
               </div>
-              <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600, whiteSpace: 'nowrap' }}>{Math.round((enabled / total) * 100)}% access</span>
+              <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {total > 0 ? Math.round((enabled / total) * 100) : 0}% access
+              </span>
             </div>
             <div style={{ width: 1, height: 20, background: 'var(--border)', borderRadius: 1, flexShrink: 0 }} />
             {(['Enable All', 'Disable All'] as const).map(label => (
@@ -355,7 +372,7 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
             )}
           </div>
 
-          {/* ── Scrollable body — ONLY this div has overflow:auto ── */}
+          {/* ── Scrollable body ── */}
           <div
             style={{
               overflowY: 'auto',
@@ -368,11 +385,16 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
             }}
           >
             {groups.map(groupName => {
-              const perms = ALL_PERMISSIONS.filter(p => p.group === groupName);
+              const perms = rolePermissions.filter(p => p.group === groupName);
               return (
                 <PermGroup
-                  key={groupName} groupName={groupName} groupIcon={perms[0]?.groupIcon ?? '📋'}
-                  perms={perms} permissions={permissions} accentColor={cfg.accentColor} onChange={handleToggle}
+                  key={groupName}
+                  groupName={groupName}
+                  groupIcon={perms[0]?.groupIcon ?? '📋'}
+                  perms={perms}
+                  permissions={permissions}
+                  accentColor={cfg.accentColor}
+                  onChange={handleToggle}
                 />
               );
             })}
@@ -396,7 +418,8 @@ export default function RolePermissionsPopup({ role, onClose, initialPerms, onSa
               }
             </div>
             <div className="flex items-center" style={{ gap: 10 }}>
-              <button className="inline-flex items-center cursor-pointer font-semibold transition-all duration-150"
+              <button
+                className="inline-flex items-center cursor-pointer font-semibold transition-all duration-150"
                 style={{ gap: 6, padding: '9px 20px', borderRadius: 10, border: '1px solid var(--border)', background: '#fff', color: 'var(--t2)', fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}
                 onClick={onClose}
               >Cancel</button>

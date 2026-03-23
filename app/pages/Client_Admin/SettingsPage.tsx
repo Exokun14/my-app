@@ -1,230 +1,304 @@
+// ============================================================
+//  SettingsPage.tsx
+//  FIX: Added paddingTop: 56 to gx-main to offset fixed header
+// ============================================================
+
 'use client'
-/**
- * SettingsPage.tsx  —  F&B / Popeyes
- *
- * WHAT CHANGED vs original:
- *  ✓ Added:   notificationsAPI wired for notification panel
- *  ✓ Added:   Profile section now reads from propUser (AuthUser) instead of
- *             hardcoded name/email constants
- *  ✓ Kept:    All toggle/section UI, local state for settings unchanged
- *             (no settings API endpoint exists yet — toggles remain local)
- */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState } from "react";
 import Sidebar from "../Sidebar_Client/sidebar_client";
-import Header  from "../Header_Client/header_client";
+import Header  from '../Header/header_main';
 import "../../globals.css";
-import {
-  notificationsAPI, formatRole,
-  type AuthUser, type Notification,
-} from "../../Services/api.service";
 
-type CPView = "overview"|"tickets"|"users"|"settings"|"learning";
-type SettingsSection = "general"|"notifications"|"security"|"integrations"|"profile"|"billing";
-
-interface UINotif {
-  id:number; type:"warn"|"error"|"info"|"success"|"purple";
-  title:string; desc:string; time:string; read:boolean;
+type CPView = "overview" | "tickets" | "users" | "settings";
+interface UserProfile {
+  id:           number;
+  username:     string;
+  role:         string;
+  accessLevel:  string;
+  fullName:     string;
+  initials:     string;
+  position:     string;
+  company:      string;
+  companyId:    number | null;
+  profilePhoto: string | null;
 }
 
-const initials=(name:string)=>{const p=(name??"").trim().split(/\s+/);return p.length===1?p[0].slice(0,2).toUpperCase():(p[0][0]+p[p.length-1][0]).toUpperCase();};
-const toUINotif=(n:Notification):UINotif=>({
-  id:n.id??0,
-  type:({warning:"warn",alert:"error",info:"info",success:"success"} as Record<string,UINotif["type"]>)[n.type??"info"]??"info",
-  title:n.title??"Notification",desc:n.message,
-  time:n.created_at?new Date(n.created_at).toLocaleDateString():"",read:n.read??false,
-});
-function useOutside<T extends HTMLElement>(cb:()=>void){
-  const ref=useRef<T>(null);
-  useEffect(()=>{const h=(e:MouseEvent)=>{if(ref.current&&!ref.current.contains(e.target as Node))cb();};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[cb]);
-  return ref;
+interface SettingsPageProps {
+  onNavigate:   (view: CPView) => void;
+  onLogout?:    () => void;
+  userProfile?: UserProfile | null;
+  clientLabel?: string;
 }
 
-interface Props{onNavigate:(v:CPView)=>void;onLogout?:()=>void;user?:AuthUser|null;}
+type SettingsSection = "general" | "notifications" | "security" | "integrations" | "profile" | "billing";
 
-const SettingsPage:React.FC<Props>=({onNavigate,onLogout,user:propUser})=>{
-  const [notifs,    setNotifs]    = useState<UINotif[]>([]);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [section,   setSection]   = useState<SettingsSection>("general");
-  const [darkMode,  setDarkMode]  = useState(false);
-  const [toast,     setToast]     = useState({msg:"",show:false});
+const Toggle: React.FC<{ value: boolean; onChange: (v: boolean) => void }> = ({ value, onChange }) => (
+  <div onClick={() => onChange(!value)} style={{
+    width: 44, height: 24, borderRadius: 12, cursor: "pointer", position: "relative",
+    background: value ? "#6d28d9" : "#d1d5db", transition: "background .2s", flexShrink: 0,
+  }}>
+    <div style={{
+      position: "absolute", top: 3, left: value ? 23 : 3,
+      width: 18, height: 18, borderRadius: "50%", background: "#fff",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.2)", transition: "left .2s",
+    }} />
+  </div>
+);
 
-  // notification toggles (local only)
-  const [emailAlerts,    setEmailAlerts]    = useState(true);
-  const [smsAlerts,      setSmsAlerts]      = useState(false);
-  const [systemAlerts,   setSystemAlerts]   = useState(true);
-  const [weeklyReport,   setWeeklyReport]   = useState(true);
-  const [maintenanceNote,setMaintenanceNote]= useState(false);
-
-  const showToast=(m:string)=>{setToast({msg:m,show:true});setTimeout(()=>setToast(t=>({...t,show:false})),2600);};
-
-  const headerUser={
-    initials:propUser?initials(propUser.name):"??",
-    name:propUser?.name??"User",
-    role:formatRole(propUser?.role)??"User",
-  };
-
-  // ── FETCH NOTIFICATIONS ───────────────────────────────────
-  const loadNotifs=useCallback(async()=>{
-    const res=await notificationsAPI.getAll();
-    if(res.success&&res.data) setNotifs(res.data.map(toUINotif));
-  },[]);
-  useEffect(()=>{loadNotifs();},[loadNotifs]);
-
-  const markRead=async(id:number)=>{await notificationsAPI.markRead(id);setNotifs(ns=>ns.map(n=>n.id===id?{...n,read:true}:n));};
-  const markAllRead=async()=>{await notificationsAPI.markAllRead();setNotifs(ns=>ns.map(n=>({...n,read:true})));};
-
-  const unread=notifs.filter(n=>!n.read).length;
-
-  const Toggle:React.FC<{on:boolean;onChange:(v:boolean)=>void}>=({on,onChange})=>(
-    <div onClick={()=>onChange(!on)} style={{width:36,height:20,borderRadius:10,background:on?"#6d28d9":"#d1d5db",cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-      <div style={{position:"absolute",top:2,left:on?18:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+const SettingRow: React.FC<{ label: string; desc?: string; children: React.ReactNode }> = ({ label, desc, children }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: "1px solid rgba(109,40,217,0.07)" }}>
+    <div>
+      <div style={{ fontSize: 13.5, fontWeight: 500, color: "#1e1b4b" }}>{label}</div>
+      {desc && <div style={{ fontSize: 11, color: "rgba(0,0,0,0.38)", marginTop: 2 }}>{desc}</div>}
     </div>
-  );
+    {children}
+  </div>
+);
 
-  const NAV_ITEMS:Array<{key:SettingsSection;label:string;icon:React.ReactNode}> = [
-    {key:"general",      label:"General",      icon:<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>},
-    {key:"notifications",label:"Notifications",icon:<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 6a5 5 0 0110 0v4l1.5 2h-13L3 10V6z"/><path d="M6.5 13.5a1.5 1.5 0 003 0"/></svg>},
-    {key:"security",     label:"Security",     icon:<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5L2 4v5c0 3.5 2.5 5.5 6 6.5 3.5-1 6-3 6-6.5V4z"/></svg>},
-    {key:"integrations", label:"Integrations", icon:<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>},
-    {key:"profile",      label:"Profile",      icon:<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13s2.5-4 6-4 6 4 6 4"/><circle cx="8" cy="6" r="2.5"/></svg>},
-    {key:"billing",      label:"Billing",      icon:<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 7h14"/></svg>},
+const inp: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1.5px solid rgba(109,40,217,0.12)", borderRadius: 10, fontSize: 13, fontFamily: "inherit", color: "#1e1b4b", background: "#f4f3fb", outline: "none", fontWeight: 500 };
+const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "rgba(0,0,0,0.4)", marginBottom: 5, display: "block" };
+
+const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate, onLogout, userProfile, clientLabel }) => {
+  const [section, setSection] = useState<SettingsSection>("general");
+  const [saved, setSaved]     = useState(false);
+  const [unread]              = useState(3);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") return document.documentElement.classList.contains("dark");
+    return false;
+  });
+  const handleDarkMode = (v: boolean) => {
+    setDarkMode(v);
+    if (v) document.documentElement.classList.add("dark");
+    else   document.documentElement.classList.remove("dark");
+  };
+  const [compactView,   setCompactView]   = useState(true);
+  const [showAcctMgr,   setShowAcctMgr]   = useState(true);
+  const [defaultFilter, setDefaultFilter] = useState("All Companies");
+  const [defaultTicket, setDefaultTicket] = useState("Open");
+
+  const [emailNotif,  setEmailNotif]  = useState(true);
+  const [smsNotif,    setSmsNotif]    = useState(false);
+  const [ticketAlert, setTicketAlert] = useState(true);
+  const [saExpiry,    setSaExpiry]    = useState(true);
+  const [weeklyRpt,   setWeeklyRpt]   = useState(false);
+
+  // Profile section pre-populated from logged-in user
+  const fullNameParts = (userProfile?.fullName ?? '').split(' ');
+  const [profile, setProfile] = useState({
+    firstName: fullNameParts[0] ?? '',
+    lastName:  fullNameParts.slice(1).join(' ') || '',
+    email:     userProfile?.username ?? '',
+    phone:     '',
+    position:  userProfile?.position ?? '',
+  });
+  const setP = (k: keyof typeof profile) => (e: React.ChangeEvent<HTMLInputElement>) => setProfile(p => ({ ...p, [k]: e.target.value }));
+
+  const [twoFA, setTwoFA] = useState(false);
+  const [sessionTimeout, setSessionTimeout] = useState("30");
+
+  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+
+  const NAV_ITEMS: { key: SettingsSection; label: string; icon: string; section: string }[] = [
+    { key: "general",       label: "General",       icon: "⚙️", section: "PREFERENCES" },
+    { key: "notifications", label: "Notifications", icon: "🔔", section: "PREFERENCES" },
+    { key: "security",      label: "Security",      icon: "🔒", section: "PREFERENCES" },
+    { key: "integrations",  label: "Integrations",  icon: "🔗", section: "PREFERENCES" },
+    { key: "profile",       label: "Profile",       icon: "👤", section: "ACCOUNT"     },
+    { key: "billing",       label: "Billing",       icon: "💳", section: "ACCOUNT"     },
   ];
 
-  return(
-    <div style={{display:"flex",height:"100vh",background:"var(--bg)",overflow:"hidden"}}>
-      <Sidebar activePage="settings" onNavigate={onNavigate as (v:string)=>void}/>
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <Header user={headerUser} notificationCount={unread} onNotificationClick={()=>setNotifOpen(o=>!o)} onLogout={onLogout}/>
-        <div className="gx-main"><div className="gx-view">
-          <div style={{flex:1,display:"flex",flexDirection:"column",gap:10,padding:"14px 20px",overflow:"hidden",minHeight:0}}>
-            <div style={{fontSize:18,fontWeight:800,color:"#18103a",flexShrink:0}}>Settings</div>
+  const selStyle = (k: SettingsSection): React.CSSProperties => ({
+    display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
+    borderRadius: 10, cursor: "pointer", marginBottom: 3,
+    background: section === k ? "#f0eeff" : "transparent",
+    border: `1px solid ${section === k ? "rgba(109,40,217,0.18)" : "transparent"}`,
+    fontSize: 13, fontWeight: section === k ? 600 : 400,
+    color: section === k ? "#5b21b6" : "#4a3870",
+    fontFamily: "inherit", width: "100%", textAlign: "left",
+    transition: "all .15s",
+  });
 
-            <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:10,flex:1,minHeight:0}}>
-              {/* NAV */}
-              <div className="gx-card" style={{padding:"8px",display:"flex",flexDirection:"column",gap:2}}>
-                {NAV_ITEMS.map(item=>(
-                  <button key={item.key} onClick={()=>setSection(item.key)}
-                    style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:"none",background:section===item.key?"#ede9fe":"transparent",color:section===item.key?"#6d28d9":"#4a3870",cursor:"pointer",fontSize:11.5,fontWeight:section===item.key?700:500,transition:"all 0.15s",textAlign:"left"}}>
-                    <span style={{color:section===item.key?"#6d28d9":"#8e7ec0"}}>{item.icon}</span>
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+  return (
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      <Sidebar activePage="settings" onNavigate={onNavigate as (view: string) => void} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+        <Header
+          user={{
+            initials:     userProfile?.initials     ?? '',
+            fullName:     userProfile?.fullName     ?? '',
+            position:     userProfile?.position     ?? '',
+            company:      userProfile?.company      ?? '',
+            profilePhoto: userProfile?.profilePhoto ?? null,
+          }}
+          logoSrc="/geniex-logo.png"
+          brandSlotMode="client"
+          notificationCount={unread}
+          onNotificationClick={() => setNotifOpen(o => !o)}
+          onLogout={onLogout}
+        />
 
-              {/* CONTENT */}
-              <div className="gx-card" style={{overflowY:"auto"}}>
-                {section==="general"&&(
-                  <div>
-                    <div style={{fontSize:14,fontWeight:700,color:"#18103a",marginBottom:14}}>General Settings</div>
-                    {[["Dark Mode","Enable dark mode across the portal",darkMode,setDarkMode],["Compact View","Use compact spacing in tables","false" as unknown as boolean,(v:boolean)=>v]] .map(([label,desc,val,setter])=>(
-                      <div key={label as string} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderBottom:"1px solid rgba(124,58,237,0.06)"}}>
-                        <div><div style={{fontSize:12.5,fontWeight:600,color:"#18103a"}}>{label as string}</div><div style={{fontSize:11,color:"#8e7ec0",marginTop:2}}>{desc as string}</div></div>
-                        <Toggle on={label==="Dark Mode"?darkMode:false} onChange={v=>{if(label==="Dark Mode")setDarkMode(v);}}/>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {section==="notifications"&&(
-                  <div>
-                    <div style={{fontSize:14,fontWeight:700,color:"#18103a",marginBottom:14}}>Notification Preferences</div>
-                    {[
-                      ["Email Alerts","Receive ticket and system alerts via email",emailAlerts,setEmailAlerts],
-                      ["SMS Alerts","Receive critical alerts via SMS",smsAlerts,setSmsAlerts],
-                      ["System Alerts","In-portal system notifications",systemAlerts,setSystemAlerts],
-                      ["Weekly Report","Receive weekly summary report",weeklyReport,setWeeklyReport],
-                      ["Maintenance Notices","Get notified of scheduled maintenance",maintenanceNote,setMaintenanceNote],
-                    ].map(([label,desc,val,setter])=>(
-                      <div key={label as string} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderBottom:"1px solid rgba(124,58,237,0.06)"}}>
-                        <div><div style={{fontSize:12.5,fontWeight:600,color:"#18103a"}}>{label as string}</div><div style={{fontSize:11,color:"#8e7ec0",marginTop:2}}>{desc as string}</div></div>
-                        <Toggle on={val as boolean} onChange={setter as (v:boolean)=>void}/>
-                      </div>
-                    ))}
-                    <button className="btn btn-p btn-sm" style={{marginTop:14}} onClick={()=>showToast("Notification preferences saved!")}>Save Preferences</button>
-                  </div>
-                )}
-                {section==="security"&&(
-                  <div>
-                    <div style={{fontSize:14,fontWeight:700,color:"#18103a",marginBottom:14}}>Security Settings</div>
-                    <div style={{padding:"12px 0",borderBottom:"1px solid rgba(124,58,237,0.06)"}}>
-                      <div style={{fontSize:12.5,fontWeight:600,color:"#18103a",marginBottom:8}}>Change Password</div>
-                      {["Current Password","New Password","Confirm New Password"].map(p=>(
-                        <input key={p} type="password" placeholder={p}
-                          style={{width:"100%",padding:"9px 12px",border:"1.5px solid rgba(124,58,237,0.12)",borderRadius:10,fontSize:12,color:"#3b1f7a",background:"#f8f7ff",outline:"none",fontFamily:"inherit",marginBottom:8}}/>
+        {/* ── FIX: paddingTop offsets the fixed 56px header ── */}
+        <div className="gx-main" style={{ paddingTop: 56 }}>
+          <div className="gx-view">
+            <div className="gx-ph">
+              <div className="gx-ph-title">System <em>Settings</em></div>
+              <div className="gx-ph-rule" />
+              <button className="btn btn-p btn-sm" onClick={handleSave}>
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 11, height: 11 }}><path d="M2.5 7.5l3 3 6-6"/></svg>
+                {saved ? "Saved!" : "Save Changes"}
+              </button>
+            </div>
+
+            <div className="gx-scroll">
+              <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
+                {/* Left Nav */}
+                <div style={{ width: 200, flexShrink: 0 }}>
+                  {["PREFERENCES", "ACCOUNT"].map(sec => (
+                    <div key={sec} style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase" as const, color: "#c0c0d0", marginBottom: 6, paddingLeft: 4 }}>{sec}</div>
+                      {NAV_ITEMS.filter(n => n.section === sec).map(item => (
+                        <button key={item.key} style={selStyle(item.key)} onClick={() => setSection(item.key)}>
+                          <span style={{ fontSize: 15 }}>{item.icon}</span>
+                          {item.label}
+                        </button>
                       ))}
-                      <button className="btn btn-p btn-sm" onClick={()=>showToast("Password updated!")}>Update Password</button>
                     </div>
-                  </div>
-                )}
-                {section==="profile"&&(
-                  <div>
-                    <div style={{fontSize:14,fontWeight:700,color:"#18103a",marginBottom:14}}>Profile</div>
-                    <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:18,padding:"14px",background:"#f8f7ff",borderRadius:12,border:"1px solid rgba(124,58,237,0.1)"}}>
-                      <div style={{width:52,height:52,borderRadius:"50%",background:"linear-gradient(135deg,#6d28d9,#0f766e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:"#fff",flexShrink:0}}>
-                        {propUser?initials(propUser.name):"??"}
+                  ))}
+                </div>
+
+                {/* Right Content */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
+                  {section === "general" && <>
+                    <div className="gx-card">
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 4 }}>General Preferences</div>
+                      <SettingRow label="Dark Mode" desc="Switch to dark theme"><Toggle value={darkMode} onChange={handleDarkMode} /></SettingRow>
+                      <SettingRow label="Compact View" desc="Denser layout across all pages"><Toggle value={compactView} onChange={setCompactView} /></SettingRow>
+                      <SettingRow label="Show Account Manager on Cards"><Toggle value={showAcctMgr} onChange={setShowAcctMgr} /></SettingRow>
+                    </div>
+                    <div className="gx-card">
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 14 }}>Display Settings</div>
+                      <SettingRow label="Default Filter on Dashboard">
+                        <select style={{ ...inp, width: 180, appearance: "none" }} value={defaultFilter} onChange={e => setDefaultFilter(e.target.value)}>
+                          <option>All Companies</option><option>My Companies</option><option>Active Only</option>
+                        </select>
+                      </SettingRow>
+                      <SettingRow label="Default Ticket View">
+                        <select style={{ ...inp, width: 180, appearance: "none" }} value={defaultTicket} onChange={e => setDefaultTicket(e.target.value)}>
+                          <option>Open</option><option>All</option><option>Pending</option><option>Closed</option>
+                        </select>
+                      </SettingRow>
+                    </div>
+                  </>}
+
+                  {section === "notifications" && <div className="gx-card">
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 4 }}>Notification Preferences</div>
+                    <SettingRow label="Email Notifications" desc="Receive updates via email"><Toggle value={emailNotif} onChange={setEmailNotif} /></SettingRow>
+                    <SettingRow label="SMS Notifications" desc="Receive alerts via SMS"><Toggle value={smsNotif} onChange={setSmsNotif} /></SettingRow>
+                    <SettingRow label="Ticket Alerts" desc="Notify on new or updated tickets"><Toggle value={ticketAlert} onChange={setTicketAlert} /></SettingRow>
+                    <SettingRow label="SA Expiry Reminders" desc="Alert before software assurance expires"><Toggle value={saExpiry} onChange={setSaExpiry} /></SettingRow>
+                    <SettingRow label="Weekly Summary Report" desc="Receive weekly digest every Monday"><Toggle value={weeklyRpt} onChange={setWeeklyRpt} /></SettingRow>
+                  </div>}
+
+                  {section === "security" && <div className="gx-card">
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 4 }}>Security Settings</div>
+                    <SettingRow label="Two-Factor Authentication" desc="Add an extra layer of security"><Toggle value={twoFA} onChange={setTwoFA} /></SettingRow>
+                    <SettingRow label="Session Timeout" desc="Auto logout after inactivity">
+                      <select style={{ ...inp, width: 180, appearance: "none" }} value={sessionTimeout} onChange={e => setSessionTimeout(e.target.value)}>
+                        <option value="15">15 minutes</option><option value="30">30 minutes</option>
+                        <option value="60">1 hour</option><option value="0">Never</option>
+                      </select>
+                    </SettingRow>
+                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(109,40,217,0.07)" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1e1b4b", marginBottom: 12 }}>Change Password</div>
+                      <div style={{ display: "grid", gap: 10 }}>
+                        <div><label style={lbl}>Current Password</label><input type="password" style={inp} placeholder="Enter current password" /></div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          <div><label style={lbl}>New Password</label><input type="password" style={inp} placeholder="New password" /></div>
+                          <div><label style={lbl}>Confirm Password</label><input type="password" style={inp} placeholder="Confirm password" /></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>}
+
+                  {section === "integrations" && <div className="gx-card">
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 14 }}>Integrations</div>
+                    {[
+                      { name: "Slack",            desc: "Send ticket alerts to Slack channels",    connected: true,  color: "#4a154b", emoji: "💬" },
+                      { name: "Google Workspace", desc: "Sync users with Google directory",        connected: false, color: "#4285f4", emoji: "🔵" },
+                      { name: "Microsoft Teams",  desc: "Post updates to Teams channels",          connected: false, color: "#6264a7", emoji: "🟣" },
+                      { name: "Zapier",           desc: "Automate workflows with 5000+ apps",      connected: false, color: "#ff4a00", emoji: "⚡" },
+                    ].map(item => (
+                      <div key={item.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(109,40,217,0.07)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#f4f3fb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{item.emoji}</div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#1e1b4b" }}>{item.name}</div>
+                            <div style={{ fontSize: 11, color: "rgba(0,0,0,0.38)" }}>{item.desc}</div>
+                          </div>
+                        </div>
+                        <button style={{ fontSize: 11, fontWeight: 600, padding: "5px 14px", borderRadius: 8, cursor: "pointer", border: `1px solid ${item.connected ? "rgba(220,38,38,0.2)" : "rgba(109,40,217,0.2)"}`, background: item.connected ? "#fff5f5" : "#f5f3ff", color: item.connected ? "#dc2626" : "#6d28d9", fontFamily: "inherit" }}>
+                          {item.connected ? "Disconnect" : "Connect"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>}
+
+                  {section === "profile" && <div className="gx-card">
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 14 }}>Profile Information</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", background: "#f4f3fb", borderRadius: 12, marginBottom: 16 }}>
+                      <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#6d28d9,#0f766e)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#fff", flexShrink: 0, overflow: "hidden" }}>
+                        {userProfile?.profilePhoto
+                          ? <img src={userProfile.profilePhoto} alt={userProfile.initials} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : (userProfile?.initials ?? '')}
                       </div>
                       <div>
-                        <div style={{fontSize:14,fontWeight:700,color:"#18103a"}}>{propUser?.name??"—"}</div>
-                        <div style={{fontSize:11.5,color:"#8e7ec0"}}>{propUser?.email??"—"}</div>
-                        <div style={{fontSize:10,marginTop:3}}><span style={{background:"#ede9fe",color:"#6d28d9",padding:"2px 8px",borderRadius:5,fontWeight:700,fontSize:9.5}}>{formatRole(propUser?.role)}</span></div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e1b4b" }}>Profile Photo</div>
+                        <div style={{ fontSize: 10.5, color: "rgba(0,0,0,0.4)", marginBottom: 6 }}>Upload a new photo or keep existing</div>
+                        <button style={{ fontSize: 11, fontWeight: 600, color: "#fff", background: "#6d28d9", border: "none", borderRadius: 7, padding: "4px 12px", cursor: "pointer" }}>Change Photo</button>
                       </div>
                     </div>
-                    {[["Full Name",propUser?.name??""],["Email",propUser?.email??""],["Phone",propUser?.phone??""],["Position",propUser?.position??""]].map(([label,val])=>(
-                      <div key={label} style={{marginBottom:10}}>
-                        <label style={{fontSize:12,fontWeight:600,color:"rgba(0,0,0,0.4)",marginBottom:5,display:"block"}}>{label}</label>
-                        <input defaultValue={val} style={{width:"100%",padding:"9px 12px",border:"1.5px solid rgba(124,58,237,0.12)",borderRadius:10,fontSize:12.5,color:"#3b1f7a",background:"#f8f7ff",outline:"none",fontFamily:"inherit"}}/>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                      <div><label style={lbl}>First Name</label><input style={inp} value={profile.firstName} onChange={setP("firstName")} /></div>
+                      <div><label style={lbl}>Last Name</label><input style={inp} value={profile.lastName} onChange={setP("lastName")} /></div>
+                    </div>
+                    <div style={{ marginBottom: 10 }}><label style={lbl}>Email Address</label><input style={inp} type="email" value={profile.email} onChange={setP("email")} /></div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div><label style={lbl}>Phone Number</label><input style={inp} value={profile.phone} onChange={setP("phone")} /></div>
+                      <div><label style={lbl}>Position / Title</label><input style={inp} value={profile.position} onChange={setP("position")} /></div>
+                    </div>
+                  </div>}
+
+                  {section === "billing" && <div className="gx-card">
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1e1b4b", marginBottom: 14 }}>Billing &amp; Subscription</div>
+                    <div style={{ padding: "14px 16px", background: "linear-gradient(135deg,rgba(109,40,217,0.08),rgba(15,118,110,0.08))", borderRadius: 12, border: "1px solid rgba(109,40,217,0.12)", marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase" as const, color: "#6d28d9", marginBottom: 4 }}>Current Plan</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#1e1b4b" }}>Enterprise</div>
+                      <div style={{ fontSize: 11, color: "rgba(0,0,0,0.4)", marginTop: 2 }}>Renews Jun 1, 2026 · 12 seats included</div>
+                    </div>
+                    {[
+                      { label: "Plan Type",    value: "Enterprise Annual" },
+                      { label: "Seats Used",   value: "9 / 12" },
+                      { label: "Next Invoice", value: "Jun 1, 2026" },
+                      { label: "Amount",       value: "₱48,000 / year" },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid rgba(109,40,217,0.07)" }}>
+                        <span style={{ fontSize: 12, color: "rgba(0,0,0,0.4)", fontWeight: 500 }}>{label}</span>
+                        <span style={{ fontSize: 12, color: "#3b1f7a", fontWeight: 600 }}>{value}</span>
                       </div>
                     ))}
-                    <button className="btn btn-p btn-sm" style={{marginTop:6}} onClick={()=>showToast("Profile updated!")}>Save Profile</button>
-                  </div>
-                )}
-                {(section==="integrations"||section==="billing")&&(
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:48,color:"#8e7ec0",textAlign:"center"}}>
-                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#d4ccf0" strokeWidth="1.5" style={{marginBottom:12}}><circle cx="20" cy="20" r="18"/><path d="M14 26s1.5-3 6-3 6 3 6 3M20 18a3 3 0 100-6 3 3 0 000 6z"/></svg>
-                    <div style={{fontSize:13,fontWeight:600,color:"#4a3870",marginBottom:4}}>{section.charAt(0).toUpperCase()+section.slice(1)}</div>
-                    <div style={{fontSize:11,color:"#b8aed8"}}>This section is coming soon.</div>
-                  </div>
-                )}
+                    <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+                      <button className="btn btn-s btn-sm">Download Invoice</button>
+                      <button className="btn btn-p btn-sm">Upgrade Plan</button>
+                    </div>
+                  </div>}
+                </div>
               </div>
             </div>
           </div>
-        </div></div>
-
-        <div className={`gx-toast${toast.show?" show":""}`}><div className="gx-toast-dot"/><span>{toast.msg}</span></div>
-        {notifOpen&&<NotifPanel notifs={notifs} onRead={markRead} onMarkAll={markAllRead} onClose={()=>setNotifOpen(false)}/>}
-      </div>
-    </div>
-  );
-};
-
-// ── Notification Panel ────────────────────────────────────────────────────────
-const NICONS:Record<string,React.ReactNode>={
-  warn:   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 5.5V8M8 10.5v.5"/></svg>,
-  error:  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6 6l4 4M10 6l-4 4"/></svg>,
-  info:   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5.5v.5"/></svg>,
-  success:<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 8.5l3.5 3.5 6.5-6.5"/></svg>,
-  purple: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13s2.5-4 6-4 6 4 6 4"/><circle cx="8" cy="6" r="2.5"/></svg>,
-};
-const NotifPanel:React.FC<{notifs:UINotif[];onRead:(id:number)=>void;onMarkAll:()=>void;onClose:()=>void}>=({notifs,onRead,onMarkAll,onClose})=>{
-  const ref=useOutside<HTMLDivElement>(onClose);
-  const unread=notifs.filter(n=>!n.read).length;
-  return(
-    <div className="gx-notif-panel" ref={ref}>
-      <div className="gx-np-hdr">
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span className="gx-np-title">Notifications</span>
-          <span className={`gx-np-unread${unread===0?" all-read":""}`}>{unread>0?`${unread} unread`:"All read"}</span>
         </div>
-        <button className="gx-np-mark" onClick={onMarkAll}>Mark all as read</button>
-      </div>
-      <div className="gx-notif-list">
-        {notifs.map(n=>(
-          <div key={n.id} className={`gx-ni${n.read?"":" unread"}`} onClick={()=>onRead(n.id)}>
-            <div className={`gx-ni-ico ni-${n.type}`}>{NICONS[n.type]}</div>
-            <div className="gx-ni-body"><div className="gx-ni-title">{n.title}</div><div className="gx-ni-desc">{n.desc}</div><div className="gx-ni-time">{n.time}</div></div>
-            {!n.read&&<div className="gx-ni-dot"/>}
-          </div>
-        ))}
       </div>
     </div>
   );

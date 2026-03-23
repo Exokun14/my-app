@@ -11,12 +11,39 @@ import { UserRole } from './user_functions';
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type PermissionKey =
-  | 'view_dashboard'    | 'view_analytics'       | 'export_reports'
-  | 'view_users'        | 'add_users'             | 'edit_users'         | 'delete_users' | 'manage_roles'
-  | 'view_clients'      | 'add_clients'           | 'edit_clients'       | 'delete_clients'
-  | 'view_retail'       | 'manage_inventory'      | 'process_orders'     | 'view_transactions'
-  | 'view_settings'     | 'edit_settings'         | 'manage_integrations'| 'view_audit_logs'
-  | 'send_notifications'| 'manage_announcements';
+  // System Admin – Dashboard
+  | 'sa_view_admin_dashboard'
+  | 'sa_view_license_expiry'
+  | 'sa_add_company'
+  | 'sa_add_industry'
+  // System Admin – Client Overview
+  | 'sa_view_overview'
+  | 'sa_view_users'
+  | 'sa_view_tickets'
+  | 'sa_view_msa_expiry'
+  | 'sa_edit_general_info'
+  | 'sa_add_edit_branches'
+  | 'sa_view_branch_info'
+  | 'sa_add_edit_pos'
+  | 'sa_add_edit_peripherals'
+  | 'sa_update_msa_details'
+  // System Admin – Analytics
+  | 'sa_view_analytics_dashboard'
+  | 'sa_view_analytics_overview'
+  | 'sa_export_analytics'
+  | 'sa_import_analytics'
+  // Manager – Dashboard
+  | 'mgr_view_branch_info'
+  | 'mgr_view_pos_info'
+  | 'mgr_view_users'
+  | 'mgr_add_edit_users'
+  // Manager – Learning Center
+  | 'mgr_access_learning_center'
+  | 'mgr_create_learning_materials'
+  | 'mgr_add_edit_lc_users'
+  // User – Dashboard
+  | 'usr_view_learning_dashboard'
+  | 'usr_access_lc_modules';
 
 export interface Permission {
   key:         PermissionKey;
@@ -25,68 +52,224 @@ export interface Permission {
   group:       string;
   groupIcon:   string;
   dangerous?:  boolean;
+  roles:       UserRole[];
 }
 
 // ── Permission Definitions ──────────────────────────────────────────────────
 
 export const ALL_PERMISSIONS: Permission[] = [
-  // Dashboard & Analytics
-  { key: 'view_dashboard',        label: 'View Dashboard',        description: 'Access the main dashboard overview',         group: 'Dashboard & Analytics', groupIcon: '📊' },
-  { key: 'view_analytics',        label: 'View Analytics',         description: 'View detailed reports and analytics data',   group: 'Dashboard & Analytics', groupIcon: '📊' },
-  { key: 'export_reports',        label: 'Export Reports',         description: 'Download and export analytics reports',      group: 'Dashboard & Analytics', groupIcon: '📊' },
-  // User Management
-  { key: 'view_users',            label: 'View Users',             description: 'See the user list and profiles',             group: 'User Management',       groupIcon: '👥' },
-  { key: 'add_users',             label: 'Add Users',              description: 'Create new user accounts',                  group: 'User Management',       groupIcon: '👥' },
-  { key: 'edit_users',            label: 'Edit Users',             description: 'Modify existing user information',          group: 'User Management',       groupIcon: '👥' },
-  { key: 'delete_users',          label: 'Delete Users',           description: 'Permanently remove user accounts',          group: 'User Management',       groupIcon: '👥', dangerous: true },
-  { key: 'manage_roles',          label: 'Manage Roles',           description: 'Assign and modify user roles & permissions', group: 'User Management',       groupIcon: '👥', dangerous: true },
-  // Client Management
-  { key: 'view_clients',          label: 'View Clients',           description: 'Browse client profiles and records',        group: 'Client Management',     groupIcon: '🏢' },
-  { key: 'add_clients',           label: 'Add Clients',            description: 'Register new client accounts',              group: 'Client Management',     groupIcon: '🏢' },
-  { key: 'edit_clients',          label: 'Edit Clients',           description: 'Update client information and details',     group: 'Client Management',     groupIcon: '🏢' },
-  { key: 'delete_clients',        label: 'Delete Clients',         description: 'Remove client records from the system',     group: 'Client Management',     groupIcon: '🏢', dangerous: true },
-  // Retail / Operations
-  { key: 'view_retail',           label: 'View Retail Panel',      description: 'Access the retail admin section',           group: 'Retail & Operations',   groupIcon: '🛍️' },
-  { key: 'manage_inventory',      label: 'Manage Inventory',       description: 'Add, update, and remove inventory items',   group: 'Retail & Operations',   groupIcon: '🛍️' },
-  { key: 'process_orders',        label: 'Process Orders',         description: 'Handle and fulfill customer orders',        group: 'Retail & Operations',   groupIcon: '🛍️' },
-  { key: 'view_transactions',     label: 'View Transactions',      description: 'See transaction history and details',       group: 'Retail & Operations',   groupIcon: '🛍️' },
-  // Settings & System
-  { key: 'view_settings',         label: 'View Settings',          description: 'Browse system configuration pages',        group: 'Settings & System',     groupIcon: '⚙️' },
-  { key: 'edit_settings',         label: 'Edit Settings',          description: 'Modify system-level configurations',       group: 'Settings & System',     groupIcon: '⚙️', dangerous: true },
-  { key: 'manage_integrations',   label: 'Manage Integrations',    description: 'Connect and configure third-party tools',  group: 'Settings & System',     groupIcon: '⚙️', dangerous: true },
-  { key: 'view_audit_logs',       label: 'View Audit Logs',        description: 'Read system event and change logs',        group: 'Settings & System',     groupIcon: '⚙️' },
-  // Communication
-  { key: 'send_notifications',    label: 'Send Notifications',     description: 'Push alerts and notifications to users',   group: 'Communication',         groupIcon: '🔔' },
-  { key: 'manage_announcements',  label: 'Manage Announcements',   description: 'Post and manage system-wide announcements', group: 'Communication',        groupIcon: '🔔' },
+
+  // ── System Admin – Dashboard ──────────────────────────────────────────────
+  {
+    key: 'sa_view_admin_dashboard', label: 'View Admin Dashboard',
+    description: 'Access the main admin dashboard overview',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_view_license_expiry', label: 'View License Expiry',
+    description: 'View license expiry dates and alerts',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_add_company', label: 'Add Company',
+    description: 'Register and onboard new companies into the system',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_add_industry', label: 'Add Industry',
+    description: 'Create and manage industry categories',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['System Admin'],
+  },
+
+  // ── System Admin – Client Overview ───────────────────────────────────────
+  {
+    key: 'sa_view_overview', label: 'View Overview',
+    description: 'Access the client overview summary page',
+    group: 'Client Overview', groupIcon: '🏢',
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_view_users', label: 'View Users',
+    description: 'Browse client user accounts and profiles',
+    group: 'Client Overview', groupIcon: '🏢',
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_view_tickets', label: 'View Tickets',
+    description: 'View support and service tickets',
+    group: 'Client Overview', groupIcon: '🏢',
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_view_msa_expiry', label: 'View MSA Expiry',
+    description: 'View master service agreement expiry details',
+    group: 'Client Overview', groupIcon: '🏢',
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_edit_general_info', label: 'Edit General Information',
+    description: 'Modify core client general information',
+    group: 'Client Overview', groupIcon: '🏢',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_add_edit_branches', label: 'Add & Edit Branches',
+    description: 'Create and update client branch records',
+    group: 'Client Overview', groupIcon: '🏢',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_view_branch_info', label: 'View Branch Information',
+    description: 'Access detailed branch information and data',
+    group: 'Client Overview', groupIcon: '🏢',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_add_edit_pos', label: 'Add & Edit POS',
+    description: 'Configure and manage point-of-sale systems',
+    group: 'Client Overview', groupIcon: '🏢',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_add_edit_peripherals', label: 'Add & Edit Peripherals & Accessories',
+    description: 'Manage peripherals and accessory configurations',
+    group: 'Client Overview', groupIcon: '🏢',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_update_msa_details', label: 'Update MSA Details',
+    description: 'Modify master service agreement information',
+    group: 'Client Overview', groupIcon: '🏢',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+
+  // ── System Admin – Analytics ──────────────────────────────────────────────
+  {
+    key: 'sa_view_analytics_dashboard', label: 'View Analytics Dashboard',
+    description: 'Access the full analytics dashboard',
+    group: 'Analytics', groupIcon: '📈',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_view_analytics_overview', label: 'View Analytics Overview',
+    description: 'Browse analytics summary and overview pages',
+    group: 'Analytics', groupIcon: '📈',
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_export_analytics', label: 'Export Analytics',
+    description: 'Download and export analytics data reports',
+    group: 'Analytics', groupIcon: '📈',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+  {
+    key: 'sa_import_analytics', label: 'Import Analytics',
+    description: 'Upload and import analytics data into the system',
+    group: 'Analytics', groupIcon: '📈',
+    dangerous: true,
+    roles: ['System Admin'],
+  },
+
+  // ── Manager – Dashboard ───────────────────────────────────────────────────
+  {
+    key: 'mgr_view_branch_info', label: 'View Branch Information',
+    description: 'Access branch details and location data',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['Manager'],
+  },
+  {
+    key: 'mgr_view_pos_info', label: 'View POS Information',
+    description: 'View point-of-sale terminal details',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['Manager'],
+  },
+  {
+    key: 'mgr_view_users', label: 'View Users',
+    description: 'Browse user accounts within this manager\'s scope',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['Manager'],
+  },
+  {
+    key: 'mgr_add_edit_users', label: 'Add & Edit Users',
+    description: 'Create and modify user accounts',
+    group: 'Dashboard', groupIcon: '📊',
+    dangerous: true,
+    roles: ['Manager'],
+  },
+
+  // ── Manager – Learning Center ─────────────────────────────────────────────
+  {
+    key: 'mgr_access_learning_center', label: 'Access to Learning Center',
+    description: 'Enter and administer the Learning Center module',
+    group: 'Learning Center', groupIcon: '🎓',
+    dangerous: true,
+    roles: ['Manager'],
+  },
+  {
+    key: 'mgr_create_learning_materials', label: 'Create Learning Materials',
+    description: 'Author and publish new learning content and courses',
+    group: 'Learning Center', groupIcon: '🎓',
+    roles: ['Manager'],
+  },
+  {
+    key: 'mgr_add_edit_lc_users', label: 'Add & Edit Learning Center Users',
+    description: 'Manage users enrolled in the Learning Center',
+    group: 'Learning Center', groupIcon: '🎓',
+    roles: ['Manager'],
+  },
+
+  // ── User – Dashboard ──────────────────────────────────────────────────────
+  {
+    key: 'usr_view_learning_dashboard', label: 'View Learning Dashboard',
+    description: 'Access the personal learning progress dashboard',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['User'],
+  },
+  {
+    key: 'usr_access_lc_modules', label: 'Access Learning Center Modules',
+    description: 'View and complete Learning Center course modules',
+    group: 'Dashboard', groupIcon: '📊',
+    roles: ['User'],
+  },
 ];
+
+// ── Helper: get only the permissions relevant to a given role ──────────────
+
+export function getPermissionsForRole(role: UserRole): Permission[] {
+  if (role === 'Super Admin') return ALL_PERMISSIONS;
+  return ALL_PERMISSIONS.filter(p => p.roles.includes(role));
+}
 
 // ── Default permissions per role ────────────────────────────────────────────
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Record<PermissionKey, boolean>> = {
-  'System Admin': {
-    view_dashboard: true,  view_analytics: true,  export_reports: true,
-    view_users: true,      add_users: true,        edit_users: true,      delete_users: true,  manage_roles: true,
-    view_clients: true,    add_clients: true,      edit_clients: true,    delete_clients: true,
-    view_retail: true,     manage_inventory: true, process_orders: true,  view_transactions: true,
-    view_settings: true,   edit_settings: true,    manage_integrations: true, view_audit_logs: true,
-    send_notifications: true, manage_announcements: true,
-  },
-  'Manager': {
-    view_dashboard: true,  view_analytics: true,  export_reports: true,
-    view_users: true,      add_users: false,       edit_users: true,      delete_users: false, manage_roles: false,
-    view_clients: true,    add_clients: true,      edit_clients: true,    delete_clients: false,
-    view_retail: true,     manage_inventory: true, process_orders: true,  view_transactions: true,
-    view_settings: true,   edit_settings: false,   manage_integrations: false, view_audit_logs: true,
-    send_notifications: true, manage_announcements: false,
-  },
-  'User': {
-    view_dashboard: true,  view_analytics: false, export_reports: false,
-    view_users: false,     add_users: false,       edit_users: false,     delete_users: false, manage_roles: false,
-    view_clients: true,    add_clients: false,     edit_clients: false,   delete_clients: false,
-    view_retail: true,     manage_inventory: false,process_orders: true,  view_transactions: false,
-    view_settings: false,  edit_settings: false,   manage_integrations: false, view_audit_logs: false,
-    send_notifications: false, manage_announcements: false,
-  },
+  'Super Admin': Object.fromEntries(
+    ALL_PERMISSIONS.map(p => [p.key, true])
+  ) as Record<PermissionKey, boolean>,
+
+  'System Admin': Object.fromEntries(
+    ALL_PERMISSIONS.map(p => [p.key, p.roles.includes('System Admin')])
+  ) as Record<PermissionKey, boolean>,
+
+  'Manager': Object.fromEntries(
+    ALL_PERMISSIONS.map(p => [p.key, p.roles.includes('Manager')])
+  ) as Record<PermissionKey, boolean>,
+
+  'User': Object.fromEntries(
+    ALL_PERMISSIONS.map(p => [p.key, p.roles.includes('User')])
+  ) as Record<PermissionKey, boolean>,
 };
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -102,6 +285,7 @@ export interface UseRolePermissionsReturn {
 export function useRolePermissions(): UseRolePermissionsReturn {
   const [openRole, setOpenRole] = useState<UserRole | null>(null);
   const [rolePerms, setRolePerms] = useState<Record<UserRole, Record<PermissionKey, boolean>>>({
+    'Super Admin':  { ...DEFAULT_ROLE_PERMISSIONS['Super Admin'] },
     'System Admin': { ...DEFAULT_ROLE_PERMISSIONS['System Admin'] },
     'Manager':      { ...DEFAULT_ROLE_PERMISSIONS['Manager'] },
     'User':         { ...DEFAULT_ROLE_PERMISSIONS['User'] },

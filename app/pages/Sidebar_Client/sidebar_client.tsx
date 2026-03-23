@@ -9,17 +9,25 @@ interface SidebarProps {
 
 interface NavItem {
   label: string;
-  view: string;
-  icon: string;
+  view:  string;
+  icon:  string;
   badge?: number;
 }
 
 const CLIENT_PORTAL_NAV: NavItem[] = [
-  { label: "Overview",        view: "overview",  icon: "/icon-overview.png"          },
-  { label: "Tickets",         view: "tickets",   icon: "/icon-tickets.png",  badge: 8 },
-  { label: "Users",           view: "users",     icon: "/icon-users.png"             },
-  { label: "Learning Center", view: "learning",  icon: "/icon-learning.png"          },
+  { label: "Overview", view: "overview", icon: "/icon-overview.png"          },
+  { label: "Tickets",  view: "tickets",  icon: "/icon-tickets.png"},
+  { label: "Users",    view: "users",    icon: "/icon-users.png"              },
 ];
+
+// ── Width constants (must match globals.css .gx-sidebar-cp widths) ────────────
+const W_EXPANDED  = "220px";
+const W_COLLAPSED = "64px";   // collapsed icon-only width
+
+function syncHeaderVar(collapsed: boolean) {
+  document.documentElement.style.setProperty("--gxh-sw",        collapsed ? W_COLLAPSED : W_EXPANDED);
+  document.documentElement.style.setProperty("--gxh-collapsed", collapsed ? "1" : "0");
+}
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -34,23 +42,41 @@ function useIsMobile() {
 }
 
 export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
-  // On mobile the sidebar starts hidden (acts as a drawer)
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed,   setCollapsed]   = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("gx_cp_sidebar_collapsed") === "1";
+  });
+  const [mobileOpen,  setMobileOpen]  = useState(false);
   const isMobile = useIsMobile();
 
-  // Close drawer when navigating on mobile
+  // ── Sync CSS vars on mount and whenever collapsed changes ─────────────────
+  useEffect(() => {
+    if (!isMobile) {
+      syncHeaderVar(collapsed);
+      sessionStorage.setItem("gx_cp_sidebar_collapsed", collapsed ? "1" : "0");
+    }
+  }, [collapsed, isMobile]);
+
+  // ── On mobile, always reset to expanded vars ───────────────────────────────
+  useEffect(() => {
+    if (isMobile) {
+      document.documentElement.style.setProperty("--gxh-sw",        "0px");
+      document.documentElement.style.setProperty("--gxh-collapsed", "1");
+    }
+  }, [isMobile]);
+
+  const toggle = () => setCollapsed(c => !c);
+
   const handleNavigate = (view: string) => {
     onNavigate(view);
     if (isMobile) setMobileOpen(false);
   };
 
-  const cls = collapsed ? "collapsed" : "expanded";
-
+  // ── Mobile drawer ──────────────────────────────────────────────────────────
   if (isMobile) {
     return (
       <>
-        {/* Mobile hamburger trigger — fixed top-left */}
+        {/* Hamburger trigger */}
         <button
           onClick={() => setMobileOpen(o => !o)}
           aria-label="Open navigation"
@@ -95,7 +121,6 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
             height: "100vh",
           }}
         >
-          {/* Brand */}
           <div className="gx-sb-brand" style={{ justifyContent: "space-between" }}>
             <img src="/geniex-logo.png" alt="genieX" className="gx-sb-logo" style={{ height: 35 }} />
             <button
@@ -109,7 +134,6 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
             </button>
           </div>
 
-          {/* Nav */}
           <div className="gx-sb-scroll">
             <div>
               <div className="gx-sb-sec-label">Client Portal</div>
@@ -130,7 +154,6 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
             </div>
           </div>
 
-          {/* Footer */}
           <div className="gx-sb-footer-cp">
             <button
               className={`gx-nav-link-cp${activePage === "settings" ? " active" : ""}`}
@@ -146,25 +169,24 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
     );
   }
 
-  // Desktop / iPad — original collapsible sidebar
+  // ── Desktop sidebar ────────────────────────────────────────────────────────
   return (
     <>
-      {/* Spacer that pushes page content right */}
-      <div className={`gx-sb-wrap ${cls}`} />
+      {/* Spacer that pushes page content right — width matches sidebar */}
+      <div className={`gx-sb-wrap ${collapsed ? "collapsed" : "expanded"}`} />
 
-      <aside className={`gx-sidebar-cp ${collapsed ? "collapsed" : ""}`}>
+      <aside className={`gx-sidebar-cp${collapsed ? " collapsed" : ""}`}>
 
         {/* Brand */}
         <div className="gx-sb-brand">
           <img src="/geniex-logo.png" alt="genieX" className="gx-sb-logo" style={{ height: 35 }} />
-          {/* Burger Menu Toggle */}
           <button
-            onClick={() => setCollapsed(c => !c)}
+            onClick={toggle}
             title={collapsed ? "Expand" : "Collapse"}
             aria-label="Toggle sidebar"
-            style={{ background:"none", border:"none", padding:4, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}
+            style={{ background: "none", border: "none", padding: 4, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
           >
-            <img src="/icon-menu.png" alt="menu" style={{ width:18, height:18, objectFit:"contain", opacity:0.6 }} />
+            <img src="/icon-menu.png" alt="menu" style={{ width: 18, height: 18, objectFit: "contain", opacity: 0.6 }} />
           </button>
         </div>
 

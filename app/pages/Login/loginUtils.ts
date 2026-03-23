@@ -236,3 +236,18 @@ export function initSwipeGestures() {
     document.removeEventListener("touchend", onEnd);
   };
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

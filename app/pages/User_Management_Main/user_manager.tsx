@@ -3,11 +3,16 @@
 // ─────────────────────────────────────────────
 //  user_manager.tsx  –  User Management Page
 //  Updated: fetches users from /api/users
+//           edit popup saves to DB + delete support
 // ─────────────────────────────────────────────
 
 import React, { useState, useRef } from 'react';
-import Header from '../Header_Web/header';
+import Header  from '../Header/header_main';
 import Sidebar from '../Sidebar_Web/sidebar';
+
+// ── Session keys ──────────────────────────────
+const SESSION_KEY         = 'gx_user_role';
+const SESSION_PROFILE_KEY = 'gx_user_profile';
 
 import {
   User, UserRole, UserFilters, RoleCardInfo,
@@ -17,7 +22,6 @@ import {
 } from './user_functions';
 
 import { useRolePermissions } from './user_roles_func';
-import { useAuthUser }        from '../../Hooks/useAuthUser';
 import AddUserPopup          from './add_user_popup';
 import EditUserPopup         from './edit_user_popup';
 import RolePermissionsPopup  from './role_permissions_popup';
@@ -243,9 +247,9 @@ function DropdownFilter({ filters, users, onToggle, onClear, filterCount }: Drop
 
   function handleClearAll() { clearDraft(); onClear(); setOpen(false); }
 
-  const roles:    UserRole[]   = ['Super Admin', 'System Admin', 'Manager', 'User'];
-  const statuses                = ['Active', 'Inactive'];
-  const companies               = getUniqueCompanies(users);
+  const roles:    UserRole[]   = ['System Admin', 'Manager', 'User'];
+  const statuses               = ['Active', 'Inactive'];
+  const companies              = getUniqueCompanies(users);
 
   function OptionRow({ label, active, onClick, dot }: { label: string; active: boolean; onClick: () => void; dot?: string }) {
     const [hov, setHov] = useState(false);
@@ -253,16 +257,32 @@ function DropdownFilter({ filters, users, onToggle, onClear, filterCount }: Drop
       <button
         className="flex items-center gap-2.5 w-full rounded-lg cursor-pointer text-left transition-all duration-150 text-[12.5px]"
         style={{
-          padding: '8px 10px', fontFamily: "'DM Sans', sans-serif",
-          border: `1px solid ${active ? 'rgba(124,58,237,.20)' : 'transparent'}`,
+          padding:    '8px 10px',
+          fontFamily: "'DM Sans', sans-serif",
+          border:     active ? '1px solid rgba(124,58,237,.20)' : '1px solid transparent',
           background: active ? 'var(--purple-lt)' : hov ? 'var(--s2)' : 'transparent',
-          fontWeight: active ? 600 : 400, color: active ? 'var(--purple-d)' : 'var(--t2)',
+          fontWeight: active ? 600 : 400,
+          color:      active ? 'var(--purple-d)' : 'var(--t2)',
         }}
-        onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+        onClick={onClick}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
       >
-        <span className="flex items-center justify-center shrink-0 rounded transition-all duration-150"
-          style={{ width: 15, height: 15, border: `1.5px solid ${active ? 'var(--purple)' : 'var(--border-md)'}`, background: active ? 'var(--purple)' : '#fff', boxShadow: active ? '0 1px 4px rgba(124,58,237,.35)' : 'none' }}>
-          {active && <svg width="8" height="8" viewBox="0 0 10 8" fill="none" stroke="white" strokeWidth="2.2"><path d="M1 4l3 3 5-6" /></svg>}
+        <span
+          className="flex items-center justify-center shrink-0 rounded transition-all duration-150"
+          style={{
+            width:     15,
+            height:    15,
+            border:    active ? '1.5px solid var(--purple)' : '1.5px solid var(--border-md)',
+            background: active ? 'var(--purple)' : '#fff',
+            boxShadow: active ? '0 1px 4px rgba(124,58,237,.35)' : 'none',
+          }}
+        >
+          {active && (
+            <svg width="8" height="8" viewBox="0 0 10 8" fill="none" stroke="white" strokeWidth="2.2">
+              <path d="M1 4l3 3 5-6" />
+            </svg>
+          )}
         </span>
         {dot && <span className={`dot ${dot}`} />}
         <span className="flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>
@@ -278,8 +298,8 @@ function DropdownFilter({ filters, users, onToggle, onClear, filterCount }: Drop
           gap: 7, padding: '7px 14px', fontFamily: "'DM Sans', sans-serif", fontSize: 12.5,
           border: 'none',
           background: open ? 'var(--grad)' : filterCount > 0 ? 'var(--grad)' : 'var(--s2)',
-          color: open || filterCount > 0 ? '#fff' : 'var(--t2)',
-          boxShadow: open || filterCount > 0 ? '0 3px 12px rgba(124,58,237,.35)' : 'none',
+          color:      open || filterCount > 0 ? '#fff' : 'var(--t2)',
+          boxShadow:  open || filterCount > 0 ? '0 3px 12px rgba(124,58,237,.35)' : 'none',
         }}
         onClick={() => setOpen(o => !o)}
       >
@@ -358,11 +378,28 @@ function DropdownFilter({ filters, users, onToggle, onClear, filterCount }: Drop
                   return (
                     <button key={c}
                       className="flex items-start gap-2 w-full rounded-lg cursor-pointer text-left transition-all duration-150 text-[12px]"
-                      style={{ padding: '8px 10px 8px 8px', fontFamily: "'DM Sans', sans-serif", border: `1px solid ${active ? 'rgba(124,58,237,.20)' : 'transparent'}`, background: active ? 'var(--purple-lt)' : 'transparent', fontWeight: active ? 600 : 400, color: active ? 'var(--purple-d)' : 'var(--t2)' }}
-                      onClick={() => toggleDraft('company', c)}>
+                      style={{
+                        padding:    '8px 10px 8px 8px',
+                        fontFamily: "'DM Sans', sans-serif",
+                        border:     active ? '1px solid rgba(124,58,237,.20)' : '1px solid transparent',
+                        background: active ? 'var(--purple-lt)' : 'transparent',
+                        fontWeight: active ? 600 : 400,
+                        color:      active ? 'var(--purple-d)' : 'var(--t2)',
+                      }}
+                      onClick={() => toggleDraft('company', c)}
+                    >
                       <span className="flex items-center justify-center shrink-0 rounded mt-0.5"
-                        style={{ width: 15, height: 15, border: `1.5px solid ${active ? 'var(--purple)' : 'var(--border-md)'}`, background: active ? 'var(--purple)' : '#fff' }}>
-                        {active && <svg width="8" height="8" viewBox="0 0 10 8" fill="none" stroke="white" strokeWidth="2.2"><path d="M1 4l3 3 5-6" /></svg>}
+                        style={{
+                          width:      15,
+                          height:     15,
+                          border:     active ? '1.5px solid var(--purple)' : '1.5px solid var(--border-md)',
+                          background: active ? 'var(--purple)' : '#fff',
+                        }}>
+                        {active && (
+                          <svg width="8" height="8" viewBox="0 0 10 8" fill="none" stroke="white" strokeWidth="2.2">
+                            <path d="M1 4l3 3 5-6" />
+                          </svg>
+                        )}
                       </span>
                       <span style={{ wordBreak: 'break-word' }}>{c}</span>
                     </button>
@@ -417,31 +454,32 @@ function Toast({ message, visible }: { message: string; visible: boolean }) {
 //  Loading Skeleton
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Fixed skeleton widths — deterministic, no Math.random(), no SSR mismatch.
-// Columns 1-5 (j=1..5) get these widths cycling per row.
-const SKELETON_WIDTHS = [55, 72, 64, 68, 60, 75, 58, 70];
+const SKELETON_WIDTHS: string[][] = [
+  ['70%', '68%', '55%', '60%', '72%', '50%', '52px'],
+  ['62%', '74%', '48%', '52%', '65%', '50%', '52px'],
+  ['78%', '60%', '62%', '44%', '58%', '50%', '52px'],
+  ['55%', '80%', '55%', '68%', '80%', '50%', '52px'],
+  ['72%', '52%', '48%', '56%', '62%', '50%', '52px'],
+  ['66%', '70%', '62%', '48%', '74%', '50%', '52px'],
+  ['80%', '58%', '55%', '72%', '55%', '50%', '52px'],
+  ['60%', '76%', '48%', '60%', '68%', '50%', '52px'],
+];
 
 function TableSkeleton() {
-  // Only render on the client. The server renders null, the client renders
-  // the skeleton after mount — eliminating any SSR/client width mismatch.
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return null;
-
   return (
     <>
-      {Array.from({ length: 8 }).map((_, i) => (
+      {SKELETON_WIDTHS.map((cols, i) => (
         <tr key={i}>
-          {Array.from({ length: 7 }).map((_, j) => (
+          {cols.map((w, j) => (
             <td key={j} style={{ borderBottom: '1px solid var(--border)', padding: '10px 12px' }}>
               <div
                 style={{
-                  height: j === 0 ? 27 : 14,
-                  width: j === 0 ? '70%' : j === 6 ? 52 : `${SKELETON_WIDTHS[(i + j) % SKELETON_WIDTHS.length]}%`,
-                  borderRadius: 6,
-                  background: 'linear-gradient(90deg,var(--s2) 25%,rgba(124,58,237,.06) 50%,var(--s2) 75%)',
-                  backgroundSize: '200% 100%',
-                  animation: `shimmer 1.4s ease infinite ${i * 0.06}s`,
+                  height:           j === 0 ? 27 : 14,
+                  width:            w,
+                  borderRadius:     6,
+                  background:       'linear-gradient(90deg,var(--s2) 25%,rgba(124,58,237,.06) 50%,var(--s2) 75%)',
+                  backgroundSize:   '200% 100%',
+                  animation:        `shimmer 1.4s ease infinite ${i * 0.06}s`,
                 }}
               />
             </td>
@@ -462,13 +500,7 @@ function TableSkeleton() {
 //  Main Page Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface UserManagementProps {
-  onLogout?: () => void;
-}
-
-export default function UserManagement({ onLogout }: UserManagementProps = {}) {
-  const { headerUser } = useAuthUser();
-
+export default function UserManagement() {
   const {
     users, usersLoading, usersError,
     searchQuery, setSearchQuery, filters,
@@ -477,15 +509,47 @@ export default function UserManagement({ onLogout }: UserManagementProps = {}) {
     searchFocused, setSearchFocused,
     visibleUsers, filteredUsers, filterCount, pagination, setCurrentPage,
     handleToggleFilter, handleClearFilters, handleAddUser, openEditModal, handleEditUser,
-    refreshUsers,
+    showToast, refreshUsers,
   } = useUserManagement();
 
   const { openRole, rolePerms, openModal: openRoleModal, closeModal: closeRoleModal, savePerms } = useRolePermissions();
 
+  // ── FIX: clear session and hard-navigate so login gate shows ──
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_PROFILE_KEY);
+    window.location.href = '/';
+  };
+
+  // ── Read logged-in user profile from sessionStorage for Header ──
+  const [_headerUser] = React.useState(() => {
+    if (typeof window === 'undefined') return { initials: '', fullName: '', position: '', company: '', profilePhoto: null };
+    try {
+      const raw = sessionStorage.getItem(SESSION_PROFILE_KEY);
+      if (!raw) return { initials: '', fullName: '', position: '', company: '', profilePhoto: null };
+      const p = JSON.parse(raw);
+      return {
+        initials:     p.initials     ?? '',
+        fullName:     p.fullName     ?? '',
+        position:     p.position     ?? '',
+        company:      p.company      ?? '',
+        profilePhoto: p.profilePhoto ?? null,
+      };
+    } catch { return { initials: '', fullName: '', position: '', company: '', profilePhoto: null }; }
+  });
+
+  function handleUserDeleted(_userId: number) {
+    showToast('User deleted successfully.');
+    refreshUsers();
+  }
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: RESIDUAL_CSS }} />
-      <Header user={headerUser} onLogout={onLogout} />
+      <Header
+        user={_headerUser}
+        onLogout={handleLogout}
+      />
       <Sidebar />
 
       <div className="um-page-shell">
@@ -596,13 +660,12 @@ export default function UserManagement({ onLogout }: UserManagementProps = {}) {
                       <tr>
                         <td colSpan={7} className="text-center py-10 px-5 text-[13px]" style={{ color: 'var(--t3)' }}>
                           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" className="mx-auto mb-2 opacity-25">
-                            <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
                           </svg>
                           {usersError ? 'Failed to load users.' : 'No users match your filters'}
                         </td>
                       </tr>
-                    ) : visibleUsers.map((u, idx) => (
-                      <UserRow key={u.id ?? `row-${idx}`} user={u} onEdit={openEditModal} />
+                    ) : visibleUsers.map(u => (
+                      <UserRow key={u.id} user={u} onEdit={openEditModal} />
                     ))}
                   </tbody>
                 </table>
@@ -630,9 +693,21 @@ export default function UserManagement({ onLogout }: UserManagementProps = {}) {
           />
 
           <EditUserPopup
-            open={editOpen} form={editForm} companies={COMPANY_OPTIONS}
-            onClose={() => { setEditOpen(false); setEditForm({ ...EMPTY_EDIT_FORM }); }}
-            onChange={setEditForm} onSave={handleEditUser}
+            open={editOpen}
+            form={editForm}
+            companies={COMPANY_OPTIONS}
+            onClose={() => {
+              setEditOpen(false);
+              setEditForm({ ...EMPTY_EDIT_FORM });
+              refreshUsers();
+            }}
+            onChange={setEditForm}
+            onSave={handleEditUser}
+            onDeleted={(userId) => {
+              setEditOpen(false);
+              setEditForm({ ...EMPTY_EDIT_FORM });
+              handleUserDeleted(userId);
+            }}
           />
 
           {openRole && (
@@ -642,15 +717,8 @@ export default function UserManagement({ onLogout }: UserManagementProps = {}) {
           <Toast message={toast.message} visible={toast.visible} />
         </div>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   );
 }
-
-
-
-
-
-
-
-
-
