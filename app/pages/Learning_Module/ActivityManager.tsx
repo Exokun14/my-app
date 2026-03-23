@@ -444,33 +444,54 @@ export default function ActivityManager({ initialActivities = [], onSave, onClos
         </div>
       )}
 
-      {/* Header */}
+      {/* Header — editorial command center */}
       <div style={{
-        background:"linear-gradient(135deg,#1e1245,#4c1d95 60%,#064e3b)",
-        padding:"14px 22px", display:"flex", alignItems:"center", gap:14, flexShrink:0,
+        background:"linear-gradient(135deg,#0f0628 0%,#2d1472 50%,#064e3b 100%)",
+        padding:"0 24px", display:"flex", alignItems:"center", gap:14, flexShrink:0,
+        height:64, position:"relative", overflow:"hidden",
       }}>
+        {/* Subtle grid texture */}
+        <div style={{ position:"absolute", inset:0, backgroundImage:"repeating-linear-gradient(0deg,rgba(255,255,255,0.03) 0,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 32px),repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 32px)", pointerEvents:"none" }} />
+        {/* Radial glow */}
+        <div style={{ position:"absolute", top:-40, left:"30%", width:280, height:140, borderRadius:"50%", background:"radial-gradient(circle,rgba(124,58,237,0.25),transparent 70%)", pointerEvents:"none" }} />
+
         {onClose && (
-          <button onClick={onClose} style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:9, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.85)", fontSize:11.5, fontWeight:600, cursor:"pointer" }}>
+          <button onClick={onClose} style={{ position:"relative", zIndex:1, display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:9, border:"1px solid rgba(255,255,255,0.18)", background:"rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.8)", fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"inherit", flexShrink:0, transition:"all .15s" }}>
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 1L3 6l5 5"/></svg>
             Back
           </button>
         )}
-        <div style={{ width:36, height:36, borderRadius:10, background:"rgba(255,255,255,0.18)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🧩</div>
-        <div>
-          <div style={{ fontSize:15, fontWeight:800, color:"#fff", letterSpacing:"-0.01em" }}>Activity Manager</div>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", marginTop:1 }}>Build and manage interactive activities</div>
+
+        {/* Icon */}
+        <div style={{ position:"relative", zIndex:1, width:38, height:38, borderRadius:11, background:"linear-gradient(145deg,#7c3aed,#0d9488)", boxShadow:"0 0 0 1px rgba(255,255,255,0.12) inset, 0 4px 14px rgba(109,40,217,0.5)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>🧩</div>
+
+        <div style={{ position:"relative", zIndex:1 }}>
+          <div style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-.02em" }}>Activity Manager</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)", marginTop:1, fontWeight:500 }}>
+            {activities.length} activit{activities.length === 1 ? "y" : "ies"} · Interactive learning blocks
+          </div>
         </div>
+
         <div style={{ flex:1 }} />
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontSize:12, color:"rgba(255,255,255,0.6)" }}>
-            {activities.length} activit{activities.length === 1 ? "y" : "ies"}
-          </span>
-          <button onClick={openNew} style={{ padding:"8px 16px", borderRadius:9, border:"1.5px solid rgba(255,255,255,0.3)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+
+        <div style={{ position:"relative", zIndex:1, display:"flex", alignItems:"center", gap:8 }}>
+          <button onClick={openNew} style={{
+            padding:"7px 16px", borderRadius:9,
+            border:"1.5px solid rgba(255,255,255,0.25)",
+            background:"rgba(255,255,255,0.12)", color:"#fff",
+            fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+            display:"flex", alignItems:"center", gap:6, transition:"all .15s",
+          }}>
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 1v10M1 6h10"/></svg>
             New Activity
           </button>
           {onSave && (
-            <button onClick={() => onSave(activities)} style={{ padding:"8px 18px", borderRadius:9, border:"none", background:"rgba(255,255,255,0.95)", color:"#4c1d95", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>
+            <button onClick={() => onSave(activities)} style={{
+              padding:"7px 18px", borderRadius:9, border:"none",
+              background:"linear-gradient(135deg,rgba(255,255,255,0.95),rgba(255,255,255,0.88))",
+              color:"#4c1d95", fontSize:12.5, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
+              boxShadow:"0 2px 10px rgba(0,0,0,0.2)",
+            }}>
               ✓ Done
             </button>
           )}

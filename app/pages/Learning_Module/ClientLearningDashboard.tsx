@@ -52,22 +52,7 @@ interface UserMenuProps {
 }
 
 function UserMenu({ user, onLogout }: UserMenuProps) {
-  const [open,       setOpen]       = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  const handleLogout = async () => {
-    setOpen(false);
-    setLoggingOut(true);
-    try {
-      await api.auth.logout();
-    } catch (e) {
-      console.warn("[UserMenu] logout API call failed:", e);
-    } finally {
-      setLoggingOut(false);
-    }
-    onLogout?.();
-    if (!onLogout) window.location.href = "/";
-  };
+  const [open, setOpen] = useState(false);
   const ref             = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -187,19 +172,16 @@ function UserMenu({ user, onLogout }: UserMenuProps) {
           {/* Sign Out */}
           <div style={{ padding: "6px 8px 0" }}>
             <button
-              onClick={handleLogout}
-              disabled={loggingOut}
+              onClick={() => { setOpen(false); onLogout?.(); }}
               style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 8,
                 padding: "9px 12px", borderRadius: 9,
                 border: "1px solid rgba(220,38,38,0.15)",
                 background: "rgba(254,242,242,0.7)",
                 color: "#dc2626", fontSize: 12, fontWeight: 600,
-                cursor: loggingOut ? "not-allowed" : "pointer",
-                opacity: loggingOut ? 0.6 : 1,
-                fontFamily: "inherit", transition: "background .15s",
+                cursor: "pointer", fontFamily: "inherit", transition: "background .15s",
               }}
-              onMouseEnter={e => { if (!loggingOut) e.currentTarget.style.background = "rgba(220,38,38,0.1)"; }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(220,38,38,0.1)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "rgba(254,242,242,0.7)"; }}
             >
               {/* Sign-out icon */}
@@ -209,7 +191,7 @@ function UserMenu({ user, onLogout }: UserMenuProps) {
                 <path d="M10 8H3M6 5l-3 3 3 3" />
                 <path d="M6 3h6a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6" />
               </svg>
-              {loggingOut ? "Signing out…" : "Sign Out"}
+              Sign Out
             </button>
           </div>
         </div>
@@ -229,17 +211,18 @@ function UserMenu({ user, onLogout }: UserMenuProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ClientLearningDashboardProps {
-  onBack?:    () => void;
-  onLogout?:  () => void;   // wired to Sign Out in UserMenu
+  onBack?:      () => void;
+  onLogout?:    () => void;   // wired to Sign Out in UserMenu
+  initialUser?: AuthUser | null; // passed from page.tsx — skips GET /api/user
 }
 
-export default function ClientLearningDashboard({ onBack, onLogout }: ClientLearningDashboardProps) {
+export default function ClientLearningDashboard({ onBack, onLogout, initialUser }: ClientLearningDashboardProps) {
   const [courses, setCourses]       = useState<Course[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
 
-  // ── Authenticated user (fetched from GET /api/user) ────────────────────────
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  // ── Authenticated user — use prop if provided, otherwise fetch ────────────
+  const [authUser, setAuthUser] = useState<AuthUser | null>(initialUser ?? null);
 
   const [loadStage, setLoadStage]   = useState<'courses'|'activities'|'categories'|'done'>('courses');
   const [loaderDone, setLoaderDone] = useState(false);
@@ -276,90 +259,77 @@ export default function ClientLearningDashboard({ onBack, onLogout }: ClientLear
 
     (async () => {
       try {
-        // ── Fetch authenticated user (parallel, non-blocking) ─────────────
-        // GET /api/user returns:
-        //   { id, name, email, role, industry, company_id, company_name }
-        // company_name comes from the companies table via eager-load.
-        // See api_routes_snippet.php for the updated route.
-        api.auth.getUser().then(ur => {
-          if (ur.success && ur.data) {
-            setAuthUser(ur.data);
-            console.log('[AUTH] user loaded:', ur.data.name, '/', ur.data.company_name);
-          } else {
-            console.warn('[AUTH] Could not fetch auth user:', ur.error);
-          }
-        });
+        // ── Auth user ─────────────────────────────────────────────────────
+        if (!initialUser) {
+          api.auth.getUser().then(ur => {
+            console.log('%c[AUTH] getUser result', 'color:#a78bfa;font-weight:bold', ur);
+            if (ur.success && ur.data) {
+              setAuthUser(ur.data);
+              console.log('%c[AUTH] ✅ name:', 'color:#34d399', ur.data.name, '| company:', ur.data.company_name);
+            } else {
+              console.warn('%c[AUTH] ❌ failed:', 'color:#f87171', ur.error);
+            }
+          });
+        } else {
+          console.log('%c[AUTH] ⚡ using initialUser (skipped API call):', 'color:#34d399', initialUser.name);
+        }
 
         // ── Courses ──────────────────────────────────────────────────────────
         setLoadStage('courses');
+        console.log('%c[COURSES] → GET /api/user/courses', 'color:#60a5fa;font-weight:bold');
         const cr = await api.courses.getUserCourses();
+        console.log('%c[COURSES] raw response:', 'color:#60a5fa', cr);
         if (cancelledRef.current) return;
-
-        let loadedCourses: Course[] = [];
         if (cr.success && Array.isArray(cr.data) && cr.data.length > 0) {
-          loadedCourses = cr.data;
+          console.log('%c[COURSES] ✅ loaded from DB:', 'color:#34d399', cr.data.length, 'courses');
+          cr.data.forEach((c: any, i: number) => {
+            console.log(`%c[COURSE ${i}]`, 'color:#a78bfa', JSON.stringify({
+              id: c.id, title: c.title, cat: c.cat,
+              enrolled: c.enrolled, progress: c.progress,
+              completed: c.completed, time_spent: c.time_spent,
+              stage: c.stage, active: c.active,
+            }, null, 2));
+          });
+          setCourses(cr.data);
         } else if (cr.success && Array.isArray(cr.data) && cr.data.length === 0) {
-          loadedCourses = [];
+          console.warn('%c[COURSES] ⚠️ DB returned empty array — showing 0 courses', 'color:#fbbf24');
+          setCourses([]);
         } else {
-          console.warn('[LOADER] Course fetch failed, using test data:', cr.error);
-          loadedCourses = INITIAL_COURSES;
+          console.error('%c[COURSES] ❌ fetch failed — falling back to TEST DATA. Error:', 'color:#f87171', cr.error);
+          setCourses(INITIAL_COURSES);
         }
-
-        // FIX: The courses table stores progress/completed/time_spent as shared
-        // columns — not per-user. Fetch the authenticated user's own progress
-        // rows from user_course_progress and overwrite those fields on each
-        // course so the dashboard reflects only this user's actual progress.
-        try {
-          const pr = await api.progress.getAll();
-          if (pr.success && pr.data && pr.data.length > 0) {
-            const progressByTitle: Record<string, typeof pr.data[0]> = {};
-            pr.data.forEach(row => { progressByTitle[row.course] = row; });
-
-            loadedCourses = loadedCourses.map(c => {
-              const userRow = progressByTitle[c.title];
-              if (!userRow) {
-                // No progress row → this user has not started this course
-                return { ...c, progress: 0, enrolled: false, completed: false, time_spent: 0 };
-              }
-              return {
-                ...c,
-                progress:   userRow.progress,
-                enrolled:   true,
-                completed:  userRow.status === "Completed",
-                time_spent: userRow.time_spent ?? 0,
-              };
-            });
-            console.log('[LOADER] ✅ Per-user progress merged onto', loadedCourses.length, 'courses');
-          } else {
-            // No progress rows at all → zero out all courses for this user
-            loadedCourses = loadedCourses.map(c => ({
-              ...c, progress: 0, enrolled: false, completed: false, time_spent: 0,
-            }));
-            console.log('[LOADER] No progress rows found — courses zeroed for this user');
-          }
-        } catch (progressErr) {
-          // Non-fatal: fall back to shared table values rather than crashing
-          console.warn('[LOADER] Could not fetch per-user progress, using course table values:', progressErr);
-        }
-
-        setCourses(loadedCourses);
 
         // ── Activities ───────────────────────────────────────────────────────
         setLoadStage('activities');
+        console.log('%c[ACTIVITIES] → GET /api/activities', 'color:#60a5fa;font-weight:bold');
         const ar = await api.activities.getAll();
+        console.log('%c[ACTIVITIES] raw response:', 'color:#60a5fa', ar);
         if (cancelledRef.current) return;
-        setActivities(ar.success && Array.isArray(ar.data) && ar.data.length > 0
-          ? ar.data : INITIAL_ACTIVITIES);
+        if (ar.success && Array.isArray(ar.data) && ar.data.length > 0) {
+          console.log('%c[ACTIVITIES] ✅ loaded from DB:', 'color:#34d399', ar.data.length, 'activities');
+          setActivities(ar.data);
+        } else {
+          console.warn('%c[ACTIVITIES] ⚠️ using test data. success:', 'color:#fbbf24', ar.success, '| error:', ar.error);
+          setActivities(INITIAL_ACTIVITIES);
+        }
 
         // ── Categories ───────────────────────────────────────────────────────
         setLoadStage('categories');
+        console.log('%c[CATEGORIES] → GET /api/settings/categories', 'color:#60a5fa;font-weight:bold');
         const cat = await api.settings.getCategories();
+        console.log('%c[CATEGORIES] raw response:', 'color:#60a5fa', cat);
         if (cancelledRef.current) return;
-        setCategories(cat.success && Array.isArray(cat.data) && cat.data.length > 0
-          ? cat.data : DEFAULT_CATEGORIES);
+        if (cat.success && Array.isArray(cat.data) && cat.data.length > 0) {
+          console.log('%c[CATEGORIES] ✅ loaded from DB:', 'color:#34d399', cat.data);
+          setCategories(cat.data);
+        } else {
+          console.warn('%c[CATEGORIES] ⚠️ using defaults. error:', 'color:#fbbf24', cat.error);
+          setCategories(DEFAULT_CATEGORIES);
+        }
 
         setLoadStage('done');
         clearTimeout(loaderTimeout);
+        console.log('%c[LOADER] ✅ all done', 'color:#34d399;font-weight:bold');
 
       } catch (err) {
         if (cancelledRef.current) return;
@@ -394,55 +364,29 @@ export default function ClientLearningDashboard({ onBack, onLogout }: ClientLear
       updatedScores = [...updatedScores, { score: assessmentScore, passed: assessmentScore >= passingScore, passingScore }];
     }
 
-    // Update local courses state immediately so dashboard reflects changes
-    // without requiring a page refresh
-    setCourses(p => p.map((c,i) => i===idx ? {
-      ...c,
-      progress:   safeProgress,
-      enrolled:   true,
-      completed:  isCompleted,
-      time_spent: (c.time_spent ?? 0) + safeTimeSpent,
-    } : c));
+    setCourses(p => p.map((c,i) => i===idx ? {...c,progress:safeProgress,enrolled:true} : c));
     setCourseProgress(p => ({ ...p, [idx]: {
       progress: safeProgress, timeSpent: (cur.timeSpent||0)+safeTimeSpent,
       lastAccessed: new Date().toISOString(), enrolled: true, completed: isCompleted,
       completedDate: isCompleted ? new Date().toISOString() : cur.completedDate,
       quizScores: cur.quizScores||[], assessmentScores: updatedScores,
     }}));
+    if (isCompleted) setCourses(p => p.map((c,i) => i===idx ? {...c,progress:100,enrolled:true,completed:true} : c));
     setFullCourse(p => p ? {...p,progress:safeProgress,enrolled:true,completed:isCompleted,time_spent:(p.time_spent??0)+safeTimeSpent} : p);
 
     if (isCompleted && !cur.completed) {
       setTimeout(() => setShowCompletionStats(true), 300);
       setTimeout(async () => {
-        // Re-fetch courses then re-merge per-user progress so the dashboard
-        // doesn't revert to shared table values after completion
-        const [cr, pr] = await Promise.all([
-          api.courses.getUserCourses(),
-          api.progress.getAll(),
-        ]);
-        if (cr.success && cr.data) {
-          const progressByTitle: Record<string, typeof pr.data[0]> = {};
-          if (pr.success && pr.data) pr.data.forEach(row => { progressByTitle[row.course] = row; });
-          setCourses(cr.data.map(c => {
-            const userRow = progressByTitle[c.title];
-            if (!userRow) return { ...c, progress: 0, enrolled: false, completed: false, time_spent: 0 };
-            return { ...c, progress: userRow.progress, enrolled: true, completed: userRow.status === 'Completed', time_spent: userRow.time_spent ?? 0 };
-          }));
-        }
+        const r = await api.courses.getUserCourses();
+        if (r.success && r.data) setCourses(r.data);
       }, 1000);
     }
     try {
-      if (course.id) {
-        const r = await api.courses.updateProgress(course.id, {
-          progress: parseInt(String(safeProgress),10),
-          enrolled: 1,
-          time_spent: parseInt(String(safeTimeSpent),10),
-          completed: isCompleted ? 1 : 0,
-        });
-        if (!r.success) console.error('[handleProgress] ❌ updateProgress failed:', r.error);
-        else console.log('[handleProgress] ✅ progress saved:', safeProgress, '% time:', safeTimeSpent, 'min');
-      }
-    } catch (e) { console.error('[handleProgress] ❌ exception:', e); }
+      if (course.id) await api.courses.updateProgress(course.id, {
+        progress: parseInt(String(safeProgress),10), enrolled:1,
+        time_spent: parseInt(String(safeTimeSpent),10), completed: isCompleted?1:0,
+      });
+    } catch { /* silent */ }
   };
 
   // ── Viewer helpers ─────────────────────────────────────────────────────────
@@ -457,50 +401,13 @@ export default function ClientLearningDashboard({ onBack, onLogout }: ClientLear
       const r = await api.courses.getFullCourse(course.id);
       if (r.success && r.data) {
         if (!r.data.modules?.length) { toast('⚠️ This course has no modules yet.'); return; }
-        // FIX: getFullCourse returns the shared courses row which still carries
-        // stale progress/completed/time_spent from whoever last wrote to it.
-        // Override those fields with the per-user values we already merged
-        // into courses[idx] during mount (sourced from user_course_progress).
-        const userCourse = courses[idx];
-        setFullCourse({
-          ...r.data,
-          progress:   userCourse.progress   ?? 0,
-          completed:  userCourse.completed  ?? false,
-          enrolled:   userCourse.enrolled   ?? false,
-          time_spent: userCourse.time_spent ?? 0,
-        });
-        setViewerIdx(idx); setShowOverview(true); setViewerOpen(false);
+        setFullCourse(r.data); setViewerIdx(idx); setShowOverview(true); setViewerOpen(false);
       } else toast(`Error: ${r.error || 'Unknown error'}`);
     } catch { toast('Failed to load course'); }
     finally { setServerLoading(false); }
   };
 
-  const startCourse = async () => {
-    // FIX: Create a user_course_progress enrollment row when the user first
-    // starts a course. Without this, progress: 0 is never written to the DB,
-    // so on next load the course appears un-enrolled (no row found).
-    if (viewerIdx !== null) {
-      const course = fullCourse || courses[viewerIdx];
-      if (course?.id) {
-        // Check if a row already exists — only insert on first start
-        const existing = await api.progress.getAll();
-        const alreadyEnrolled = existing.success && existing.data?.some(
-          r => r.course === course.title
-        );
-        if (!alreadyEnrolled) {
-          try {
-            await api.courses.updateProgress(course.id, {
-              progress: 0, enrolled: 1, time_spent: 0, completed: 0,
-            });
-            // Update local state so the dashboard reflects enrolled immediately
-            setCourses(p => p.map((c, i) => i === viewerIdx ? { ...c, enrolled: true } : c));
-          } catch { /* non-fatal */ }
-        }
-      }
-    }
-    setShowOverview(false);
-    setViewerOpen(true);
-  };
+  const startCourse = () => { setShowOverview(false); setViewerOpen(true); };
   const closeViewer = () => {
     setViewerExiting(true);
     setTimeout(() => { setViewerOpen(false); setViewerExiting(false); setViewerIdx(null); setShowOverview(false); setFullCourse(null); }, 280);
@@ -542,9 +449,7 @@ export default function ClientLearningDashboard({ onBack, onLogout }: ClientLear
           <CourseCompletionStats open onClose={closeStats} courseName={fullCourse.title}
             stats={{
               totalChapters:     fullCourse.modules?.reduce((s,m)=>s+m.chapters.length,0)||0,
-              completedChapters: courseProgress[viewerIdx]?.progress != null
-                ? Math.round((courseProgress[viewerIdx].progress / 100) * (fullCourse.modules?.reduce((s,m)=>s+m.chapters.length,0)||0))
-                : 0,
+              completedChapters: fullCourse.modules?.reduce((s,m)=>s+m.chapters.filter((c:any)=>c.done).length,0)||0,
               totalQuizzes:      fullCourse.modules?.reduce((s,m)=>s+m.chapters.filter((c:any)=>c.type==='quiz').length,0)||0,
               quizScores:        courseProgress[viewerIdx]?.quizScores||[],
               totalAssessments:  fullCourse.modules?.reduce((s,m)=>s+m.chapters.filter((c:any)=>c.type==='assessment').length,0)||0,

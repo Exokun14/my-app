@@ -15,9 +15,10 @@ interface NavItem {
 }
 
 const CLIENT_PORTAL_NAV: NavItem[] = [
-  { label: "Overview", view: "overview", icon: "/icon-overview.png"          },
-  { label: "Tickets",  view: "tickets",  icon: "/icon-tickets.png"},
-  { label: "Users",    view: "users",    icon: "/icon-users.png"              },
+  { label: "Overview",        view: "overview", icon: "/icon-overview.png"  },
+  { label: "Tickets",         view: "tickets",  icon: "/icon-tickets.png"   },
+  { label: "Users",           view: "users",    icon: "/icon-users.png"     },
+  { label: "Learning Center", view: "learning", icon: "/icon-learning.png"  },
 ];
 
 // ── Width constants (must match globals.css .gx-sidebar-cp widths) ────────────
@@ -42,11 +43,11 @@ function useIsMobile() {
 }
 
 export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
-  const [collapsed,   setCollapsed]   = useState(() => {
+  const [collapsed,  setCollapsed]  = useState(() => {
     if (typeof window === "undefined") return false;
     return sessionStorage.getItem("gx_cp_sidebar_collapsed") === "1";
   });
-  const [mobileOpen,  setMobileOpen]  = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const isMobile = useIsMobile();
 
   // ── Sync CSS vars on mount and whenever collapsed changes ─────────────────

@@ -603,7 +603,7 @@ export default function LearningPortal({ onBack }: LearningPortalProps) {
                                     className={`lp-ch-item${active ? " active" : ""}`}
                                     onClick={() => selectChapter(mi, ci)}
                                     style={{ padding: "6px 8px", borderRadius: 8, marginBottom: 2, cursor: "pointer", display: "flex", alignItems: "center", gap: 7, background: active ? "#fff" : "transparent", border: `1px solid ${active ? "rgba(109,40,217,0.16)" : "transparent"}`, boxShadow: active ? "0 1px 8px rgba(109,40,217,0.09)" : "none" }}>
-                                    <div style={{ width: 17, height: 17, borderRadius: 5, background: done ? "#059669" : tc.bg, color: done ? "#fff" : (tc as any).c ?? (tc as any).color, fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}>
+                                    <div style={{ width: 17, height: 17, borderRadius: 5, background: done ? "#059669" : tc.bg, color: done ? "#fff" : tc.color, fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}>
                                       {done ? "✓" : ci + 1}
                                     </div>
                                     <span style={{ flex: 1, fontSize: 10, fontWeight: active ? 600 : 400, color: active ? "#5b21b6" : done ? "#6b7280" : "#18103a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: done ? "line-through" : "none", opacity: done ? 0.65 : 1 }}>
@@ -640,7 +640,7 @@ export default function LearningPortal({ onBack }: LearningPortalProps) {
                 {/* Chapter header bar */}
                 {ch && (
                   <div style={{ borderBottom: "1px solid rgba(109,40,217,0.08)", padding: "0 28px", height: 48, display: "flex", alignItems: "center", gap: 10, flexShrink: 0, background: "#fff" }}>
-                    <span style={{ padding: "3px 9px", borderRadius: 6, background: chType.bg, color: chType.color, fontSize: 9.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" }}>{chType.ico} {(chType as any).lbl ?? (chType as any).label}</span>
+                    <span style={{ padding: "3px 9px", borderRadius: 6, background: chType.bg, color: chType.color, fontSize: 9.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" }}>{chType.ico} {chType.label}</span>
                     <div style={{ width: 1, height: 16, background: "rgba(109,40,217,0.1)" }} />
                     <span style={{ fontSize: 12.5, fontWeight: 600, color: "#0f0a2a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ch.title}</span>
                     {isDone && <span style={{ padding: "3px 8px", borderRadius: 6, background: "#d1fae5", color: "#059669", fontSize: 9.5, fontWeight: 700, animation: "lp-popIn .3s ease", flexShrink: 0 }}>✓ Done</span>}

@@ -21,11 +21,13 @@ import OverviewPage  from "./pages/Client_Admin/OverviewPage";
 import TicketsPage   from "./pages/Client_Admin/TicketsPage";
 import UsersPage     from "./pages/Client_Admin/UsersPage";
 import SettingsPage  from "./pages/Client_Admin/SettingsPage";
+import LearningCenter from "./pages/Learning_Module/ClientLearningDashboard";
 
 import ClientOverview from "./pages/Dashboard_Admin_Overview/dashboard_overview_users";
 import { Client } from "./pages/Dashboard_Admin_Main/DshAdmFunc";
 
-type CPView    = "overview" | "tickets" | "users" | "settings";
+// ← "learning" added to the union
+type CPView    = "overview" | "tickets" | "users" | "settings" | "learning";
 type AdminView = "database" | "client-overview";
 
 const SESSION_KEY         = "gx_user_role";
@@ -137,10 +139,26 @@ export default function Home() {
   /* ── 2b. Client portal (manager | user) ─────────────────── */
   return (
     <>
-      {view === "overview"  && <OverviewPage  onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
-      {view === "tickets"   && <TicketsPage   onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
-      {view === "users"     && <UsersPage     onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
-      {view === "settings"  && <SettingsPage  onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+      {view === "overview"  && <OverviewPage   onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+      {view === "tickets"   && <TicketsPage    onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+      {view === "users"     && <UsersPage      onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+      {view === "settings"  && <SettingsPage   onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
+      {view === "learning"  && (
+        <LearningCenter
+          role="user"
+          onBack={() => setView("overview")}
+          onLogout={handleLogout}
+          initialUser={userProfile ? {
+            id:           userProfile.id,
+            name:         userProfile.fullName,
+            email:        userProfile.username,
+            role:         "user",
+            industry:     null,
+            company_id:   userProfile.companyId,
+            company_name: userProfile.company,
+          } : null}
+        />
+      )}
     </>
   );
 }

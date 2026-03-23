@@ -14,7 +14,6 @@ interface CourseOverviewProps {
   enrolled?: boolean;
   completed?: boolean;
   completedDate?: string;
-  toast?: (msg: string) => void;
 }
 
 const STYLES = `
@@ -237,12 +236,9 @@ const STYLES = `
 export default function CourseOverview({
   course, onStart, onClose, progress,
   timeSpent: rawTimeSpent, lastAccessed,
-  enrolled = false, completed = false, completedDate,
-  toast,
+  enrolled = false, completed = false, completedDate
 }: CourseOverviewProps) {
   const timeSpent = (typeof rawTimeSpent === 'number' && !isNaN(rawTimeSpent) && rawTimeSpent >= 0) ? rawTimeSpent : 0;
-  // Support both camelCase (types.ts) and snake_case (API response)
-  const thumbEmoji = course.thumbEmoji ?? (course as any).thumb_emoji ?? "📚";
   const modules = course.modules || [];
   const [activeTab, setActiveTab] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -270,7 +266,12 @@ export default function CourseOverview({
   };
 
   const totalChapters = modules.reduce((sum, m) => sum + m.chapters.length, 0);
-  const completedChapters = modules.reduce((sum, m) => sum + m.chapters.filter((c: any) => c.done).length, 0);
+  // Use chapter-level done flags if available; otherwise derive from progress %
+  const chapterDoneCount = modules.reduce((sum, m) => sum + m.chapters.filter((c: any) => c.done).length, 0);
+  const completedChapters = chapterDoneCount > 0
+    ? chapterDoneCount
+    : completed ? totalChapters
+    : Math.round((progress / 100) * totalChapters);
 
   const TM: Record<string, { bg: string; color: string; icon: string; label: string }> = {
     lesson: { bg: "#e0f2fe", color: "#0284c7", icon: "📖", label: "Lesson" },
@@ -315,7 +316,7 @@ export default function CourseOverview({
         <div className="co-header">
           <div className="co-header-top">
             <button className="co-back" onClick={onClose}>←</button>
-            <div className="co-header-icon">{thumbEmoji}</div>
+            <div className="co-header-icon">{course.thumbEmoji || "📚"}</div>
             <div className="co-header-info">
               <div className="co-header-meta">
                 <div className="co-header-category">
@@ -534,7 +535,7 @@ export default function CourseOverview({
                     <div className="co-info-icon">🏢</div>
                     <div className="co-info-content">
                       <div className="co-info-label">Companies</div>
-                      <div className="co-companies">{course.companies.map((c: string, i: number) => <div key={i} className="co-company-badge">{c}</div>)}</div>
+                      <div className="co-companies">{course.companies.map((c: any, i: number) => <div key={i} className="co-company-badge">{typeof c === 'number' || (typeof c === 'string' && !isNaN(Number(c))) ? `Company #${c}` : c}</div>)}</div>
                     </div>
                   </div>
                 )}

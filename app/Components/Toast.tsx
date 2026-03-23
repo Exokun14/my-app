@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 interface ToastProps {
   msg: string;
   visible: boolean;
+  position?: "top-right" | "bottom-center"; // default: top-right
 }
 
-export default function Toast({ msg, visible }: ToastProps) {
+export default function Toast({ msg, visible, position = "top-right" }: ToastProps) {
   const [show, setShow] = useState(false);
   const [exiting, setExiting] = useState(false);
 
@@ -28,15 +29,25 @@ export default function Toast({ msg, visible }: ToastProps) {
 
   const isError = msg.toLowerCase().startsWith("error") || msg.toLowerCase().includes("failed");
 
+  const wrapStyle = position === "bottom-center"
+    ? `position: fixed; bottom: 32px; left: 0; right: 0; display: flex; justify-content: center;`
+    : `position: fixed; top: 28px; right: 28px;`;
+
+  const enterAnim = position === "bottom-center"
+    ? `@keyframes toast-enter { from { opacity: 0; transform: translateY(14px) scale(0.88); } to { opacity: 1; transform: translateY(0) scale(1); } }`
+    : `@keyframes toast-enter { from { opacity: 0; transform: translateY(-16px) scale(0.88); } to { opacity: 1; transform: translateY(0) scale(1); } }`;
+
+  const exitAnim = position === "bottom-center"
+    ? `@keyframes toast-exit { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(8px) scale(0.94); } }`
+    : `@keyframes toast-exit { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-10px) scale(0.94); } }`;
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
 
         .toast-wrap {
-          position: fixed;
-          top: 28px;
-          right: 28px;
+          ${wrapStyle}
           z-index: 99999;
           pointer-events: none;
         }
@@ -61,7 +72,6 @@ export default function Toast({ msg, visible }: ToastProps) {
           animation: toast-exit 0.3s ease forwards;
         }
 
-        /* shimmer sweep */
         .toast-pill::before {
           content: '';
           position: absolute;
@@ -112,14 +122,8 @@ export default function Toast({ msg, visible }: ToastProps) {
           animation: toast-accent-fade 1.8s ease-in-out 1 forwards;
         }
 
-        @keyframes toast-enter {
-          from { opacity: 0; transform: translateY(-16px) scale(0.88); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes toast-exit {
-          from { opacity: 1; transform: translateY(0) scale(1); }
-          to   { opacity: 0; transform: translateY(-10px) scale(0.94); }
-        }
+        ${enterAnim}
+        ${exitAnim}
         @keyframes toast-icon-pop {
           from { opacity: 0; transform: scale(0.4); }
           to   { opacity: 1; transform: scale(1); }

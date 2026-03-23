@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import constants from "../Data/test_data.json";
 import type { Course, Client } from "../Data/types";
 
-const { CLIENTS, CC_COLORS } = constants as { CLIENTS: Client[]; CC_COLORS: string[] };
+const { CC_COLORS } = constants as { CC_COLORS: string[] };
 
 interface CreateCourseModalProps {
   open: boolean;
@@ -31,12 +31,25 @@ export default function CreateCourseModal({
   const [duration, setDuration] = useState<string>("");
   const [thumbUrl, setThumbUrl] = useState<string>("");
   const [selectedCompanies, setSelectedCompanies] = useState<Set<number>>(new Set());
+  const [clients, setClients] = useState<Client[]>([]);
   const [industryFilter, setIndustryFilter] = useState<string>("All");
   const [companySearch, setCompanySearch] = useState<string>("");
   const [showCatManager, setShowCatManager] = useState<boolean>(false);
   const [newCatName, setNewCatName] = useState<string>("");
   const [renamingCat, setRenamingCat] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState<string>("");
+
+  useEffect(() => {
+    api.companies.getAll().then(res => {
+      if (res.success && Array.isArray(res.data)) {
+        setClients(res.data.map((c: any) => ({
+          id:   c.id,
+          name: c.company_name,
+          cat:  c.industry_title ?? 'Other',
+        })));
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -57,7 +70,7 @@ export default function CreateCourseModal({
     setRenamingCat(null);
   }, [open, isEdit, editCourse]);
 
-  const filteredClients = CLIENTS.filter(c => {
+  const filteredClients = clients.filter(c => {
     const indOk = industryFilter === "All" || c.cat === industryFilter;
     const srchOk = !companySearch || c.name.toLowerCase().includes(companySearch.toLowerCase());
     return indOk && srchOk;
@@ -108,7 +121,7 @@ export default function CreateCourseModal({
     if (!title.trim()) { toast("Please enter a course title."); return; }
     if (!cat)          { toast("Please select a category.");    return; }
     if (!duration.trim()) { toast("Please enter the estimated duration."); return; }
-    const companies = CLIENTS.filter(c => selectedCompanies.has(c.id)).map(c => c.name);
+    const companies = clients.filter(c => selectedCompanies.has(c.id)).map(c => c.name);
     onSave({
       title: title.trim(),
       desc: desc || "No description provided.",

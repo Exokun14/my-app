@@ -322,6 +322,161 @@ export const uploadAPI = {
   },
 };
 
+// ── FormData-aware request (no Content-Type header — browser sets multipart boundary) ──
+function getXsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+async function fetchCsrfCookie(): Promise<void> {
+  await fetch(`${API_BASE_URL.replace('/api', '')}/sanctum/csrf-cookie`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+}
+
+async function apiRequestForm<T>(
+  endpoint: string,
+  method: 'POST' | 'PUT' | 'PATCH',
+  body: FormData,
+): Promise<ApiResponse<T>> {
+  try {
+    let xsrfToken = getXsrfToken();
+    if (!xsrfToken) {
+      await fetchCsrfCookie();
+      xsrfToken = getXsrfToken();
+    }
+
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    console.log('🔵 Fetching (form):', fullUrl);
+
+    const response = await fetch(fullUrl, {
+      method,
+      headers: {
+        'Accept': 'application/json',
+        'X-User-Id': '1',
+        'X-XSRF-TOKEN': xsrfToken,
+      },
+      credentials: 'include',
+      body,
+    });
+
+    if (response.status === 419) {
+      await fetchCsrfCookie();
+      const retryToken = getXsrfToken();
+      const retryResponse = await fetch(fullUrl, {
+        method,
+        headers: {
+          'Accept': 'application/json',
+          'X-User-Id': '1',
+          'X-XSRF-TOKEN': retryToken,
+        },
+        credentials: 'include',
+        body,
+      });
+      return handleFormResponse<T>(retryResponse);
+    }
+
+    return handleFormResponse<T>(response);
+  } catch (error) {
+    console.error('❌ API Error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Request failed' };
+  }
+}
+
+async function handleFormResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const text = await response.text();
+  console.log('📥 Response status:', response.status);
+  console.log('📥 Response body:', text);
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    console.error('❌ Expected JSON but got:', contentType);
+    console.error('❌ Full response body:', text);
+    return { success: false, error: `Server returned non-JSON (${response.status}). Check console for full response.` };
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.error('❌ Failed to parse JSON. Raw body:', text);
+    return { success: false, error: 'Invalid JSON from server' };
+  }
+
+  if (!response.ok) {
+    console.error(`❌ HTTP ${response.status} error:`, JSON.stringify(data, null, 2));
+    if (data.errors) {
+      const firstError = Object.values(data.errors as Record<string, string[]>)[0][0];
+      console.error('❌ Validation errors:', data.errors);
+      return { success: false, error: firstError };
+    }
+    if (data.exception) {
+      console.error('❌ Laravel exception:', data.exception);
+      console.error('❌ In file:', data.file, 'line', data.line);
+      if (data.trace) console.error('❌ Trace:', data.trace.slice(0, 5));
+    }
+    return { success: false, error: data.message ?? `HTTP ${response.status}` };
+  }
+
+  console.log('✅ Success:', data);
+  return { success: true, data };
+}
+
+export interface User {
+  id?: number;
+  full_name: string;
+  email: string;
+  access_level: string;
+  account_type: string;
+  status: 'active' | 'inactive';
+  password?: string;
+  phone_number?: string;
+  company_id?: number | null;
+  position_title?: string;
+  profile_photo?: File | null;
+}
+
+export const usersAPI = {
+  create: async (user: Omit<User, 'id'>): Promise<ApiResponse<{ id: number; message: string }>> => {
+    const fd = new FormData();
+    fd.append('full_name',    user.full_name);
+    fd.append('name',         user.full_name);
+    fd.append('email',        user.email);
+    fd.append('access_level', user.access_level);
+    fd.append('account_type', user.account_type);
+    fd.append('status',       user.status);
+    if (user.password)                      fd.append('password',       user.password);
+    if (user.phone_number)                  fd.append('phone_number',   user.phone_number);
+    if (user.company_id != null)            fd.append('company_id',     String(user.company_id));
+    if (user.position_title)                fd.append('position_title', user.position_title);
+    if (user.profile_photo instanceof File) fd.append('profile_photo',  user.profile_photo);
+
+    return apiRequestForm<{ id: number; message: string }>('/users', 'POST', fd);
+  },
+
+  update: async (id: number, user: Partial<User>): Promise<ApiResponse<{ message: string }>> => {
+    const fd = new FormData();
+    fd.append('_method', 'PUT');
+    if (user.full_name)                     fd.append('full_name',      user.full_name);
+    if (user.email)                         fd.append('email',          user.email);
+    if (user.access_level)                  fd.append('access_level',   user.access_level);
+    if (user.account_type)                  fd.append('account_type',   user.account_type);
+    if (user.status)                        fd.append('status',         user.status);
+    if (user.password)                      fd.append('password',       user.password);
+    if (user.phone_number)                  fd.append('phone_number',   user.phone_number);
+    if (user.company_id != null)            fd.append('company_id',     String(user.company_id));
+    if (user.position_title)                fd.append('position_title', user.position_title);
+    if (user.profile_photo instanceof File) fd.append('profile_photo',  user.profile_photo);
+
+    return apiRequestForm<{ message: string }>(`/users/${id}`, 'POST', fd);
+  },
+
+  delete: async (id: number): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/users/${id}`, { method: 'DELETE' });
+  },
+};
+
 export const api = {
   courses: coursesAPI,
   activities: activitiesAPI,
@@ -329,6 +484,7 @@ export const api = {
   clients: clientsAPI,
   settings: settingsAPI,
   upload: uploadAPI,
+  users: usersAPI,
 };
 
 export default api;

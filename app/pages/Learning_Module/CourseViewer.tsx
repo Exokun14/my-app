@@ -1281,10 +1281,14 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     }
     setDoneChapters(prev => { const n = new Set(prev); n.add(key); return n; });
     const chapterId = (modules[modIdx]?.chapters[chIdx] as any)?.id;
+    console.log('%c[CourseViewer] markChapterDone', 'color:#a78bfa;font-weight:bold', { modIdx, chIdx, chapterId, key });
     if (chapterId) {
-      api.courses.markChapterDone(chapterId).catch(err =>
-        console.error('Failed to persist chapter done:', err)
-      );
+      console.log('%c[CourseViewer] → PUT /chapters/' + chapterId + '/done', 'color:#60a5fa');
+      api.courses.markChapterDone(chapterId)
+        .then(r => console.log('%c[CourseViewer] markChapterDone response:', 'color:#34d399', r))
+        .catch(err => console.error('%c[CourseViewer] markChapterDone FAILED:', 'color:#f87171', err));
+    } else {
+      console.warn('%c[CourseViewer] ⚠️ no chapterId — chapter may not have been loaded from DB', 'color:#fbbf24');
     }
   };
 
@@ -1294,8 +1298,10 @@ export default function CourseViewer({ course, onClose, onProgress, toast }: Cou
     const elapsed = calcTimeSpent();
     totalTimeRef.current += elapsed;
     chapterStartRef.current = Date.now();
+    const pct = total > 0 ? Math.round((done/total)*100) : 0;
+    console.log('%c[CourseViewer] saveProgress', 'color:#a78bfa;font-weight:bold', { pct, elapsed, done, total, score });
     setSaving(true); setSavingMsg(msg);
-    onProgress(total > 0 ? Math.round((done/total)*100) : 0, elapsed, score);
+    onProgress(pct, elapsed, score);
     setTimeout(()=>setSaving(false), 1200);
   };
 
