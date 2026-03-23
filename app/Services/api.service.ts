@@ -2,6 +2,28 @@
 
 const API_BASE_URL = 'http://localhost/api';
 
+// ── Auth token storage ────────────────────────────────────────────────────────
+// Call setAuthUser() right after login succeeds so every subsequent request
+// automatically carries the correct user id in the X-User-Id header.
+let _userId: number | null = null;
+
+export function setAuthUser(userId: number) {
+  _userId = userId;
+}
+
+export function clearAuthUser() {
+  _userId = null;
+}
+
+function getUserId(): string {
+  if (_userId !== null) return String(_userId);
+  // Fallback: never silently use '1' — return empty so the server 401s visibly
+  console.warn('⚠️  No authenticated user set. Call setAuthUser(id) after login.');
+  return '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface Course {
   id?: number;
   title: string;
@@ -12,9 +34,12 @@ export interface Course {
   thumb_emoji?: string;
   enrolled?: boolean;
   progress?: number;
+  completed?: boolean;
+  time_spent?: number;
   active?: boolean;
-  companies?: string[];
+  companies?: number[] | null;   // FIX: company IDs (FK), not name strings
   modules?: any[];
+  _progressId?: number;          // cached user_course_progress row id
   [key: string]: any;
 }
 
@@ -45,9 +70,8 @@ export interface ApiResponse<T> {
 
 export interface UserProgress {
   id?: number;
-  name: string;
-  company: string;
-  course: string;
+  user_id: number;       // FIX: required — actual DB FK, not a name string
+  course_id: number;     // FIX: FK to courses.id, not a course title string
   progress: number;
   started: string;
   completed?: string;
@@ -63,12 +87,12 @@ async function apiRequest<T>(
   try {
     const fullUrl = `${API_BASE_URL}${endpoint}`;
     console.log('🔵 Fetching:', fullUrl);
-    
+
     const response = await fetch(fullUrl, {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-User-Id': '1',
+        'X-User-Id': getUserId(),   // FIX: uses real logged-in user, not hardcoded '1'
         ...options.headers,
       },
       ...options,
@@ -125,7 +149,7 @@ export const coursesAPI = {
     if (filters?.category) params.append('category', filters.category);
     if (filters?.active !== undefined) params.append('active', String(filters.active));
     if (filters?.client_id) params.append('client_id', String(filters.client_id));
-    
+
     const query = params.toString();
     return apiRequest<Course[]>(`/courses${query ? `?${query}` : ''}`, { method: 'GET' });
   },
@@ -156,7 +180,6 @@ export const coursesAPI = {
     return apiRequest<{ message: string }>(`/courses/${id}`, { method: 'DELETE' });
   },
 
-  // ✅ FIXED: accepts a payload object so callers can pass { progress, enrolled, time_spent, completed }
   updateProgress: async (id: number, payload: {
     progress: number;
     enrolled?: boolean | number;
@@ -176,8 +199,6 @@ export const coursesAPI = {
     });
   },
 
-  // Marks a single chapter row as done in the chapters table.
-  // chapterId is the DB id that comes back on every chapter object from getCourseModules.
   markChapterDone: async (chapterId: number): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/chapters/${chapterId}/done`, {
       method: 'PUT',
@@ -190,7 +211,7 @@ export const activitiesAPI = {
     const params = new URLSearchParams();
     if (filters?.type) params.append('type', filters.type);
     if (filters?.status) params.append('status', filters.status);
-    
+
     const query = params.toString();
     return apiRequest<Activity[]>(`/activities${query ? `?${query}` : ''}`, { method: 'GET' });
   },
@@ -219,15 +240,18 @@ export const activitiesAPI = {
 };
 
 export const progressAPI = {
-  getAll: async (filters?: { company?: string; status?: string }): Promise<ApiResponse<UserProgress[]>> => {
+  getAll: async (filters?: { status?: string }): Promise<ApiResponse<UserProgress[]>> => {
     const params = new URLSearchParams();
-    if (filters?.company) params.append('company', filters.company);
     if (filters?.status) params.append('status', filters.status);
-    
+
     const query = params.toString();
     return apiRequest<UserProgress[]>(`/progress${query ? `?${query}` : ''}`, { method: 'GET' });
   },
 
+  // POST /progress — the controller uses updateOrInsert on (user_id, course_id)
+  // so this is already safe to call on every chapter completion without
+  // creating duplicate rows. No separate upsert endpoint needed.
+  // FIX: payload uses user_id + course_id (FKs), not name/company/course strings.
   create: async (progress: UserProgress): Promise<ApiResponse<{ id: number; message: string }>> => {
     return apiRequest<{ id: number; message: string }>('/progress', {
       method: 'POST',
@@ -292,18 +316,18 @@ export const uploadAPI = {
     try {
       const fullUrl = `${API_BASE_URL}/upload`;
       console.log('🔵 Uploading to:', fullUrl);
-      
+
       const response = await fetch(fullUrl, {
         method: 'POST',
         body: formData,
         headers: {
-          'X-User-Id': '1',
+          'X-User-Id': getUserId(),
         },
       });
 
       const text = await response.text();
       const contentType = response.headers.get('content-type');
-      
+
       if (!contentType?.includes('application/json')) {
         return {
           success: false,

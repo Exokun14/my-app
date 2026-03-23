@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 
+import { useEffect } from "react";
+import api from "../../Services/api.service";
+
 interface ProgressPanelProps {
   toast: (msg: string) => void;
 }
@@ -28,40 +31,92 @@ interface Company {
   employees: Employee[];
 }
 
-const MOCK_COMPANIES: Company[] = [
-  {
-    id: "1", name: "Acme Corp", industry: "Retail", learners: 24, avgProgress: 78, courses: 5, status: "On Track", delta: 3,
-    employees: [
-      { id: "e1", name: "Mark T.", avatar: "MT", courses: ["POS Training", "Customer Service"], progress: 45, lastActive: "2 days ago", status: "Needs Attention" },
-      { id: "e2", name: "Dana R.", avatar: "DR", courses: ["POS Training"], progress: 12, lastActive: "14 days ago", status: "At Risk" },
-      { id: "e3", name: "Sarah K.", avatar: "SK", courses: ["Customer Service", "Compliance 101"], progress: 100, lastActive: "1 day ago", status: "Completed" },
-      { id: "e4", name: "Luis M.", avatar: "LM", courses: ["POS Training", "Safety Basics"], progress: 30, lastActive: "16 days ago", status: "At Risk" },
-    ]
-  },
-  {
-    id: "2", name: "Brightline Co.", industry: "Healthcare", learners: 11, avgProgress: 62, courses: 3, status: "Needs Attention", delta: -1,
-    employees: [
-      { id: "e5", name: "James W.", avatar: "JW", courses: ["HIPAA Compliance"], progress: 88, lastActive: "Today", status: "On Track" },
-      { id: "e6", name: "Priya N.", avatar: "PN", courses: ["HIPAA Compliance", "Patient Safety"], progress: 100, lastActive: "3 days ago", status: "Completed" },
-      { id: "e7", name: "Tom B.", avatar: "TB", courses: ["Patient Safety"], progress: 20, lastActive: "10 days ago", status: "Needs Attention" },
-    ]
-  },
-  {
-    id: "3", name: "Vantage Systems", industry: "Technology", learners: 38, avgProgress: 91, courses: 7, status: "On Track", delta: 7,
-    employees: [
-      { id: "e8", name: "Anika P.", avatar: "AP", courses: ["Security Fundamentals", "DevOps 101", "Cloud Basics"], progress: 100, lastActive: "Today", status: "Completed" },
-      { id: "e9", name: "Raj S.", avatar: "RS", courses: ["Security Fundamentals"], progress: 95, lastActive: "Today", status: "On Track" },
-      { id: "e10", name: "Chen L.", avatar: "CL", courses: ["Cloud Basics", "DevOps 101"], progress: 82, lastActive: "2 days ago", status: "On Track" },
-    ]
-  },
-  {
-    id: "4", name: "Summit Foods", industry: "F&B", learners: 16, avgProgress: 34, courses: 4, status: "At Risk", delta: -4,
-    employees: [
-      { id: "e11", name: "Maria G.", avatar: "MG", courses: ["Food Safety"], progress: 55, lastActive: "5 days ago", status: "Needs Attention" },
-      { id: "e12", name: "Derek H.", avatar: "DH", courses: ["Food Safety", "Hygiene Standards"], progress: 10, lastActive: "21 days ago", status: "At Risk" },
-    ]
-  },
-];
+// Derive employee status from progress + last-active days
+function deriveEmployeeStatus(progress: number, lastActiveDays: number): Employee["status"] {
+  if (progress >= 100) return "Completed";
+  if (lastActiveDays > 14 || progress < 20) return "At Risk";
+  if (lastActiveDays > 7 || progress < 50) return "Needs Attention";
+  return "On Track";
+}
+
+// Derive company status from avg progress
+function deriveCompanyStatus(avgProgress: number): Company["status"] {
+  if (avgProgress >= 70) return "On Track";
+  if (avgProgress >= 40) return "Needs Attention";
+  return "At Risk";
+}
+
+// Format last-active timestamp into a human label
+function formatLastActive(dateStr?: string): string {
+  if (!dateStr) return "Never";
+  const diffMins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (diffMins < 60) return "Today";
+  if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+  const days = Math.floor(diffMins / 1440);
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
+// Map API progress records + users into Company[] shape
+function buildCompanies(
+  clients: any[],
+  progressRecords: any[],
+  users: any[]
+): Company[] {
+  return clients.map((client: any) => {
+    const companyUsers = users.filter((u: any) => u.company_id === client.id);
+    const companyProgress = progressRecords.filter(
+      (p: any) => p.company === client.company_name
+    );
+
+    const employees: Employee[] = companyUsers.map((u: any) => {
+      const userProgress = companyProgress.filter(
+        (p: any) => p.name === u.full_name
+      );
+      const avgProg = userProgress.length
+        ? Math.round(userProgress.reduce((s: number, p: any) => s + (p.progress ?? 0), 0) / userProgress.length)
+        : 0;
+      const lastActiveStr = u.updated_at;
+      const daysSince = lastActiveStr
+        ? Math.floor((Date.now() - new Date(lastActiveStr).getTime()) / 86400000)
+        : 999;
+      const initials = u.full_name
+        .split(" ")
+        .map((w: string) => w[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase();
+      return {
+        id: String(u.id),
+        name: u.full_name,
+        avatar: initials,
+        courses: [...new Set(userProgress.map((p: any) => p.course as string))],
+        progress: avgProg,
+        lastActive: formatLastActive(lastActiveStr),
+        status: deriveEmployeeStatus(avgProg, daysSince),
+      };
+    });
+
+    const learners = employees.length || companyProgress.length;
+    const avgProgress = employees.length
+      ? Math.round(employees.reduce((s, e) => s + e.progress, 0) / employees.length)
+      : companyProgress.length
+      ? Math.round(companyProgress.reduce((s: number, p: any) => s + (p.progress ?? 0), 0) / companyProgress.length)
+      : 0;
+
+    return {
+      id: String(client.id),
+      name: client.company_name,
+      industry: client.industry_type?.title ?? client.industry ?? "—",
+      learners,
+      avgProgress,
+      courses: [...new Set(companyProgress.map((p: any) => p.course as string))].length,
+      status: deriveCompanyStatus(avgProgress),
+      delta: 0,
+      employees,
+    };
+  });
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ADMIN AI OVERVIEW — light themed
@@ -618,26 +673,50 @@ export default function AdminProgress({ toast }: ProgressPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const [allCompanies, setAllCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { setMounted(true); }, []);
+  // Load real data from API on mount
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const [clientsRes, progressRes] = await Promise.all([
+          api.clients.getAll(),
+          api.progress.getAll(),
+        ]);
+        const clients = clientsRes.success && clientsRes.data ? clientsRes.data : [];
+        const progressRecords = progressRes.success && progressRes.data ? progressRes.data : [];
+        // users come embedded in clients response or we derive from progress records
+        const built = buildCompanies(clients, progressRecords, []);
+        setAllCompanies(built);
+      } catch (err) {
+        console.error('AdminProgress load error:', err);
+        toast('Failed to load progress data');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  const companies = MOCK_COMPANIES.filter(c => {
+  const companies = allCompanies.filter(c => {
     const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter.length === 0 || statusFilter.includes(c.status);
     return matchSearch && matchStatus;
   });
 
-  const totalLearners = MOCK_COMPANIES.reduce((s, c) => s + c.learners, 0);
+  const totalLearners = allCompanies.reduce((s, c) => s + c.learners, 0);
   const activeLearners = Math.round(totalLearners * 0.71);
-  const avgCompletion = Math.round(MOCK_COMPANIES.reduce((s, c) => s + c.avgProgress, 0) / MOCK_COMPANIES.length);
-  const totalCourses = MOCK_COMPANIES.reduce((s, c) => s + c.courses, 0);
+  const avgCompletion = allCompanies.length
+    ? Math.round(allCompanies.reduce((s, c) => s + c.avgProgress, 0) / allCompanies.length)
+    : 0;
+  const totalCourses = allCompanies.reduce((s, c) => s + c.courses, 0);
 
   const stats = [
-    { label: "Total Companies", value: MOCK_COMPANIES.length, delta: "+2 this month" },
-    { label: "Active Learners",  value: activeLearners,        delta: "+8 this month" },
-    { label: "Avg Completion",   value: `${avgCompletion}%`,   delta: "+4% vs last month" },
-    { label: "Courses Assigned", value: totalCourses,          delta: "+3 this month" },
+    { label: "Total Companies", value: allCompanies.length, delta: "" },
+    { label: "Active Learners",  value: activeLearners,     delta: "" },
+    { label: "Avg Completion",   value: `${avgCompletion}%`,delta: "" },
+    { label: "Courses Assigned", value: totalCourses,       delta: "" },
   ];
 
   return (
@@ -681,7 +760,13 @@ export default function AdminProgress({ toast }: ProgressPanelProps) {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
-          <AdminAIOverview companies={MOCK_COMPANIES} toast={toast} />
+          {loading && (
+            <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--t3)", fontSize: 13 }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+              Loading company data…
+            </div>
+          )}
+          {!loading && <AdminAIOverview companies={allCompanies} toast={toast} />}
 
           {/* Sticky table header with controls */}
           <div style={{ position: "sticky", top: 0, zIndex: 2, background: "var(--surface2)", borderBottom: "2px solid var(--border)" }}>

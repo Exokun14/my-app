@@ -14,14 +14,15 @@ import CourseCompletionStats from "./CourseCompletionStats";
 import CourseCreationWizard from "../../Components/CourseCreationWizard";
 import InitialLoader from "../../Components/InitialLoader";
 import LoadingPopup from "../../Components/LoadingPopup";
-import ClientView from "./ClientView"; // ← NEW
+import ClientView from "./ClientView";
 import type { Course } from "../../Data/types";
+import type { UserProfile } from "../Auth/logUser";
 import constants from "../../Data/test_data.json";
-import api from "../../Services/api.service";
+import api, { setAuthUser } from "../../Services/api.service";
 import "../../globals.css";
 
 const PANELS = ["Course Catalog", "Activities", "Client Progress"];
-const INITIAL_COURSES = constants.COURSES as Course[];
+const INITIAL_COURSES    = constants.COURSES    as Course[];
 const INITIAL_ACTIVITIES = constants.ACTIVITIES as Activity[];
 const DEFAULT_CATEGORIES = constants.DEFAULT_CATEGORIES;
 
@@ -43,15 +44,28 @@ async function loadDataFromAPI() {
     const categories = categoriesResponse.success && categoriesResponse.data && categoriesResponse.data.length > 0
       ? categoriesResponse.data : DEFAULT_CATEGORIES;
 
-    return { courses, categories, activities, courseProgress: {} };
+    return { courses, categories, activities };
   } catch (error) {
     console.error('Failed to load data from API:', error);
-    return { courses: INITIAL_COURSES, categories: DEFAULT_CATEGORIES, activities: INITIAL_ACTIVITIES, courseProgress: {} };
+    return { courses: INITIAL_COURSES, categories: DEFAULT_CATEGORIES, activities: INITIAL_ACTIVITIES };
   }
 }
 
-export default function LearningCenter() {
-  const [appMode, setAppMode] = useState<'admin' | 'client'>('admin'); // ← NEW
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface LearningCenterProps {
+  /** Passed in from the login page after a successful sign-in. */
+  currentUser: UserProfile;
+}
+
+export default function LearningCenter({ currentUser }: LearningCenterProps) {
+  // FIX: wire the real user id into the API service immediately on mount so
+  // every subsequent request sends the correct X-User-Id header.
+  useEffect(() => {
+    setAuthUser(currentUser.id);
+  }, [currentUser.id]);
+
+  const [appMode, setAppMode] = useState<'admin' | 'client'>('admin');
 
   const [panel, setPanel] = useState<number>(0);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -188,10 +202,13 @@ export default function LearningCenter() {
   };
 
   // ── PROGRESS HANDLER ─────────────────────────────────────────────────────────
+  // FIX: this is the single source of truth for all progress writes.
+  // CourseCatalogLogic.handleCourseProgress only handles the reporting table
+  // (user_course_progress). This function handles the courses table and local state.
   const handleProgress = async (idx: number, progress: number, timeSpent?: number, assessmentScore?: number) => {
-    const safeProgress = Math.min(100, Math.max(0, Math.floor(progress ?? 0)));
+    const safeProgress  = Math.min(100, Math.max(0, Math.floor(progress ?? 0)));
     const safeTimeSpent = Math.max(0, Math.floor(timeSpent ?? 0));
-    const isCompleted = safeProgress >= 100;
+    const isCompleted   = safeProgress >= 100;
     const currentProgress = courseProgress[idx] || { quizScores: [], assessmentScores: [], timeSpent: 0 };
     const course = fullCourse || courses[idx];
 
@@ -208,20 +225,20 @@ export default function LearningCenter() {
       });
       updatedAssessmentScores = [
         ...updatedAssessmentScores,
-        { score: assessmentScore, passed: assessmentScore >= passingScore, passingScore }
+        { score: assessmentScore, passed: assessmentScore >= passingScore, passingScore },
       ];
     }
 
     setCourses(prev => prev.map((c, i) => i === idx ? { ...c, progress: safeProgress, enrolled: true } : c));
 
     const newProgressData = {
-      progress: safeProgress,
-      timeSpent: (currentProgress?.timeSpent || 0) + safeTimeSpent,
+      progress:     safeProgress,
+      timeSpent:    (currentProgress?.timeSpent || 0) + safeTimeSpent,
       lastAccessed: new Date().toISOString(),
-      enrolled: true,
-      completed: isCompleted,
+      enrolled:     true,
+      completed:    isCompleted,
       completedDate: isCompleted ? new Date().toISOString() : currentProgress?.completedDate,
-      quizScores: currentProgress?.quizScores || [],
+      quizScores:   currentProgress?.quizScores || [],
       assessmentScores: updatedAssessmentScores,
     };
 
@@ -244,6 +261,7 @@ export default function LearningCenter() {
       }, 1000);
     }
 
+    // Persist to courses table (progress/enrollment columns)
     try {
       const courseId = course.id;
       if (courseId) {
@@ -259,6 +277,27 @@ export default function LearningCenter() {
       }
     } catch (error) {
       console.error('Error updating progress:', error);
+    }
+
+    // FIX: also write to user_course_progress (reporting table) with real user id + course id FKs
+    try {
+      const courseId = course.id;
+      if (courseId && currentUser.id) {
+        const today  = new Date().toISOString().split('T')[0];
+        const status = isCompleted ? 'Completed' : 'In Progress';
+        // Use upsert so it's safe to call on every chapter completion without creating duplicate rows
+        await api.progress.create({
+          user_id:    currentUser.id,
+          course_id:  courseId,
+          progress:   safeProgress,
+          started:    today,
+          status,
+          time_spent: safeTimeSpent,
+          ...(isCompleted ? { completed: today } : {}),
+        });
+      }
+    } catch (error) {
+      console.error('Error writing user_course_progress:', error);
     }
   };
 
@@ -378,7 +417,7 @@ export default function LearningCenter() {
   // ── Course Overview ──────────────────────────────────────────────────────────
   if (showOverview && viewerIdx !== null && fullCourse) {
     return (
-      <>
+      <div style={{ position: 'fixed', inset: 0, background: '#fafaf9', zIndex: 800, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <CourseOverview
           course={fullCourse}
           onStart={startCourse}
@@ -393,14 +432,14 @@ export default function LearningCenter() {
         />
         <Toast msg={msg} visible={visible} />
         <LoadingPopup visible={serverLoading} message={serverLoadingMsg} />
-      </>
+      </div>
     );
   }
 
   // ── Course Viewer ────────────────────────────────────────────────────────────
   if (viewerOpen && viewerIdx !== null && fullCourse) {
     return (
-      <>
+      <div style={{ position: 'fixed', inset: 0, background: '#fafaf9', zIndex: 800, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <CourseViewer
           course={fullCourse}
           onClose={closeViewer}
@@ -415,25 +454,25 @@ export default function LearningCenter() {
             onClose={handleCloseCompletionStats}
             courseName={fullCourse.title}
             stats={{
-              totalChapters: fullCourse.modules?.reduce((sum, m) => sum + m.chapters.length, 0) || 0,
+              totalChapters:     fullCourse.modules?.reduce((sum, m) => sum + m.chapters.length, 0) || 0,
               completedChapters: fullCourse.modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.done).length, 0) || 0,
-              totalQuizzes: fullCourse.modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'quiz').length, 0) || 0,
-              quizScores: courseProgress[viewerIdx]?.quizScores || [],
-              totalAssessments: fullCourse.modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'assessment').length, 0) || 0,
-              assessmentScores: courseProgress[viewerIdx]?.assessmentScores || [],
-              timeSpent: fullCourse.time_spent || courseProgress[viewerIdx]?.timeSpent || 0,
-              completionDate: courseProgress[viewerIdx]?.completedDate || new Date().toISOString()
+              totalQuizzes:      fullCourse.modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'quiz').length, 0) || 0,
+              totalAssessments:  fullCourse.modules?.reduce((sum, m) => sum + m.chapters.filter(c => c.type === 'assessment').length, 0) || 0,
+              assessmentScores:  courseProgress[viewerIdx]?.assessmentScores || [],
+              timeSpent:         fullCourse.time_spent || courseProgress[viewerIdx]?.timeSpent || 0,
+              completionDate:    courseProgress[viewerIdx]?.completedDate || new Date().toISOString(),
+              quizScores:        courseProgress[viewerIdx]?.quizScores || [],
             }}
           />
         )}
-      </>
+      </div>
     );
   }
 
   // ── Course Creation Wizard ───────────────────────────────────────────────────
   if (wizardOpen) {
     return (
-      <>
+      <div style={{ position: 'fixed', inset: 0, background: '#fafaf9', zIndex: 800, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <CourseCreationWizard
           categories={categories}
           setCategories={setCategories}
@@ -443,7 +482,7 @@ export default function LearningCenter() {
         />
         <Toast msg={msg} visible={visible} />
         <LoadingPopup visible={serverLoading} message={serverLoadingMsg} />
-      </>
+      </div>
     );
   }
 
@@ -538,11 +577,16 @@ export default function LearningCenter() {
           <div className="swipe-container">
             <div className="swipe-track" style={{ transform:`translateX(-${panel * 100}%)` }}>
               <div className="swipe-panel" style={{ width:"100%" }}>
+                {/* FIX: pass currentUser so progress writes carry the real user */}
                 <CourseCatalog
-                  courses={courses} setCourses={setCourses}
-                  categories={categories} setCategories={setCategories}
-                  toast={toast} onOpenCourse={openViewer}
+                  courses={courses}
+                  setCourses={setCourses}
+                  categories={categories}
+                  setCategories={setCategories}
+                  toast={toast}
+                  onOpenCourse={openViewer}
                   publishedActivities={publishedActivities}
+                  currentUser={currentUser}
                 />
               </div>
               <div className="swipe-panel" style={{ width:"100%" }}>
@@ -555,7 +599,7 @@ export default function LearningCenter() {
           </div>
         )}
 
-        {/* ── CLIENT VIEW: full screen, own header + swipe panels ── */}
+        {/* ── CLIENT VIEW ── */}
         {appMode === 'client' && (
           <ClientView
             courses={courses}

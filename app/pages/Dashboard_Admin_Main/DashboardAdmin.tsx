@@ -241,8 +241,8 @@ export default function DashboardAdmin({ onClientSelect, userProfile, onLogout }
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_STYLES }} />
       <Sidebar onNavigate={handleSidebarNavigate} activePage={adminSubView === 'learning' ? 'learning' : 'customers'} />
       <div
-        style={{ marginLeft: 'var(--gxh-sw, 220px)', marginTop: 54 }}
-        className="flex flex-col min-h-screen transition-[margin-left] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{ marginLeft: 'var(--gxh-sw, 220px)', marginTop: 54, height: 'calc(100vh - 54px)', overflow: 'hidden' }}
+        className="flex flex-col transition-[margin-left] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
         <Header user={headerUser} notificationCount={8} onLogout={onLogout} />
         {content}
@@ -253,7 +253,7 @@ export default function DashboardAdmin({ onClientSelect, userProfile, onLogout }
   /* ── Learning Center ── */
   if (adminSubView === 'learning') {
     return chrome(
-      <AdminLearningDashboard onBack={() => setAdminSubView('database')} />
+      <AdminLearningDashboard onBack={() => setAdminSubView('database')} currentUser={userProfile ?? undefined} />
     );
   }
 

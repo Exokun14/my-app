@@ -11,7 +11,7 @@ import { useCourseCatalog, THUMB_GRADIENTS, THUMB_PATTERNS, CAT_ICONS, CARD_STYL
 import "../../globals.css";
 
 export default function CourseCatalog({
-  courses, setCourses, categories, setCategories, toast, onOpenCourse, publishedActivities,
+  courses, setCourses, categories, setCategories, toast, onOpenCourse, publishedActivities, currentUser,
 }: CourseCatalogProps) {
   const {
     search, setSearch,
@@ -33,7 +33,7 @@ export default function CourseCatalog({
     openModules,
     closeEdit,
     closeMod,
-  } = useCourseCatalog({ courses, setCourses, toast, onOpenCourse });
+  } = useCourseCatalog({ courses, setCourses, toast, onOpenCourse, currentUser });
 
   const [saving, setSaving] = useState(false);
   const [savingMsg, setSavingMsg] = useState("Saving...");

@@ -14,6 +14,7 @@ interface CourseOverviewProps {
   enrolled?: boolean;
   completed?: boolean;
   completedDate?: string;
+  toast?: (msg: string) => void;
 }
 
 const STYLES = `
@@ -236,9 +237,12 @@ const STYLES = `
 export default function CourseOverview({
   course, onStart, onClose, progress,
   timeSpent: rawTimeSpent, lastAccessed,
-  enrolled = false, completed = false, completedDate
+  enrolled = false, completed = false, completedDate,
+  toast,
 }: CourseOverviewProps) {
   const timeSpent = (typeof rawTimeSpent === 'number' && !isNaN(rawTimeSpent) && rawTimeSpent >= 0) ? rawTimeSpent : 0;
+  // Support both camelCase (types.ts) and snake_case (API response)
+  const thumbEmoji = course.thumbEmoji ?? (course as any).thumb_emoji ?? "📚";
   const modules = course.modules || [];
   const [activeTab, setActiveTab] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -311,7 +315,7 @@ export default function CourseOverview({
         <div className="co-header">
           <div className="co-header-top">
             <button className="co-back" onClick={onClose}>←</button>
-            <div className="co-header-icon">{course.thumbEmoji || "📚"}</div>
+            <div className="co-header-icon">{thumbEmoji}</div>
             <div className="co-header-info">
               <div className="co-header-meta">
                 <div className="co-header-category">

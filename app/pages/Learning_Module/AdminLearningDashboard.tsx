@@ -13,15 +13,15 @@ import CourseCreationWizard from "../../Components/CourseCreationWizard";
 import InitialLoader from "../../Components/InitialLoader";
 import LoadingPopup from "../../Components/LoadingPopup";
 import type { Course } from "../../Data/types";
+import type { UserProfile } from "../Auth/logUser";
 import constants from "../../Data/test_data.json";
-import api from "../../Services/api.service";
+import api, { setAuthUser } from "../../Services/api.service";
 import "../../globals.css";
 
 type ProgressRole = "admin" | "manager" | "client";
 
 const PANELS            = ["Course Catalog", "Client Progress"];
-const INITIAL_COURSES   = constants.COURSES   as Course[];
-const INITIAL_ACTIVITIES= constants.ACTIVITIES as Activity[];
+// Test data only used as category fallback — never as course/activity fallback
 const DEFAULT_CATEGORIES= constants.DEFAULT_CATEGORIES;
 
 // ─── DEBUG LOGGER ────────────────────────────────────────────────────────────
@@ -56,29 +56,25 @@ const logWarn = (section: string, msg: string, data?: any) => {
 async function loadDataFromAPI() {
   log('loadDataFromAPI', '▶ Starting full data load');
   try {
-    log('loadDataFromAPI', '📡 Calling api.courses.getAll({ include_templates: true })');
-    const coursesResponse = await api.courses.getAll({ include_templates: true });
+    log('loadDataFromAPI', '📡 Calling api.courses.getAll()');
+    const coursesResponse = await api.courses.getAll();
     log('loadDataFromAPI', '📥 Raw courses response:', coursesResponse);
 
-    const courses = coursesResponse.success && coursesResponse.data?.length
-      ? coursesResponse.data : INITIAL_COURSES;
+    // FIX: return empty array when DB is empty — never fall back to fake test data
+    const courses = coursesResponse.success ? (coursesResponse.data ?? []) : [];
 
     if (!coursesResponse.success) {
       logError('loadDataFromAPI', '❌ courses.getAll() returned success:false', coursesResponse);
     } else if (!coursesResponse.data?.length) {
-      logWarn('loadDataFromAPI', '⚠️ courses.getAll() returned empty array — falling back to INITIAL_COURSES');
+      logWarn('loadDataFromAPI', '⚠️ courses.getAll() returned empty array');
     } else {
-      const byStage = coursesResponse.data.reduce((acc: any, c: any) => {
-        acc[c.stage] = (acc[c.stage] || 0) + 1; return acc;
-      }, {});
-      log('loadDataFromAPI', `✅ Loaded ${coursesResponse.data.length} courses. Stage breakdown:`, byStage);
+      log('loadDataFromAPI', `✅ Loaded ${coursesResponse.data.length} courses`);
     }
 
     log('loadDataFromAPI', '📡 Calling api.activities.getAll()');
     const activitiesResponse = await api.activities.getAll();
     log('loadDataFromAPI', '📥 Raw activities response:', activitiesResponse);
-    const activities = activitiesResponse.success && activitiesResponse.data?.length
-      ? activitiesResponse.data : INITIAL_ACTIVITIES;
+    const activities = activitiesResponse.success ? (activitiesResponse.data ?? []) : [];
 
     log('loadDataFromAPI', '📡 Calling api.settings.getCategories()');
     const categoriesResponse = await api.settings.getCategories();
@@ -90,15 +86,19 @@ async function loadDataFromAPI() {
     return { courses, categories, activities };
   } catch (err) {
     logError('loadDataFromAPI', '❌ Exception thrown', err);
-    return { courses: INITIAL_COURSES, categories: DEFAULT_CATEGORIES, activities: INITIAL_ACTIVITIES };
+    return { courses: [], categories: DEFAULT_CATEGORIES, activities: [] };
   }
 }
 
 interface AdminLearningDashboardProps {
-  onBack?: () => void;
+  onBack?:     () => void;
+  currentUser?: UserProfile;
 }
 
-export default function AdminLearningDashboard({ onBack }: AdminLearningDashboardProps) {
+export default function AdminLearningDashboard({ onBack, currentUser }: AdminLearningDashboardProps) {
+  // FIX: wire real user id into api service before any fetch fires
+  useEffect(() => { if (currentUser?.id) setAuthUser(currentUser.id); }, [currentUser?.id]);
+
   const [progressRole, setProgressRole] = useState<ProgressRole>("admin");
   const [panel, setPanel]               = useState(0);
   const [courses, setCourses]           = useState<Course[]>([]);
@@ -142,14 +142,10 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
       logWarn('STATE', '⚠️ courses state is now EMPTY []');
       return;
     }
-    const byStage = courses.reduce((acc: any, c: any) => {
-      acc[c.stage || 'undefined'] = (acc[c.stage || 'undefined'] || 0) + 1; return acc;
-    }, {});
-    log('STATE', `courses state updated → ${courses.length} total. Stage breakdown:`, byStage);
-    log('STATE', 'Full courses list (id, title, stage, modules):', courses.map((c: any) => ({
+    log('STATE', `courses state updated → ${courses.length} total`);
+    log('STATE', 'Full courses list (id, title, modules):', courses.map((c: any) => ({
       id: c.id,
       title: c.title,
-      stage: c.stage,
       moduleCount: c.modules?.length ?? 0,
     })));
   }, [courses]);
@@ -160,36 +156,24 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
     (async () => {
       try {
         setLoadStage('courses');
-        log('MOUNT', '📡 Calling api.courses.getAll({ include_templates: true })');
+        log('MOUNT', '📡 Calling api.courses.getAll()');
         log('MOUNT', '🔍 api.courses object keys:', Object.keys(api.courses));
 
-        const cr = await api.courses.getAll({ include_templates: true });
+        const cr = await api.courses.getAll();
         log('MOUNT', '📥 Raw getAll response:', cr);
         log('MOUNT', '📥 response.success:', cr.success);
         log('MOUNT', '📥 response.data type:', typeof cr.data);
         log('MOUNT', '📥 response.data length:', cr.data?.length ?? 'undefined');
 
-        let rawCourses: Course[] = INITIAL_COURSES;
+        // FIX: empty DB = empty catalog. Never show fake test data.
+        let rawCourses: Course[] = [];
 
         if (cr.success && cr.data?.length) {
-          const byStage = cr.data.reduce((acc: any, c: any) => {
-            acc[c.stage || 'NO_STAGE'] = (acc[c.stage || 'NO_STAGE'] || 0) + 1; return acc;
-          }, {});
-          log('MOUNT', `✅ Got ${cr.data.length} courses from server. Stage breakdown:`, byStage);
-
-          const templates = cr.data.filter((c: any) => c.stage === 'template');
-          if (templates.length === 0) {
-            logWarn('MOUNT', '⚠️ NO templates found in server response!');
-            logWarn('MOUNT', '💡 Check Network tab → GET /api/courses — does the URL include ?include_templates=true ?');
-          } else {
-            log('MOUNT', `✅ Found ${templates.length} template(s):`, templates.map((t: any) => t.title));
-          }
-
+          log('MOUNT', `✅ Got ${cr.data.length} courses from server`);
           rawCourses = cr.data;
         } else {
-          logWarn('MOUNT', '⚠️ Falling back to INITIAL_COURSES. Reason:');
           if (!cr.success) logError('MOUNT', '  → success was false. Full response:', cr);
-          if (!cr.data?.length) logWarn('MOUNT', '  → data array was empty or undefined');
+          if (cr.success && !cr.data?.length) logWarn('MOUNT', '  → DB returned empty courses array');
         }
 
         // FIX: Set courses immediately so UI renders, but DON'T let usePublishGuard
@@ -233,7 +217,7 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
         setLoadStage('activities');
         const ar = await api.activities.getAll();
         log('MOUNT', '📥 activities response:', ar);
-        setActivities(ar.success && ar.data?.length ? ar.data : INITIAL_ACTIVITIES);
+        setActivities(ar.success ? (ar.data ?? []) : []);
 
         setLoadStage('categories');
         const cat = await api.settings.getCategories();
@@ -244,8 +228,8 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
         log('MOUNT', '✅ All data loaded successfully');
       } catch (err) {
         logError('MOUNT', '❌ Exception during load:', err);
-        setCourses(INITIAL_COURSES);
-        setActivities(INITIAL_ACTIVITIES);
+        setCourses([]);
+        setActivities([]);
         setCategories(DEFAULT_CATEGORIES);
         setModulesHydrated(true); // unblock guard even on error
         setLoadStage('done');
@@ -282,7 +266,7 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
 
   // ── Course handlers ────────────────────────────────────────────────────────
   const handleWizardSave = async (data: Course) => {
-    const draft: Course = { ...data, active: false, stage: "draft" as any };
+    const draft: Course = { ...data, active: false };
     log('WIZARD_SAVE', '▶ handleWizardSave called');
     log('WIZARD_SAVE', '📤 Full draft payload:', draft);
     log('WIZARD_SAVE', '📦 modules in payload:', draft.modules?.length ?? 0, draft.modules);
@@ -375,13 +359,13 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
     }}));
 
     if (isCompleted) setCourses(p => p.map((c, i) => i === idx ? { ...c, progress: 100, enrolled: true, completed: true } : c));
-    setFullCourse(p => p ? { ...p, progress: safeProgress, enrolled: true, completed: isCompleted, time_spent: (p.time_spent ?? 0) + safeTimeSpent } : p);
+    setFullCourse(p => p ? { ...p, progress: safeProgress, enrolled: true, completed: isCompleted, time_spent: ((p as any).time_spent ?? 0) + safeTimeSpent } : p);
 
     if (isCompleted && !cur.completed) {
       setTimeout(() => setShowCompletionStats(true), 300);
       setTimeout(async () => {
-        log('PROGRESS', '📡 Post-completion refresh: calling getAll({ include_templates: true })');
-        const r = await api.courses.getAll({ include_templates: true });
+        log('PROGRESS', '📡 Post-completion refresh: calling getAll()');
+        const r = await api.courses.getAll();
         log('PROGRESS', '📥 Post-completion getAll response:', r);
         if (r.success && r.data) setCourses(r.data);
       }, 1000);
@@ -403,16 +387,33 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
     } catch (err) {
       logError('PROGRESS', '❌ updateProgress threw exception:', err);
     }
+
+    // FIX: write to user_course_progress reporting table with real FK ids
+    try {
+      if (course.id && currentUser?.id) {
+        const today  = new Date().toISOString().split('T')[0];
+        const status = isCompleted ? 'Completed' : 'In Progress';
+        await api.progress.create({
+          user_id:    currentUser!.id,
+          course_id:  course.id,
+          progress:   safeProgress,
+          started:    today,
+          status,
+          time_spent: safeTimeSpent,
+          ...(isCompleted ? { completed: today } : {}),
+        });
+        log('PROGRESS', '✅ user_course_progress written');
+      }
+    } catch (err) {
+      logError('PROGRESS', '❌ user_course_progress write failed:', err);
+    }
   };
 
   const handleResetData = async () => {
     log('RESET', '▶ handleResetData called — reloading from server');
     setServerLoading(true); setServerLoadingMsg("Reloading from server...");
     const data = await loadDataFromAPI();
-    log('RESET', '📥 Reload result:', {
-      courseCount: data.courses.length,
-      stages: data.courses.reduce((a: any, c: any) => { a[c.stage] = (a[c.stage]||0)+1; return a; }, {}),
-    });
+log('RESET', '📥 Reload result:', { courseCount: data.courses.length });
     setCourses(data.courses);
     setCategories(data.categories);
     setActivities(data.activities);
@@ -474,12 +475,12 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
   // ── Course Overview screen ─────────────────────────────────────────────────
   if (showOverview && viewerIdx !== null && fullCourse) {
     return (
-      <>
+      <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
         <CourseOverview course={fullCourse} onStart={startCourse}
           onClose={() => { setShowOverview(false); setViewerIdx(null); setFullCourse(null); }}
           toast={toast}
           progress={fullCourse.progress ?? courseProgress[viewerIdx]?.progress ?? 0}
-          timeSpent={fullCourse.time_spent ?? courseProgress[viewerIdx]?.timeSpent ?? 0}
+          timeSpent={(fullCourse as any).time_spent ?? courseProgress[viewerIdx]?.timeSpent ?? 0}
           enrolled={fullCourse.enrolled ?? courseProgress[viewerIdx]?.enrolled ?? false}
           completed={fullCourse.completed ?? courseProgress[viewerIdx]?.completed ?? false}
           lastAccessed={courseProgress[viewerIdx]?.lastAccessed}
@@ -487,14 +488,14 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
         />
         <Toast msg={msg} visible={visible} />
         <LoadingPopup visible={serverLoading} message={serverLoadingMsg} />
-      </>
+      </div>
     );
   }
 
   // ── Course Viewer screen ───────────────────────────────────────────────────
   if (viewerOpen && viewerIdx !== null && fullCourse) {
     return (
-      <>
+      <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
         <CourseViewer course={fullCourse} onClose={closeViewer}
           onProgress={(p, t, a) => handleProgress(viewerIdx, p, t, a)} toast={toast} />
         <Toast msg={msg} visible={visible} />
@@ -508,23 +509,23 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
               quizScores:        courseProgress[viewerIdx]?.quizScores || [],
               totalAssessments:  fullCourse.modules?.reduce((s, m) => s + m.chapters.filter((c: any) => c.type === 'assessment').length, 0) || 0,
               assessmentScores:  courseProgress[viewerIdx]?.assessmentScores || [],
-              timeSpent:         fullCourse.time_spent || courseProgress[viewerIdx]?.timeSpent || 0,
+              timeSpent:         (fullCourse as any).time_spent || courseProgress[viewerIdx]?.timeSpent || 0,
               completionDate:    courseProgress[viewerIdx]?.completedDate || new Date().toISOString(),
             }}
           />
         )}
-      </>
+      </div>
     );
   }
 
   // ── Course Creation Wizard ─────────────────────────────────────────────────
   if (wizardOpen) {
     return (
-      <>
+      <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
         <CourseCreationWizard categories={categories} setCategories={setCategories} onSave={handleWizardSave} onCancel={() => setWizardOpen(false)} toast={toast} />
         <Toast msg={msg} visible={visible} />
         <LoadingPopup visible={serverLoading} message={serverLoadingMsg} />
-      </>
+      </div>
     );
   }
 
@@ -533,7 +534,7 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
     <>
       {!loaderDone && <InitialLoader stage={loadStage} onComplete={() => setLoaderDone(true)} />}
 
-      <div style={{ position:'fixed', inset:0, background:'#fafaf9', zIndex:800, display:'flex', flexDirection:'column', overflow:'hidden', visibility: loaderDone ? 'visible' : 'hidden' }}>
+      <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', visibility: loaderDone ? 'visible' : 'hidden' }}>
       <style>{`
         :root, .lc-page {
           --purple: #6c3dd6; --purple-d: #4f1eb8; --purple-lt: rgba(108,61,214,0.07);
@@ -629,6 +630,7 @@ export default function AdminLearningDashboard({ onBack }: AdminLearningDashboar
                 onOpenCourse={openViewer}
                 publishedActivities={publishedActivities}
                 modulesHydrated={modulesHydrated}
+                currentUser={currentUser}
               />
             </div>
             <div className="swipe-panel" style={{ width: "100%" }}>

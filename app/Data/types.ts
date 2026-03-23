@@ -37,17 +37,33 @@ export interface Module {
 }
 
 export interface Course {
-  title:       string;
-  desc:        string;
-  time:        string;
-  thumb:       string | null;
-  thumbEmoji?: string | null;
-  cat:         CourseCategory;
-  enrolled:    boolean;
-  progress:    number;
-  active:      boolean;
-  companies?:  string[] | null;
-  modules?:    Module[];
+  // ── Identity ──────────────────────────────────────────
+  id?:          number;        // DB primary key — undefined until saved
+
+  // ── Core fields ───────────────────────────────────────
+  title:        string;
+  desc:         string;
+  time:         string;
+  thumb:        string | null;
+  thumbEmoji?:  string | null;
+  cat:          CourseCategory;
+  active:       boolean;
+
+  // ── Progress / enrollment ──────────────────────────────
+  enrolled:     boolean;
+  progress:     number;        // 0–100
+  completed?:   boolean;
+  time_spent?:  number;        // minutes
+
+  // ── Relations ─────────────────────────────────────────
+  companies?:   number[] | null;  // company IDs from company_course pivot
+  modules?:     Module[];
+
+  // ── Internal cache (not persisted) ────────────────────
+  /** DB id of the matching user_course_progress row — cached to avoid duplicate inserts */
+  _progressId?: number;
+
+  [key: string]: any;
 }
 
 // ── PROGRESS ─────────────────────────────────────────────

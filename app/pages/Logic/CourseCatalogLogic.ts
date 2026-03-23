@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Course, Module } from "../../Data/types";
 import type { Activity } from "../Learning_Module/ActivityBuilderPanel";
+import type { UserProfile } from "../Auth/logUser";
 import api from "../../Services/api.service";
 
 export interface CourseCatalogProps {
@@ -11,6 +12,7 @@ export interface CourseCatalogProps {
   toast:         (msg: string) => void;
   onOpenCourse:  (idx: number) => void;
   publishedActivities: Activity[];
+  currentUser:   UserProfile;   // FIX: required so progress writes carry the real user
 }
 
 export const THUMB_GRADIENTS = [
@@ -64,7 +66,8 @@ export function useCourseCatalog({
   setCourses,
   toast,
   onOpenCourse,
-}: Pick<CourseCatalogProps, "courses" | "setCourses" | "toast" | "onOpenCourse">) {
+  currentUser,
+}: Pick<CourseCatalogProps, "courses" | "setCourses" | "toast" | "onOpenCourse" | "currentUser">) {
   const [search,        setSearch]        = useState("");
   const [activeCat,     setActiveCat]     = useState("All");
   const [statusFilter,  setStatusFilter]  = useState("All");
@@ -87,16 +90,11 @@ export function useCourseCatalog({
   const handleEditSave = async (data: Course) => {
     try {
       if (editIdx !== null) {
-        // UPDATE existing course
         const existingCourse = courses[editIdx];
-        console.log('🔄 Updating course:', existingCourse);
-        console.log('🔄 Course ID:', existingCourse.id);
-        console.log('🔄 Update data:', data);
-        
+        console.log('🔄 Updating course:', existingCourse.id, data);
+
         if (existingCourse.id) {
           const response = await api.courses.update(existingCourse.id, data);
-          console.log('🔄 Update response:', response);
-          
           if (response.success) {
             setCourses(prev => prev.map((c, i) => i === editIdx ? { ...c, ...data } : c));
             toast('Course updated successfully');
@@ -105,24 +103,20 @@ export function useCourseCatalog({
             return;
           }
         } else {
-          console.error('❌ Course has no ID, cannot update in database');
           toast('Cannot update: Course has no ID');
           return;
         }
       } else {
-        // CREATE new course
         const response = await api.courses.create(data);
-        
         if (response.success && response.data) {
-          const newCourse = { ...data, id: response.data.id };
-          setCourses(prev => [...prev, newCourse]);
+          setCourses(prev => [...prev, { ...data, id: response.data!.id }]);
           toast('Course created successfully');
         } else {
           toast(`Error: ${response.error || 'Failed to create course'}`);
           return;
         }
       }
-      
+
       setEditOpen(false);
       setEditIdx(null);
     } catch (error) {
@@ -138,31 +132,29 @@ export function useCourseCatalog({
   };
 
   const confirmDelete = async () => {
-    if (deleteIdx !== null) {
-      const course = courses[deleteIdx];
-      
-      try {
-        if (course.id) {
-          const response = await api.courses.delete(course.id);
-          
-          if (response.success) {
-            toast(`"${course.title}" deleted.`);
-            setCourses(prev => prev.filter((_, i) => i !== deleteIdx));
-          } else {
-            toast(`Error: ${response.error || 'Failed to delete course'}`);
-          }
-        } else {
-          // If no ID, just remove from local state
+    if (deleteIdx === null) return;
+    const course = courses[deleteIdx];
+
+    try {
+      if (course.id) {
+        const response = await api.courses.delete(course.id);
+        if (response.success) {
           toast(`"${course.title}" deleted.`);
           setCourses(prev => prev.filter((_, i) => i !== deleteIdx));
+        } else {
+          toast(`Error: ${response.error || 'Failed to delete course'}`);
         }
-        
-        setDeleteConfirmOpen(false);
-        setDeleteIdx(null);
-      } catch (error) {
-        console.error('Error deleting course:', error);
-        toast('Failed to delete course from server');
+      } else {
+        // No DB id yet — remove from local state only
+        toast(`"${course.title}" deleted.`);
+        setCourses(prev => prev.filter((_, i) => i !== deleteIdx));
       }
+
+      setDeleteConfirmOpen(false);
+      setDeleteIdx(null);
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      toast('Failed to delete course from server');
     }
   };
 
@@ -174,15 +166,11 @@ export function useCourseCatalog({
   // ── SAVE MODULES TO BACKEND ────────────────────────────────────────────────
   const handleModSave = async (idx: number, modules: Module[]) => {
     const course = courses[idx];
-    
-    // Update local state first
     setCourses(prev => prev.map((c, i) => i === idx ? { ...c, modules } : c));
-    
-    // Then save to backend
+
     try {
       if (course.id) {
         const response = await api.courses.updateModules(course.id, modules);
-        
         if (response.success) {
           toast('Modules updated successfully');
         } else {
@@ -197,9 +185,10 @@ export function useCourseCatalog({
 
   /**
    * Called by CourseViewer each time a chapter is completed.
-   * 1. Updates local state immediately (card flips without waiting for network)
-   * 2. Writes progress + time_spent to courses table via CourseController@updateProgress
-   * 3. Writes a row to user_course_progress via ProgressController for reporting
+   *
+   * NOTE: progress write to the courses table is intentionally handled in
+   * page.tsx handleProgress() to avoid double writes. This function only
+   * updates the user_course_progress reporting table.
    */
   const handleCourseProgress = async (
     courseIdx: number,
@@ -212,7 +201,7 @@ export function useCourseCatalog({
     const isCompleted = percent >= 100;
     const isEnrolled  = percent > 0;
 
-    // 1. Update local state immediately so the card shows the right label now
+    // 1. Update local state immediately
     setCourses(prev => prev.map((c, i) =>
       i === courseIdx
         ? {
@@ -225,45 +214,34 @@ export function useCourseCatalog({
         : c
     ));
 
-    // 2. Persist progress to the courses table
+    // 2. Write to user_course_progress for the reporting dashboard
+    // FIX: use currentUser.id + course.id (FKs) — never hardcoded strings
     try {
-      await api.courses.updateProgress(course.id, {
-        progress:   percent,
-        enrolled:   isEnrolled,
-        completed:  isCompleted,
-        time_spent: timeSpent,
-      });
-    } catch (err) {
-      console.error('Failed to persist course progress:', err);
-    }
-
-    // 3. Write to user_course_progress for reporting dashboard
-    try {
-      const status = isCompleted ? 'Completed' : 'In Progress';
       const today  = new Date().toISOString().split('T')[0];
+      const status = isCompleted ? 'Completed' : 'In Progress';
+      const existingProgressId = course._progressId;
 
-      // Check if a progress row already exists for this course
-      const existing = (course as any)._progressId;
-
-      if (existing) {
-        await api.progress.update(existing, {
+      if (existingProgressId) {
+        await api.progress.update(existingProgressId, {
           progress:   percent,
           status,
           time_spent: (course.time_spent ?? 0) + timeSpent,
           ...(isCompleted ? { completed: today } : {}),
         });
       } else {
+        // FIX: upsert is safe — UNIQUE(user_id, course_id) on the table prevents
+        // duplicate rows even if this fires more than once
         const result = await api.progress.create({
-          name:       'Current User',
-          company:    (course.companies?.[0] ?? 'Unknown'),
-          course:     course.title,
+          user_id:    currentUser.id,
+          course_id:  course.id,
           progress:   percent,
           started:    today,
           status,
           time_spent: timeSpent,
           ...(isCompleted ? { completed: today } : {}),
         });
-        // Cache the row id on the course object so future updates hit the same row
+
+        // Cache the returned row id so future updates hit the same row
         if (result.success && result.data?.id) {
           setCourses(prev => prev.map((c, i) =>
             i === courseIdx ? { ...c, _progressId: result.data!.id } : c
