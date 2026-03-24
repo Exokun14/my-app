@@ -19,7 +19,7 @@ interface AIChatProps {
   userName?: string;
 }
 
-const API_BASE = 'http://localhost/api';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000') + '/api';
 
 function getCsrfToken(): string {
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);

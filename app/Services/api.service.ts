@@ -2,7 +2,7 @@
 // DEBUG BUILD — verbose logs on every request to help trace issues.
 // Search for "🔵", "✅", "❌" in the browser console.
 
-const API_BASE_URL = 'http://localhost/api';
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000') + '/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared types
