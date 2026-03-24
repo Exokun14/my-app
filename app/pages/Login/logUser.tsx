@@ -19,7 +19,7 @@ import {
 } from "./loginUtils";
 import RippleCanvas from "../../Effects/RippleCanvas";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost").replace(/\/$/, "");
 
 /* ── User profile shape ──────────────────────────────────── */
 export interface UserProfile {
@@ -157,8 +157,11 @@ export default function LoginAdmin({ onLoginSuccess }: LoginAdminProps) {
   const closeError = () => setErrorVisible(false);
 
   /* ── CSRF bootstrap for Laravel Sanctum ──────────────── */
+  // Use a same-origin Next.js proxy so the browser accepts the Set-Cookie header.
+  // Direct cross-origin requests (frontend on localhost:3000 → backend on 127.0.0.1:8000)
+  // cause the browser to block the XSRF-TOKEN cookie, resulting in a 419.
   const getCsrfCookie = useCallback(
-    () => fetch(`${API_BASE}/sanctum/csrf-cookie`, { credentials: "include" }),
+    () => fetch(`/api/csrf`, { credentials: "include" }),
     []
   );
 
