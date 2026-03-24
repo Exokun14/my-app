@@ -22,6 +22,7 @@ import TicketsPage   from "./pages/Client_Admin/TicketsPage";
 import UsersPage     from "./pages/Client_Admin/UsersPage";
 import SettingsPage  from "./pages/Client_Admin/SettingsPage";
 import LearningCenter from "./pages/Learning_Module/ClientLearningDashboard";
+import AIChat from "./Components/AIChat";
 
 import ClientOverview from "./pages/Dashboard_Admin_Overview/dashboard_overview_users";
 import { Client } from "./pages/Dashboard_Admin_Main/DshAdmFunc";
@@ -84,6 +85,15 @@ export default function Home() {
 
   const navigate = (v: string) => setView(v as CPView);
 
+  // Render global AI chat bubble for all logged-in users
+  const aiChat = userProfile ? (
+    <AIChat
+      userId={userProfile.id}
+      accessLevel={userProfile.accessLevel}
+      userName={userProfile.fullName}
+    />
+  ) : null;
+
   const handleLogout = () => {
     sessionStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(SESSION_PROFILE_KEY);
@@ -128,17 +138,21 @@ export default function Home() {
       );
     }
     return (
-      <DashboardAdmin
-        onClientSelect={handleClientSelect}
-        userProfile={userProfile}
-        onLogout={handleLogout}
-      />
+      <>
+        <DashboardAdmin
+          onClientSelect={handleClientSelect}
+          userProfile={userProfile}
+          onLogout={handleLogout}
+        />
+        {aiChat}
+      </>
     );
   }
 
   /* ── 2b. Client portal (manager | user) ─────────────────── */
   return (
     <>
+      {aiChat}
       {view === "overview"  && <OverviewPage   onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
       {view === "tickets"   && <TicketsPage    onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
       {view === "users"     && <UsersPage      onNavigate={navigate} onLogout={handleLogout} userProfile={userProfile} />}
