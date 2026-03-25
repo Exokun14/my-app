@@ -1,0 +1,160 @@
+{
+  "_comment": "Aria thinking messages — shown while waiting for a response.",
+  "_usage": "Each intent maps to an array of { text, after_seconds }.",
+  "_rules": [
+    "after_seconds = how many seconds into the wait before showing this message",
+    "Messages are shown in order as time passes",
+    "The last message repeats until the response arrives",
+    "Add new intents freely — unknown intents fall back to 'default'",
+    "Keep text short — max ~35 characters for mobile"
+  ],
+
+  "default": [
+    { "text": "Thinking...",              "after_seconds": 0   },
+    { "text": "Just a moment...",         "after_seconds": 8   },
+    { "text": "Working on it...",         "after_seconds": 18  },
+    { "text": "Putting this together...", "after_seconds": 30  },
+    { "text": "Hang tight...",            "after_seconds": 45  },
+    { "text": "Still working...",         "after_seconds": 70  },
+    { "text": "Just a little longer...",  "after_seconds": 100 },
+    { "text": "On its way...",            "after_seconds": 140 }
+  ],
+
+  "greeting": [
+    { "text": "Just a sec...", "after_seconds": 0 }
+  ],
+
+  "capability": [
+    { "text": "Let me think...", "after_seconds": 0 },
+    { "text": "Just a moment...", "after_seconds": 8 }
+  ],
+
+  "learning": [
+    { "text": "Checking your profile...",  "after_seconds": 0  },
+    { "text": "Looking at your courses...", "after_seconds": 10 },
+    { "text": "Almost ready...",           "after_seconds": 25 },
+    { "text": "Just finishing up...",      "after_seconds": 45 }
+  ],
+
+  "today_summary": [
+    { "text": "Checking today's numbers...",    "after_seconds": 0  },
+    { "text": "Pulling live data...",           "after_seconds": 8  },
+    { "text": "Crunching the figures...",       "after_seconds": 20 },
+    { "text": "Putting the summary together...", "after_seconds": 35 },
+    { "text": "Hang tight...",                  "after_seconds": 55 },
+    { "text": "Just finishing up...",           "after_seconds": 80 }
+  ],
+
+  "top_items": [
+    { "text": "Finding the top sellers...",  "after_seconds": 0  },
+    { "text": "Ranking the items...",        "after_seconds": 8  },
+    { "text": "Checking what's selling...", "after_seconds": 18 },
+    { "text": "Sorting by volume...",        "after_seconds": 30 },
+    { "text": "Hang tight...",               "after_seconds": 45 },
+    { "text": "Just finishing up...",        "after_seconds": 70 }
+  ],
+
+  "cashier_perf": [
+    { "text": "Pulling cashier rankings...",       "after_seconds": 0  },
+    { "text": "Checking the team's numbers...",   "after_seconds": 8  },
+    { "text": "Ranking by performance...",        "after_seconds": 18 },
+    { "text": "Who's on top today?",              "after_seconds": 30 },
+    { "text": "Hang tight...",                    "after_seconds": 45 },
+    { "text": "Just finishing up...",             "after_seconds": 70 }
+  ],
+
+  "store_list": [
+    { "text": "Looking up your stores...",   "after_seconds": 0  },
+    { "text": "Fetching branch list...",     "after_seconds": 8  },
+    { "text": "Almost ready...",             "after_seconds": 20 }
+  ],
+
+  "store_compare": [
+    { "text": "Comparing branches...",       "after_seconds": 0  },
+    { "text": "Pulling store data...",       "after_seconds": 8  },
+    { "text": "Ranking the locations...",    "after_seconds": 18 },
+    { "text": "Crunching branch totals...",  "after_seconds": 30 },
+    { "text": "Hang tight...",               "after_seconds": 45 },
+    { "text": "Just finishing up...",        "after_seconds": 70 }
+  ],
+
+  "returns": [
+    { "text": "Checking returns & discounts...", "after_seconds": 0  },
+    { "text": "Pulling refund data...",          "after_seconds": 8  },
+    { "text": "Calculating totals...",           "after_seconds": 18 },
+    { "text": "Hang tight...",                   "after_seconds": 35 },
+    { "text": "Just finishing up...",            "after_seconds": 55 }
+  ],
+
+  "hourly": [
+    { "text": "Looking at hourly breakdown...", "after_seconds": 0  },
+    { "text": "Finding your peak hours...",     "after_seconds": 8  },
+    { "text": "Mapping the day hour by hour...", "after_seconds": 18 },
+    { "text": "Hang tight...",                  "after_seconds": 35 },
+    { "text": "Just finishing up...",           "after_seconds": 55 }
+  ],
+
+  "trend": [
+    { "text": "Reviewing recent days...",     "after_seconds": 0  },
+    { "text": "Mapping the daily trend...",   "after_seconds": 8  },
+    { "text": "Looking at the pattern...",    "after_seconds": 18 },
+    { "text": "Hang tight...",                "after_seconds": 35 },
+    { "text": "Just finishing up...",         "after_seconds": 55 }
+  ],
+
+  "weekly": [
+    { "text": "Pulling this week's numbers...", "after_seconds": 0  },
+    { "text": "Reviewing the week so far...",   "after_seconds": 8  },
+    { "text": "Crunching 7 days of data...",    "after_seconds": 18 },
+    { "text": "Tallying it all up...",          "after_seconds": 30 },
+    { "text": "Hang tight...",                  "after_seconds": 50 },
+    { "text": "Just finishing up...",           "after_seconds": 75 }
+  ],
+
+  "monthly": [
+    { "text": "Pulling monthly totals...",       "after_seconds": 0  },
+    { "text": "Reviewing the month so far...",   "after_seconds": 8  },
+    { "text": "Looking at the big picture...",   "after_seconds": 18 },
+    { "text": "Tallying it all up...",           "after_seconds": 30 },
+    { "text": "Hang tight...",                   "after_seconds": 50 },
+    { "text": "Just finishing up...",            "after_seconds": 75 }
+  ],
+
+  "yearly": [
+    { "text": "Pulling annual data...",          "after_seconds": 0  },
+    { "text": "Reviewing the full year...",      "after_seconds": 10 },
+    { "text": "This is a big one...",            "after_seconds": 25 },
+    { "text": "Tallying everything up...",       "after_seconds": 45 },
+    { "text": "Hang tight...",                   "after_seconds": 70 },
+    { "text": "Just finishing up...",            "after_seconds": 100 }
+  ],
+
+  "cashier_self": [
+    { "text": "Checking your numbers...",     "after_seconds": 0  },
+    { "text": "Looking at your sales...",     "after_seconds": 8  },
+    { "text": "Pulling your performance...",  "after_seconds": 18 },
+    { "text": "Hang tight...",                "after_seconds": 35 },
+    { "text": "Just finishing up...",         "after_seconds": 55 }
+  ],
+
+  "full_report": [
+    { "text": "Gathering all the data...",         "after_seconds": 0   },
+    { "text": "Pulling figures from all branches...", "after_seconds": 10  },
+    { "text": "Compiling top items...",            "after_seconds": 25  },
+    { "text": "Checking cashier rankings...",      "after_seconds": 40  },
+    { "text": "Calculating returns & discounts...", "after_seconds": 55  },
+    { "text": "Building the full report...",       "after_seconds": 75  },
+    { "text": "This is a big one — hang tight...", "after_seconds": 100 },
+    { "text": "Still compiling...",                "after_seconds": 130 },
+    { "text": "Almost done now...",                "after_seconds": 160 },
+    { "text": "Just finishing up...",              "after_seconds": 200 }
+  ],
+
+  "unknown": [
+    { "text": "Let me figure this out...",  "after_seconds": 0  },
+    { "text": "Checking the data...",       "after_seconds": 8  },
+    { "text": "Working on it...",           "after_seconds": 20 },
+    { "text": "Hang tight...",              "after_seconds": 40 },
+    { "text": "Just finishing up...",       "after_seconds": 65 }
+  ]
+}
