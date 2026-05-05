@@ -40,25 +40,33 @@ const THINKING_MESSAGES = Object.fromEntries(
 
 function getThinkingIntent(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes('full report') || m.includes('overview') || m.includes('everything') || m.includes('all data')) return 'full_report';
-  if (m.includes('top item') || m.includes('best sell') || m.includes('most sold')) return 'top_items';
-  if (m.includes('my sales') || m.includes('my performance') || m.includes('how am i doing')) return 'cashier_self';
-  if (m.includes('cashier') || m.includes('staff') || m.includes('performer') || m.includes('ranking')) return 'cashier_perf';
-  if (m.includes('branch') || m.includes('store') || m.includes('location') || m.includes('compar')) {
-    if (m.includes('name') || m.includes('list') || m.includes('all') || m.includes('how many') || m.includes('which') || m.includes('what')) return 'store_list';
-    return 'store_compare';
+  let intent = 'default';
+  if (m.includes('full report') || m.includes('overview') || m.includes('everything') || m.includes('all data')) intent = 'full_report';
+  else if (m.includes('top item') || m.includes('best sell') || m.includes('most sold')) intent = 'top_items';
+  else if (m.includes('my sales') || m.includes('my performance') || m.includes('how am i doing')) intent = 'cashier_self';
+  else if (m.includes('cashier') || m.includes('staff') || m.includes('performer') || m.includes('ranking')) intent = 'cashier_perf';
+  else if (m.includes('branch') || m.includes('store') || m.includes('location') || m.includes('compar')) {
+    if (m.includes('name') || m.includes('list') || m.includes('all') || m.includes('how many') || m.includes('which') || m.includes('what')) intent = 'store_list';
+    else intent = 'store_compare';
   }
-  if (m.includes('return') || m.includes('refund') || m.includes('discount')) return 'returns';
-  if (m.includes('hour') || m.includes('peak')) return 'hourly';
-  if (m.includes('trend') || m.includes('daily') || m.includes('last few days')) return 'trend';
-  if (m.includes('this year') || m.includes('annual') || m.includes('yearly')) return 'yearly';
-  if (m.includes('this month') || m.includes('monthly')) return 'monthly';
-  if (m.includes('this week') || m.includes('weekly') || m.includes('last 7')) return 'weekly';
-  if (m.includes('today') || m.includes('sales') || m.includes('revenue') || m.includes('transaction')) return 'today_summary';
-  if (m.includes('course') || m.includes('learn') || m.includes('training') || m.includes('lesson')) return 'learning';
-  if (m.includes('hello') || m.includes('hi ') || m.includes('hey') || m.includes('good morning') || m.includes('good afternoon')) return 'greeting';
-  if (m.includes('what can you') || m.includes('help me') || m.includes('what do you')) return 'capability';
-  return 'default';
+  else if (m.includes('return') || m.includes('refund') || m.includes('discount')) intent = 'returns';
+  else if (m.includes('hour') || m.includes('peak')) intent = 'hourly';
+  else if (m.includes('trend') || m.includes('daily') || m.includes('last few days')) intent = 'trend';
+  else if (m.includes('this year') || m.includes('annual') || m.includes('yearly')) intent = 'yearly';
+  else if (m.includes('this month') || m.includes('monthly')) intent = 'monthly';
+  else if (m.includes('this week') || m.includes('weekly') || m.includes('last 7')) intent = 'weekly';
+  else if (m.includes('today') || m.includes('sales') || m.includes('revenue') || m.includes('transaction')) intent = 'today_summary';
+  else if (m.includes('course') || m.includes('learn') || m.includes('training') || m.includes('lesson')) intent = 'learning';
+  else if (m.includes('hello') || m.includes('hi ') || m.includes('hey') || m.includes('good morning') || m.includes('good afternoon')) intent = 'greeting';
+  else if (m.includes('what can you') || m.includes('help me') || m.includes('what do you')) intent = 'capability';
+
+  console.log(
+    `%c[Aria Intent] %c"${message.slice(0, 60)}${message.length > 60 ? '…' : ''}" %c→ ${intent}`,
+    'color:#7c3aed;font-weight:bold',
+    'color:#2d2555',
+    'color:#0d9488;font-weight:bold',
+  );
+  return intent;
 }
 
 function getThinkingEntries(message: string): ThinkingEntry[] {
@@ -74,25 +82,67 @@ function getCsrfToken(): string {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
-async function apiCall(endpoint: string, method = 'GET', body?: object, timeoutMs = 600000) {
+// makeApiCall is the core fetcher. userId/accessLevel are passed explicitly
+// so the component props are always used as the primary source of truth.
+// sessionStorage is only used as a fallback (e.g. if called outside the component).
+async function makeApiCall(
+  endpoint: string,
+  method = 'GET',
+  body?: object,
+  timeoutMs = 600000,
+  authOverride?: { userId: number; accessLevel: string },
+) {
+  const _s  = 'color:#7c3aed;font-weight:bold';
+  const _ok = 'color:#0d9488;font-weight:bold';
+  const _w  = 'color:#f59e0b;font-weight:bold';
+  const _e  = 'color:#ef4444;font-weight:bold';
+  const _d  = 'color:#a89cc8';
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   };
-  try {
-    const raw = sessionStorage.getItem('gx_user_profile');
-    if (raw) {
-      const p = JSON.parse(raw);
-      if (p?.id)          headers['X-User-Id']      = String(p.id);
-      if (p?.accessLevel) headers['X-Access-Level'] = p.accessLevel;
-    }
-  } catch {}
+
+  // Primary: use explicitly passed auth values
+  let authSource = 'none';
+  if (authOverride?.userId) {
+    headers['X-User-Id']      = String(authOverride.userId);
+    headers['X-Access-Level'] = authOverride.accessLevel ?? 'user';
+    authSource = 'prop';
+  } else {
+    // Fallback: try sessionStorage (legacy path)
+    try {
+      const raw = sessionStorage.getItem('gx_user_profile');
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.id)          headers['X-User-Id']      = String(p.id);
+        if (p?.accessLevel) headers['X-Access-Level'] = p.accessLevel;
+        authSource = 'sessionStorage';
+      }
+    } catch {}
+  }
+
   const csrf = getCsrfToken();
-  if (csrf && method !== 'GET') headers['X-XSRF-TOKEN'] = csrf;
+  const hasCsrf = !!(csrf && method !== 'GET');
+  if (hasCsrf) headers['X-XSRF-TOKEN'] = csrf;
+
+  // ── Verbose request log ──────────────────────────────────────────────────
+  console.group(`%c[Aria API] %c${method} ${endpoint}`, _s, _ok);
+  console.log('%cAuth source:', _d, authSource,
+    '| User-Id:', headers['X-User-Id'] ?? '—',
+    '| Access-Level:', headers['X-Access-Level'] ?? '—');
+  console.log('%cCSRF:', _d, hasCsrf ? '✅ attached' : '⚠️ none (GET or missing cookie)');
+  console.log('%cTimeout:', _d, `${(timeoutMs / 1000).toFixed(0)}s`);
+  if (body) console.log('%cPayload:', _d, body);
+  console.groupEnd();
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => {
+    console.warn(`%c[Aria API] ⏱ Timeout after ${timeoutMs / 1000}s — aborting ${method} ${endpoint}`, _w);
+    controller.abort();
+  }, timeoutMs);
 
+  const t0 = Date.now();
   try {
     const res = await fetch(`${API_BASE}${endpoint}`, {
       method,
@@ -101,7 +151,32 @@ async function apiCall(endpoint: string, method = 'GET', body?: object, timeoutM
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
-    return res.json();
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+
+    if (!res.ok) {
+      console.group(`%c[Aria API] ❌ HTTP ${res.status} — ${method} ${endpoint}  (+${elapsed}s)`, _e);
+      console.log('%cStatus text:', _d, res.statusText);
+      console.log('%cHeaders:', _d, Object.fromEntries(res.headers.entries()));
+      console.groupEnd();
+    } else {
+      console.log(`%c[Aria API] ✅ ${res.status} — ${method} ${endpoint}  (+${elapsed}s)`, _ok);
+    }
+
+    const json = await res.json();
+
+    if (json?.error || json?.message) {
+      console.warn(`%c[Aria API] ⚠️ Server message on ${endpoint}:`, _w, json.error ?? json.message);
+    }
+
+    return json;
+  } catch (err: any) {
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+    if (err?.name === 'AbortError') {
+      console.error(`%c[Aria API] 🚫 Request aborted (timeout) — ${method} ${endpoint}  (+${elapsed}s)`, _e);
+    } else {
+      console.error(`%c[Aria API] 💥 Fetch error — ${method} ${endpoint}  (+${elapsed}s)`, _e, err?.message ?? err);
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -308,18 +383,46 @@ export default function AIChat({ userId, accessLevel, userName }: AIChatProps) {
     ? userName.split(' ').map((p: string) => p[0]).slice(0, 2).join('').toUpperCase()
     : 'U';
 
+  // Convenience wrapper — always injects the component's own userId/accessLevel
+  const apiCall = useCallback(
+    (endpoint: string, method = 'GET', body?: object, timeoutMs = 600000) =>
+      makeApiCall(endpoint, method, body, timeoutMs, { userId, accessLevel }),
+    [userId, accessLevel],
+  );
+
   // Load history + suggestions on mount
   useEffect(() => {
     if (historyLoaded) return;
     setHistoryLoaded(true);
+
+    const _s = 'color:#7c3aed;font-weight:bold';
+    const _ok = 'color:#0d9488;font-weight:bold';
+    const _w = 'color:#f59e0b;font-weight:bold';
+
+    console.log('%c[Aria Init] Loading history + suggestions…', _s,
+      '| userId:', userId, '| accessLevel:', accessLevel);
+
     apiCall('/ai/chat/history').then(r => {
-      if (r.success && Array.isArray(r.data)) setMessages(r.data);
-    }).catch(() => {});
+      if (r.success && Array.isArray(r.data)) {
+        console.log(`%c[Aria Init] ✅ History loaded — ${r.data.length} message(s)`, _ok);
+        setMessages(r.data);
+      } else {
+        console.warn('%c[Aria Init] ⚠️ History response unexpected:', _w, r);
+      }
+    }).catch((e) => {
+      console.error('%c[Aria Init] ❌ Failed to load history:', 'color:#ef4444;font-weight:bold', e?.message ?? e);
+    });
+
     apiCall('/ai/chat/suggestions').then(r => {
       if (r.success && Array.isArray(r.data) && r.data.length > 0) {
+        console.log(`%c[Aria Init] ✅ Suggestions loaded — ${r.data.length} item(s):`, _ok, r.data);
         setSuggestions(r.data.slice(0, 3));
+      } else {
+        console.warn('%c[Aria Init] ⚠️ Suggestions response unexpected (using defaults):', _w, r);
       }
-    }).catch(() => {});
+    }).catch((e) => {
+      console.warn('%c[Aria Init] ⚠️ Failed to load suggestions (using defaults):', _w, e?.message ?? e);
+    });
   }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
@@ -351,31 +454,45 @@ export default function AIChat({ userId, accessLevel, userName }: AIChatProps) {
     const style      = 'color:#7c3aed;font-weight:bold';
     const styleStage = 'color:#0d9488;font-weight:bold';
     const styleTime  = 'color:#f59e0b';
+    const styleErr   = 'color:#ef4444;font-weight:bold';
+
+    const isFullReport = /full report|overview|everything|all data/i.test(trimmed);
+    const timeoutMs    = isFullReport ? 600000 : 300000;
+
+    console.group(`%c[Aria Send] New message`, style);
+    console.log('%cText:', styleStage, trimmed);
+    console.log('%cSession:', styleStage, sid);
+    console.log('%cUser ID:', styleStage, userId, '| Access Level:', accessLevel);
+    console.log('%cDetected full-report:', styleTime, isFullReport ? '⚡ Yes — 600s timeout' : 'No — 300s timeout');
+    console.groupEnd();
 
     // ── Open SSE stream for console-only stage logging ──────────────────────
     let sseSource: EventSource | null = null;
     try {
-      const profile = JSON.parse(sessionStorage.getItem('gx_user_profile') ?? '{}');
-      const uid     = profile?.id ?? userId;
-      const al      = profile?.accessLevel ?? accessLevel;
-      const sseUrl  = `${API_BASE}/ai/chat/stream?session_id=${sid}&user_id=${uid}&access_level=${al}`;
+      const sseUrl = `${API_BASE}/ai/chat/stream?session_id=${sid}&user_id=${userId}&access_level=${accessLevel}`;
+      console.log('%c[Aria SSE] Opening stream…', style, sseUrl);
 
       sseSource = new EventSource(sseUrl);
 
       sseSource.addEventListener('connected', () => {
-        console.group('%c[Aria SSE] Stream opened', style);
+        console.group('%c[Aria SSE] ✅ Stream connected', style);
         console.log('%cSession:', styleStage, sid);
         console.log('%cMessage:', styleStage, trimmed.slice(0, 80));
         console.groupEnd();
       });
 
       sseSource.addEventListener('stage', (e: MessageEvent) => {
-        const d       = JSON.parse(e.data);
-        const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
-        console.log(
-          `%c[Aria SSE] %c${d.label}%c  (+${elapsed}s)  [${d.intent_label ?? d.intent}]`,
-          style, styleStage, styleTime
-        );
+        try {
+          const d       = JSON.parse(e.data);
+          const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+          console.log(
+            `%c[Aria SSE] %c${d.label}%c  (+${elapsed}s)  [${d.intent_label ?? d.intent ?? '?'}]`,
+            style, styleStage, styleTime,
+          );
+          if (d.detail) console.log('%c  ↳ detail:', styleTime, d.detail);
+        } catch {
+          console.warn('%c[Aria SSE] ⚠️ Could not parse stage event:', styleTime, e.data);
+        }
       });
 
       sseSource.addEventListener('heartbeat', () => {
@@ -390,52 +507,72 @@ export default function AIChat({ userId, accessLevel, userName }: AIChatProps) {
       });
 
       sseSource.addEventListener('timeout', () => {
-        console.warn('%c[Aria SSE] ⏱ Stream timed out', style);
+        const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+        console.warn(`%c[Aria SSE] ⏱ Stream timed out  +${elapsed}s`, styleErr);
         sseSource?.close();
       });
 
-      sseSource.onerror = () => {
-        // SSE errors are non-fatal — chat still works
+      sseSource.addEventListener('error_event', (e: MessageEvent) => {
+        console.error('%c[Aria SSE] 🔴 Server error event:', styleErr, e.data);
+      });
+
+      sseSource.onerror = (e) => {
+        const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+        console.warn(`%c[Aria SSE] ⚠️ SSE connection error (non-fatal)  +${elapsed}s`, styleTime, e);
         sseSource?.close();
       };
-    } catch {
-      // SSE not critical — chat works without it
+    } catch (sseErr: any) {
+      console.warn('%c[Aria SSE] ⚠️ Failed to open SSE stream (non-fatal):', styleTime, sseErr?.message ?? sseErr);
     }
 
     try {
-      const isFullReport = /full report|overview|everything|all data/i.test(trimmed);
-      const timeoutMs    = isFullReport ? 600000 : 300000;
-
+      console.log(`%c[Aria API] ➡ POST /ai/chat — waiting for response…`, style);
       const r = await apiCall('/ai/chat', 'POST', { message: trimmed, session_id: sid }, timeoutMs);
+      const total = ((Date.now() - startTs) / 1000).toFixed(1);
 
       // Close SSE stream
       sseSource?.close();
 
+      // Log full raw response (collapsed)
+      console.groupCollapsed(`%c[Aria Debug] Raw response  (+${total}s)`, style);
+      console.log(r);
+      console.groupEnd();
+
       // Log debug info to console
       if (r._debug) {
-        const d     = r._debug;
-        const total = ((Date.now() - startTs) / 1000).toFixed(1);
-        console.group('%c[Aria Debug] Response received', style);
-        console.log('%cIntent:',        styleStage, d.intent_label ?? d.intent);
-        console.log('%cData Sources:',  styleStage, d.data_sources ?? 'n/a');
-        console.log('%cQueries Run:',   styleStage, d.queries_run ?? 0);
-        console.log('%cOllama Time:',   styleTime,  `${d.elapsed_s}s`);
-        console.log('%cTotal Time:',    styleTime,  `${total}s`);
-        console.log('%cPrompt Size:',   styleStage, `${d.prompt_chars} chars`);
-        console.log('%cInstant:',       styleStage, d.is_instant ? '⚡ Yes' : 'No');
+        const d = r._debug;
+        console.group('%c[Aria Debug] Performance breakdown', style);
+        console.log('%cIntent:',         styleStage, d.intent_label ?? d.intent ?? '—');
+        console.log('%cData Sources:',   styleStage, d.data_sources ?? 'n/a');
+        console.log('%cQueries Run:',    styleStage, d.queries_run ?? 0);
+        console.log('%cModel:',          styleStage, d.model ?? '—');
+        console.log('%cOllama Time:',    styleTime,  `${d.elapsed_s ?? '?'}s`);
+        console.log('%cTotal Time:',     styleTime,  `${total}s`);
+        console.log('%cPrompt Size:',    styleStage, `${d.prompt_chars ?? '?'} chars`);
+        console.log('%cInstant reply:',  styleStage, d.is_instant ? '⚡ Yes' : 'No');
+        console.log('%cCache hit:',      styleStage, d.cache_hit ? '✅ Yes' : 'No');
         console.groupEnd();
+      } else {
+        console.warn('%c[Aria Debug] ⚠️ No _debug block in response — backend may not be sending it', styleTime);
       }
 
       if (r.reply) {
+        console.log(`%c[Aria Debug] ✅ Reply received — ${r.reply.length} chars`, styleStage);
         setMessages(prev => [...prev, { role: 'assistant', content: r.reply, created_at: new Date().toISOString() }]);
       } else {
+        console.error('%c[Aria Debug] ❌ No reply field in response:', styleErr, r);
         throw new Error(r.error ?? 'No reply received');
       }
     } catch (err: any) {
       sseSource?.close();
+      const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
       const isTimeout = err?.name === 'AbortError';
       setLastFailedMsg(trimmed);
-      console.error('%c[Aria Debug] ❌ Error:', style, err?.message ?? err);
+      console.group(`%c[Aria Debug] ❌ ${isTimeout ? 'Timeout' : 'Error'}  (+${elapsed}s)`, styleErr);
+      console.error('Name:', err?.name);
+      console.error('Message:', err?.message ?? err);
+      if (err?.stack) console.error('Stack:', err.stack);
+      console.groupEnd();
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: isTimeout
@@ -448,10 +585,11 @@ export default function AIChat({ userId, accessLevel, userName }: AIChatProps) {
       setLoading(false);
       setCurrentMsg('');
     }
-  }, [loading]);
+  }, [loading, apiCall, userId, accessLevel]);
 
   const handleRetry = () => {
     if (!lastFailedMsg) return;
+    console.log('%c[Aria Retry] Retrying last failed message:', 'color:#7c3aed;font-weight:bold', lastFailedMsg);
     setMessages(prev => prev.filter((_, i) => i !== prev.length - 1));
     sendMessage(lastFailedMsg);
   };
@@ -461,13 +599,17 @@ export default function AIChat({ userId, accessLevel, userName }: AIChatProps) {
   };
 
   const handleClear = async () => {
+    console.log('%c[Aria Clear] Clearing chat history…', 'color:#7c3aed;font-weight:bold');
     setClearing(true);
     try {
       await apiCall('/ai/chat/clear', 'POST');
+      console.log('%c[Aria Clear] ✅ History cleared', 'color:#0d9488;font-weight:bold');
       setMessages([]);
       setLastFailedMsg(null);
       setShowClearConfirm(false);
-    } catch {}
+    } catch (e: any) {
+      console.error('%c[Aria Clear] ❌ Failed to clear history:', 'color:#ef4444;font-weight:bold', e?.message ?? e);
+    }
     setClearing(false);
   };
 
